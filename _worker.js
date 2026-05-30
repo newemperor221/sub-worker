@@ -491,7 +491,8 @@ async function handleRequest(request, env) {
 
   // ====== Base64 ======
   if (search.includes('b64')) {
-    const vlessList = lines.map(l => l.trim()).join('\n');
+    // 清理空值的 flow 参数（某些客户端如 NekoBox 会报 unknown version: 72）
+    const vlessList = lines.map(l => l.trim().replace(/[?&]flow=(&|$)/g, '$1')).join('\n');
     const b64 = encodeBase64(vlessList);
     return new Response(b64, {
       headers: {
