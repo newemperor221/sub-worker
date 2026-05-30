@@ -628,37 +628,15 @@ async function handleRequest(request, env) {
       };
       const target = formatMap[format] || 'clash';
 
-      const converterUrl = `${config.subProtocol}://${config.subConverter}/sub?target=${target}` +
+      // 302 redirect to subconverter - client fetches directly, avoids CF loop
+      const redirectUrl = `${config.subProtocol}://${config.subConverter}/sub?target=${target}` +
         `&url=${encodeURIComponent(aggUrl)}` +
         `&insert=false` +
         `&config=${encodeURIComponent(config.subConfig)}` +
         `&emoji=true&list=false&tfo=false&scv=true&fdn=false&sort=false&new_name=true`;
 
       try {
-        const resp = await getUrl(request, converterUrl, ua);
-        if (!resp.ok) {
-          return new Response(renderError(`转换后端返回 ${resp.status}`), {
-            headers: { 'Content-Type': 'text/html;charset=utf-8' }
-          });
-        }
-        let content = await resp.text();
-        
-        // Fix Clash WireGuard configs
-        if (format === 'clash') {
-          content = clashFix(content);
-        }
-
-        const response = new Response(content, {
-          headers: {
-            'Content-Type': 'text/plain;charset=utf-8',
-            'Profile-Update-Interval': String(config.SUBUpdateTime),
-            'Cache-Control': 'no-store',
-          }
-        });
-        if (!isBrowser) {
-          response.headers.set('Content-Disposition', `attachment; filename*=utf-8''${encodeURIComponent(config.SUBNAME)}.${format}`);
-        }
-        return response;
+        return Response.redirect(redirectUrl, 302);
       } catch (e) {
         return new Response(renderError(`订阅转换失败: ${e.message}`), {
           headers: { 'Content-Type': 'text/html;charset=utf-8' }
