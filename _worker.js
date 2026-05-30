@@ -25,10 +25,7 @@ function convertVlessToClashProxy(urlStr) {
 
     // 如果 flow 为空则删掉
     const flow = allParams.get('flow') || '';
-    let mode = allParams.get('mode') || '';
-
-    // mode=auto → packet-up（mihomo 兼容）
-    if (mode === 'auto') mode = 'packet-up';
+    const mode = allParams.get('mode') || '';
 
     // 节点名：优先用 URL 片段（#香港），否则用 hostname
     const remark = url.hash ? decodeURIComponent(url.hash.replace(/^#/, '')) : url.hostname;
@@ -197,7 +194,9 @@ function formatProxyOpts(p) {
     parts.push(', flow: "' + p.flow + '"');
   }
   if (p['xhttp-opts']) {
-    parts.push(', xhttp-opts: { mode: "' + p['xhttp-opts'].mode + '", path: "' + p['xhttp-opts'].path + '" }');
+    // mihomo 不认 mode=auto，转 packet-up；Shadowrocket 不受影响（走 Base64 原始链接）
+    const clashMode = p['xhttp-opts'].mode === 'auto' ? 'packet-up' : p['xhttp-opts'].mode;
+    parts.push(', xhttp-opts: { mode: "' + clashMode + '", path: "' + p['xhttp-opts'].path + '" }');
   }
   return parts.join('');
 }
