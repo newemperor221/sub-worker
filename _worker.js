@@ -92,6 +92,7 @@ function convertVlessToClashProxy(urlStr) {
 
 // ==================== Clash YAML 生成 ====================
 function generateClashYaml(proxies, subName) {
+  const proxyNames = proxies.map(p => '"' + p.name + '"').join(', ');
   const yamlLines = [
     '# 订阅: ' + subName,
     'port: 7890',
@@ -99,7 +100,26 @@ function generateClashYaml(proxies, subName) {
     'allow-lan: true',
     'mode: rule',
     'log-level: info',
+    'ipv6: false',
     'external-controller: 127.0.0.1:9090',
+    'find-process-mode: strict',
+    '',
+    'dns:',
+    '  enable: true',
+    '  ipv6: false',
+    '  enhanced-mode: fake-ip',
+    '  fake-ip-range: 198.18.0.1/16',
+    '  nameserver:',
+    '    - 223.5.5.5',
+    '    - 119.29.29.29',
+    '  fallback:',
+    '    - https://dns.google/dns-query',
+    '    - https://1.1.1.1/dns-query',
+    '  fallback-filter:',
+    '    geoip: true',
+    '    geoip-code: CN',
+    '    ipcidr:',
+    '      - 240.0.0.0/4',
     '',
     'proxies:',
   ];
@@ -110,7 +130,8 @@ function generateClashYaml(proxies, subName) {
 
   yamlLines.push('');
   yamlLines.push('proxy-groups:');
-  yamlLines.push('  - {name: "Proxy", type: select, proxies: [DIRECT, ' + proxies.map(p => '"' + p.name + '"').join(', ') + ']}');
+  yamlLines.push('  - {name: "Proxy", type: select, proxies: [Auto, DIRECT, ' + proxyNames + ']}');
+  yamlLines.push('  - {name: "Auto", type: url-test, proxies: [' + proxyNames + '], url: "http://www.gstatic.com/generate_204", interval: 300}');
   yamlLines.push('');
   yamlLines.push('rules:');
   yamlLines.push('  - RULE-SET,reject,REJECT');
