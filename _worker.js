@@ -482,7 +482,7 @@ async function handleRequest(request, env) {
     return new Response(yaml, {
       headers: {
         'Content-Type': 'text/yaml; charset=utf-8',
-        'content-disposition': 'inline; filename="' + config.subName + '"',
+        'content-disposition': 'inline; filename="' + config.subName + '"; filename*=UTF-8\'\'' + encodeURIComponent(config.subName),
         'profile-title': config.subName,
         'profile-update-interval': '6',
       },
@@ -496,7 +496,7 @@ async function handleRequest(request, env) {
     return new Response(b64, {
       headers: {
         'Content-Type': 'text/plain; charset=utf-8',
-        'content-disposition': 'inline; filename="' + config.subName + '"',
+        'content-disposition': 'inline; filename="' + config.subName + '"; filename*=UTF-8\'\'' + encodeURIComponent(config.subName),
         'profile-title': config.subName,
         'profile-update-interval': '6',
       },
