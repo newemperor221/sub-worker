@@ -25,10 +25,16 @@ function convertVlessToClashProxy(urlStr) {
 
     // 如果 flow 为空则删掉
     const flow = allParams.get('flow') || '';
-    const mode = allParams.get('mode') || '';
+    let mode = allParams.get('mode') || '';
+
+    // mode=auto → packet-up（mihomo 兼容）
+    if (mode === 'auto') mode = 'packet-up';
+
+    // 节点名：优先用 URL 片段（#香港），否则用 hostname
+    const remark = url.hash ? decodeURIComponent(url.hash.replace(/^#/, '')) : url.hostname;
 
     const proxy = {
-      name: url.hostname,
+      name: remark,
       type: 'vless',
       server: url.hostname,
       port: parseInt(url.port) || 443,
