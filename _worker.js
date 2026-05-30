@@ -90,34 +90,61 @@ function convertVlessToClashProxy(urlStr) {
   }
 }
 
-// ==================== Clash YAML 生成 ====================
+// ==================== Clash YAML 生成（mihomo 最佳实践） ====================
 function generateClashYaml(proxies, subName) {
   const proxyNames = proxies.map(p => '"' + p.name + '"').join(', ');
   const yamlLines = [
     '# 订阅: ' + subName,
-    'port: 7890',
-    'socks-port: 7891',
+    '# mihomo (Clash Meta) 最佳实践配置',
+    '# 适用于中国大陆代理场景',
+    '',
+    'mixed-port: 7890',
     'allow-lan: true',
+    'bind-address: "*"',
     'mode: rule',
     'log-level: info',
     'ipv6: false',
     'external-controller: 127.0.0.1:9090',
     'find-process-mode: strict',
+    'geodata-mode: true',
+    'geodata-loader: memconservative',
+    'tcp-concurrent: true',
+    'unified-delay: true',
+    'global-ua: clash.meta',
+    '',
+    'geox-url:',
+    '  geoip: "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geoip.dat"',
+    '  geosite: "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geosite.dat"',
+    '  mmdb: "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/country.mmdb"',
+    '',
+    'profile:',
+    '  store-selected: true',
+    '  store-fake-ip: true',
     '',
     'dns:',
     '  enable: true',
     '  ipv6: false',
+    '  listen: 0.0.0.0:53',
     '  enhanced-mode: fake-ip',
     '  fake-ip-range: 198.18.0.1/16',
-    '  nameserver:',
+    '  fake-ip-filter:',
+    '    - "*.lan"',
+    '    - "*.local"',
+    '    - "+.stun.*.*"',
+    '    - "lens.l.google.com"',
+    '  default-nameserver:',
     '    - 223.5.5.5',
-    '    - 119.29.29.29',
+    '  nameserver:',
+    '    - https://doh.pub/dns-query',
+    '    - https://dns.alidns.com/dns-query',
     '  fallback:',
-    '    - https://dns.google/dns-query',
-    '    - https://1.1.1.1/dns-query',
+    '    - tls://8.8.4.4',
+    '    - tls://1.1.1.1',
     '  fallback-filter:',
     '    geoip: true',
     '    geoip-code: CN',
+    '    geosite:',
+    '      - gfw',
     '    ipcidr:',
     '      - 240.0.0.0/4',
     '',
@@ -131,77 +158,18 @@ function generateClashYaml(proxies, subName) {
   yamlLines.push('');
   yamlLines.push('proxy-groups:');
   yamlLines.push('  - {name: "Proxy", type: select, proxies: [Auto, DIRECT, ' + proxyNames + ']}');
-  yamlLines.push('  - {name: "Auto", type: url-test, proxies: [' + proxyNames + '], url: "http://www.gstatic.com/generate_204", interval: 300}');
+  yamlLines.push('  - {name: "Auto", type: url-test, proxies: [' + proxyNames + '], url: "http://www.gstatic.com/generate_204", interval: 300, tolerance: 50}');
+  yamlLines.push('  - {name: "AdBlock", type: select, proxies: [REJECT, DIRECT]}');
   yamlLines.push('');
   yamlLines.push('rules:');
-  yamlLines.push('  - RULE-SET,reject,REJECT');
-  yamlLines.push('  - RULE-SET,icloud,DIRECT');
-  yamlLines.push('  - RULE-SET,apple,DIRECT');
-  yamlLines.push('  - RULE-SET,google,Proxy');
-  yamlLines.push('  - RULE-SET,proxy,Proxy');
-  yamlLines.push('  - RULE-SET,direct,DIRECT');
-  yamlLines.push('  - RULE-SET,lancidr,DIRECT');
-  yamlLines.push('  - RULE-SET,cncidr,DIRECT');
-  yamlLines.push('  - RULE-SET,telegramcidr,Proxy');
+  yamlLines.push('  - GEOSITE,category-ads-all,AdBlock');
+  yamlLines.push('  - GEOSITE,gfw,Proxy');
+  yamlLines.push('  - GEOSITE,geolocation-!cn,Proxy');
+  yamlLines.push('  - GEOSITE,cn,DIRECT');
+  yamlLines.push('  - GEOIP,telegram,Proxy');
   yamlLines.push('  - GEOIP,CN,DIRECT');
   yamlLines.push('  - MATCH,Proxy');
   yamlLines.push('');
-  yamlLines.push('rule-providers:');
-  yamlLines.push('  reject:');
-  yamlLines.push('    type: http');
-  yamlLines.push('    behavior: domain');
-  yamlLines.push('    url: "https://raw.githubusercontent.com/Loyalsoldier/clash-rules@release/reject.txt"');
-  yamlLines.push('    path: ./ruleset/reject.yaml');
-  yamlLines.push('    interval: 86400');
-  yamlLines.push('  icloud:');
-  yamlLines.push('    type: http');
-  yamlLines.push('    behavior: domain');
-  yamlLines.push('    url: "https://raw.githubusercontent.com/Loyalsoldier/clash-rules@release/icloud.txt"');
-  yamlLines.push('    path: ./ruleset/icloud.yaml');
-  yamlLines.push('    interval: 86400');
-  yamlLines.push('  apple:');
-  yamlLines.push('    type: http');
-  yamlLines.push('    behavior: domain');
-  yamlLines.push('    url: "https://raw.githubusercontent.com/Loyalsoldier/clash-rules@release/apple.txt"');
-  yamlLines.push('    path: ./ruleset/apple.yaml');
-  yamlLines.push('    interval: 86400');
-  yamlLines.push('  google:');
-  yamlLines.push('    type: http');
-  yamlLines.push('    behavior: domain');
-  yamlLines.push('    url: "https://raw.githubusercontent.com/Loyalsoldier/clash-rules@release/google.txt"');
-  yamlLines.push('    path: ./ruleset/google.yaml');
-  yamlLines.push('    interval: 86400');
-  yamlLines.push('  proxy:');
-  yamlLines.push('    type: http');
-  yamlLines.push('    behavior: domain');
-  yamlLines.push('    url: "https://raw.githubusercontent.com/Loyalsoldier/clash-rules@release/proxy.txt"');
-  yamlLines.push('    path: ./ruleset/proxy.yaml');
-  yamlLines.push('    interval: 86400');
-  yamlLines.push('  direct:');
-  yamlLines.push('    type: http');
-  yamlLines.push('    behavior: domain');
-  yamlLines.push('    url: "https://raw.githubusercontent.com/Loyalsoldier/clash-rules@release/direct.txt"');
-  yamlLines.push('    path: ./ruleset/direct.yaml');
-  yamlLines.push('    interval: 86400');
-  yamlLines.push('  lancidr:');
-  yamlLines.push('    type: http');
-  yamlLines.push('    behavior: ipcidr');
-  yamlLines.push('    url: "https://raw.githubusercontent.com/Loyalsoldier/clash-rules@release/lancidr.txt"');
-  yamlLines.push('    path: ./ruleset/lancidr.yaml');
-  yamlLines.push('    interval: 86400');
-  yamlLines.push('  cncidr:');
-  yamlLines.push('    type: http');
-  yamlLines.push('    behavior: ipcidr');
-  yamlLines.push('    url: "https://raw.githubusercontent.com/Loyalsoldier/clash-rules@release/cncidr.txt"');
-  yamlLines.push('    path: ./ruleset/cncidr.yaml');
-  yamlLines.push('    interval: 86400');
-  yamlLines.push('  telegramcidr:');
-  yamlLines.push('    type: http');
-  yamlLines.push('    behavior: ipcidr');
-  yamlLines.push('    url: "https://raw.githubusercontent.com/Loyalsoldier/clash-rules@release/telegramcidr.txt"');
-  yamlLines.push('    path: ./ruleset/telegramcidr.yaml');
-  yamlLines.push('    interval: 86400');
-
   return yamlLines.join('\n');
 }
 
