@@ -1,743 +1,508 @@
 // ==UserScript==
-// CF-Workers-SUB - 美观版 | 支持二维码、暗色主题、环境变量全配置
+// Sub Worker — 订阅聚合与转换 | 暗色玻璃面板 | 无后端依赖
 // ==/UserScript==
-
-// ==================== 默认配置（环境变量会覆盖） ====================
-const DEFAULT_CONFIG = {
-  mytoken: 'auto',
-  guestToken: '',
-  SUBNAME: 'MyNodes',
-  SUBUpdateTime: 6,
-  total: 99,
-  timestamp: 4102329600000,
-  MainData: '',
-  subConverter: '',
-  subConfig: 'https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_MultiCountry.ini',
-  subProtocol: 'https',
-};
 
 // ==================== 环境变量加载 ====================
 function loadConfig(env) {
   return {
-    mytoken: env?.TOKEN || DEFAULT_CONFIG.mytoken,
-    guestToken: env?.GUEST || env?.GUESTTOKEN || DEFAULT_CONFIG.guestToken,
-    BotToken: env?.TGTOKEN || '',
-    ChatID: env?.TGID || '',
-    TG: env?.TG || 0,
-    SUBNAME: env?.SUBNAME || DEFAULT_CONFIG.SUBNAME,
-    SUBUpdateTime: parseInt(env?.SUBUPTIME) || DEFAULT_CONFIG.SUBUpdateTime,
-    total: parseInt(env?.TOTAL) || DEFAULT_CONFIG.total,
-    timestamp: parseInt(env?.TIMESTAMP) || DEFAULT_CONFIG.timestamp,
-    MainData: env?.LINK || DEFAULT_CONFIG.MainData,
-    subConverter: env?.SUBAPI || DEFAULT_CONFIG.subConverter,
-    subConfig: env?.SUBCONFIG || DEFAULT_CONFIG.subConfig,
-    subProtocol: DEFAULT_CONFIG.subProtocol,
-    URL302: env?.URL302 || '',
-    URL: env?.URL || '',
-    WARP: env?.WARP || '',
+    token: env?.TOKEN || '',
+    link: env?.LINK || '',
+    subName: env?.SUBNAME || '自用',
   };
 }
 
-// ==================== 辅助函数 ====================
-const encoder = new TextEncoder();
-const decoder = new TextDecoder();
-
-async function MD5MD5(text) {
-  const firstPass = await crypto.subtle.digest('MD5', encoder.encode(text));
-  const firstHex = Array.from(new Uint8Array(firstPass)).map(b => b.toString(16).padStart(2, '0')).join('');
-  const secondPass = await crypto.subtle.digest('MD5', encoder.encode(firstHex.slice(7, 27)));
-  return Array.from(new Uint8Array(secondPass)).map(b => b.toString(16).padStart(2, '0')).join('').toLowerCase();
-}
-
-async function getUrl(request, url, ua) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 5000);
+// ==================== VLESS → Clash 代理转换 ====================
+function convertVlessToClashProxy(urlStr) {
   try {
-    const resp = await fetch(url, {
-      signal: controller.signal,
-      headers: { 'User-Agent': ua || 'Mozilla/5.0' },
-    });
-    return resp;
-  } finally {
-    clearTimeout(timeout);
+    const url = new URL(urlStr);
+    const params = new URLSearchParams(url.search.replace(/^&/, ''));
+    const hash = url.hash ? new URLSearchParams(url.hash.replace(/^#/, '')) : new URLSearchParams();
+
+    // 合并 search 和 hash 参数
+    const allParams = new URLSearchParams();
+    for (const [k, v] of params) allParams.set(k, v);
+    for (const [k, v] of hash) allParams.set(k, v);
+
+    // 如果 flow 为空则删掉
+    const flow = allParams.get('flow') || '';
+    const mode = allParams.get('mode') || '';
+
+    const proxy = {
+      name: url.hostname,
+      type: 'vless',
+      server: url.hostname,
+      port: parseInt(url.port) || 443,
+      uuid: url.username,
+      network: 'tcp',
+      tls: true,
+      'skip-cert-verify': true,
+      servername: allParams.get('sni') || url.hostname,
+    };
+
+    // network 类型
+    let network = allParams.get('type') || 'tcp';
+    proxy.network = network;
+
+    // Reality
+    if (url.protocol.includes('reality') || allParams.get('security') === 'reality') {
+      proxy['reality-opts'] = {
+        'public-key': allParams.get('pbk') || '',
+        'short-id': allParams.get('sid') || '',
+      };
+      proxy['client-fingerprint'] = allParams.get('fp') || 'chrome';
+    }
+
+    // flow（只保留非空值，Reality XTLS 用）
+    if (flow && flow !== 'none') {
+      proxy.flow = flow;
+    }
+
+    // XHTTP / XTLS / gRPC
+    if (network === 'xhttp') {
+      proxy['xhttp-opts'] = {
+        mode: mode || 'packet-up',
+        path: allParams.get('path') || '/',
+      };
+      proxy.flow = '';
+    } else if (network === 'grpc') {
+      proxy['grpc-opts'] = {
+        'grpc-service-name': allParams.get('serviceName') || '',
+      };
+    } else if (network === 'ws') {
+      proxy['ws-opts'] = {
+        path: allParams.get('path') || '/',
+        headers: allParams.get('host') ? { Host: allParams.get('host') } : undefined,
+      };
+    } else if (network === 'tcp' && allParams.get('security') === 'reality') {
+      proxy['reality-opts'] = {
+        'public-key': allParams.get('pbk') || '',
+        'short-id': allParams.get('sid') || '',
+      };
+      proxy['client-fingerprint'] = allParams.get('fp') || 'chrome';
+    }
+
+    return proxy;
+  } catch {
+    return null;
   }
 }
 
+// ==================== Clash YAML 生成 ====================
+function generateClashYaml(proxies, subName) {
+  const yamlLines = [
+    '# 订阅: ' + subName,
+    'port: 7890',
+    'socks-port: 7891',
+    'allow-lan: true',
+    'mode: rule',
+    'log-level: info',
+    'external-controller: 127.0.0.1:9090',
+    '',
+    'proxies:',
+  ];
+
+  for (const p of proxies) {
+    yamlLines.push('  - {name: "' + p.name + '", type: ' + p.type + ', server: "' + p.server + '", port: ' + p.port + ', uuid: "' + p.uuid + '", network: "' + p.network + '", tls: ' + p.tls + ', "skip-cert-verify": true, servername: "' + p.servername + '"' + formatProxyOpts(p) + '}');
+  }
+
+  yamlLines.push('');
+  yamlLines.push('proxy-groups:');
+  yamlLines.push('  - {name: "Proxy", type: select, proxies: [DIRECT, ' + proxies.map(p => '"' + p.name + '"').join(', ') + ']}');
+  yamlLines.push('');
+  yamlLines.push('rules:');
+  yamlLines.push('  - RULE-SET,reject,REJECT');
+  yamlLines.push('  - RULE-SET,icloud,DIRECT');
+  yamlLines.push('  - RULE-SET,apple,DIRECT');
+  yamlLines.push('  - RULE-SET,google,DIRECT');
+  yamlLines.push('  - RULE-SET,proxy,Proxy');
+  yamlLines.push('  - RULE-SET,direct,DIRECT');
+  yamlLines.push('  - RULE-SET,lancidr,DIRECT');
+  yamlLines.push('  - RULE-SET,cncidr,DIRECT');
+  yamlLines.push('  - RULE-SET,telegramcidr,Proxy');
+  yamlLines.push('  - GEOIP,CN,DIRECT');
+  yamlLines.push('  - MATCH,Proxy');
+  yamlLines.push('');
+  yamlLines.push('rule-providers:');
+  yamlLines.push('  reject:');
+  yamlLines.push('    type: http');
+  yamlLines.push('    behavior: domain');
+  yamlLines.push('    url: "https://cdn.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/reject.txt"');
+  yamlLines.push('    path: ./ruleset/reject.yaml');
+  yamlLines.push('    interval: 86400');
+  yamlLines.push('  icloud:');
+  yamlLines.push('    type: http');
+  yamlLines.push('    behavior: domain');
+  yamlLines.push('    url: "https://cdn.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/icloud.txt"');
+  yamlLines.push('    path: ./ruleset/icloud.yaml');
+  yamlLines.push('    interval: 86400');
+  yamlLines.push('  apple:');
+  yamlLines.push('    type: http');
+  yamlLines.push('    behavior: domain');
+  yamlLines.push('    url: "https://cdn.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/apple.txt"');
+  yamlLines.push('    path: ./ruleset/apple.yaml');
+  yamlLines.push('    interval: 86400');
+  yamlLines.push('  google:');
+  yamlLines.push('    type: http');
+  yamlLines.push('    behavior: domain');
+  yamlLines.push('    url: "https://cdn.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/google.txt"');
+  yamlLines.push('    path: ./ruleset/google.yaml');
+  yamlLines.push('    interval: 86400');
+  yamlLines.push('  proxy:');
+  yamlLines.push('    type: http');
+  yamlLines.push('    behavior: domain');
+  yamlLines.push('    url: "https://cdn.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/proxy.txt"');
+  yamlLines.push('    path: ./ruleset/proxy.yaml');
+  yamlLines.push('    interval: 86400');
+  yamlLines.push('  direct:');
+  yamlLines.push('    type: http');
+  yamlLines.push('    behavior: domain');
+  yamlLines.push('    url: "https://cdn.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/direct.txt"');
+  yamlLines.push('    path: ./ruleset/direct.yaml');
+  yamlLines.push('    interval: 86400');
+  yamlLines.push('  lancidr:');
+  yamlLines.push('    type: http');
+  yamlLines.push('    behavior: ipcidr');
+  yamlLines.push('    url: "https://cdn.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/lancidr.txt"');
+  yamlLines.push('    path: ./ruleset/lancidr.yaml');
+  yamlLines.push('    interval: 86400');
+  yamlLines.push('  cncidr:');
+  yamlLines.push('    type: http');
+  yamlLines.push('    behavior: ipcidr');
+  yamlLines.push('    url: "https://cdn.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/cncidr.txt"');
+  yamlLines.push('    path: ./ruleset/cncidr.yaml');
+  yamlLines.push('    interval: 86400');
+  yamlLines.push('  telegramcidr:');
+  yamlLines.push('    type: http');
+  yamlLines.push('    behavior: ipcidr');
+  yamlLines.push('    url: "https://cdn.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/telegramcidr.txt"');
+  yamlLines.push('    path: ./ruleset/telegramcidr.yaml');
+  yamlLines.push('    interval: 86400');
+
+  return yamlLines.join('\n');
+}
+
+function formatProxyOpts(p) {
+  const parts = [];
+  if (p['reality-opts']) {
+    parts.push(', reality-opts: { "public-key": "' + p['reality-opts']['public-key'] + '", "short-id": "' + p['reality-opts']['short-id'] + '" }');
+    parts.push(', client-fingerprint: "' + (p['client-fingerprint'] || 'chrome') + '"');
+  }
+  if (p.flow) {
+    parts.push(', flow: "' + p.flow + '"');
+  }
+  if (p['xhttp-opts']) {
+    parts.push(', xhttp-opts: { mode: "' + p['xhttp-opts'].mode + '", path: "' + p['xhttp-opts'].path + '" }');
+  }
+  return parts.join('');
+}
+
+// ==================== Base64 生成 ====================
 function encodeBase64(str) {
   return btoa(unescape(encodeURIComponent(str)));
 }
 
-function decodeBase64(str) {
-  try {
-    return decodeURIComponent(escape(atob(str)));
-  } catch {
-    return atob(str);
-  }
-}
-
-// ==================== HTML 前端页面 ====================
-function renderDashboard(config, nodes, subUrl, kvAvailable) {
-  const token = config.mytoken;
-  const guest = config.guestToken || (token ? '' : '');
-  const baseUrl = `https://${subUrl}`;
-  
-  // Build all subscription links
-  const links = {};
-  const formats = [
-    { key: 'clash', label: 'Clash / Meta', icon: '⚔️', tip: 'Clash Verge, Clash Meta 等' },
-    { key: 'singbox', label: 'Sing-box', icon: '📦', tip: 'sing-box, SFI 等' },
-    { key: 'surge', label: 'Surge', icon: '🌊', tip: 'Surge 4+' },
-    { key: 'quanx', label: 'Quantumult X', icon: '🐧', tip: 'Quantumult X' },
-    { key: 'loon', label: 'Loon', icon: '🌙', tip: 'Loon' },
-    { key: 'b64', label: 'Base64', icon: '📄', tip: '通用 / Shadowrocket / v2rayNG' },
-  ];
-  
-  formats.forEach(f => {
-    const param = f.key === 'b64' ? '' : `?${f.key}`;
-    links[f.key] = `${baseUrl}/${token}${param}`;
-  });
-  
-  const guestLink = guest ? `${baseUrl}/sub?token=${guest}` : null;
-  const nodeCount = nodes.length || 0;
+// ==================== 管理面板 ====================
+function renderDashboard(config, proxies, baseUrl) {
+  const links = {
+    clash: baseUrl + '/' + config.token + '?clash',
+    b64: baseUrl + '/' + config.token + '?b64',
+  };
 
   return `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>订阅管理器 - ${config.SUBNAME}</title>
+<title>订阅管理器 · ${config.subName}</title>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
-
+* { margin:0; padding:0; box-sizing:border-box; }
 :root {
-  --bg-deep: #050510;
-  --bg-surface: #0a0e1a;
-  --bg-card: rgba(255,255,255,0.05);
-  --bg-card-hover: rgba(255,255,255,0.08);
+  --bg: #050510;
+  --card: rgba(255,255,255,0.05);
+  --card-hover: rgba(255,255,255,0.08);
   --border: rgba(255,255,255,0.10);
-  --border-hover: rgba(16,185,129,0.25);
   --accent: #10b981;
   --accent2: #818cf8;
-  --accent-gradient: linear-gradient(135deg, #10b981, #818cf8);
+  --grad: linear-gradient(135deg, #10b981, #818cf8);
   --text: #f0fdf4;
-  --text-secondary: rgba(240,253,244,0.65);
-  --text-muted: rgba(240,253,244,0.40);
-  --danger: #ef4444;
+  --text2: rgba(240,253,244,0.6);
+  --text3: rgba(240,253,244,0.35);
   --radius: 14px;
-  --radius-sm: 8px;
-  --blur: blur(24px) saturate(140%);
+  --rs: 8px;
 }
-
-* { margin:0; padding:0; box-sizing:border-box; }
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  background: var(--bg-deep);
-  color: var(--text);
-  min-height: 100vh;
-  line-height: 1.6;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--bg); color: var(--text); min-height: 100vh; line-height: 1.6;
 }
-.bg-layer {
+.bg {
   position: fixed; inset:0; z-index:-1;
-  background: radial-gradient(ellipse 80% 60% at 50% -20%, rgba(16,185,129,0.08), transparent),
-              radial-gradient(ellipse 60% 50% at 80% 100%, rgba(129,140,248,0.06), transparent);
+  background:
+    radial-gradient(ellipse 80% 60% at 50% -20%, rgba(16,185,129,0.08), transparent),
+    radial-gradient(ellipse 60% 50% at 80% 100%, rgba(129,140,248,0.05), transparent);
 }
-.container { max-width: 1000px; margin:0 auto; padding: 2rem 1.5rem; }
-
-/* Header */
-.header {
-  text-align: center; margin-bottom: 2.5rem;
+.c { max-width: 720px; margin:0 auto; padding: 2rem 1.5rem; }
+.hd { text-align: center; margin-bottom: 2rem; }
+.hd h1 {
+  font-size: 1.8rem; font-weight: 700;
+  background: var(--grad); -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  margin-bottom: 0.4rem;
 }
-.header h1 {
-  font-size: 2rem; font-weight: 800;
-  background: var(--accent-gradient);
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-  background-clip: text;
-  margin-bottom: 0.5rem;
-}
-.header p { color: var(--text-secondary); font-size: 0.95rem; }
-.header .badge {
+.hd p { color: var(--text2); font-size: 0.9rem; }
+.badge {
   display: inline-flex; align-items: center; gap: 6px;
-  margin-top: 0.75rem; padding: 4px 14px;
-  border-radius: 999px; font-size: 0.8rem; font-weight: 500;
+  margin-top: 0.6rem; padding: 3px 12px;
+  border-radius: 999px; font-size: 0.78rem;
   background: rgba(16,185,129,0.12);
   border: 1px solid rgba(16,185,129,0.2);
   color: var(--accent);
 }
-
-/* Card */
 .card {
-  background: var(--bg-card);
-  backdrop-filter: var(--blur);
-  -webkit-backdrop-filter: var(--blur);
+  background: var(--card);
+  backdrop-filter: blur(24px) saturate(140%);
+  -webkit-backdrop-filter: blur(24px) saturate(140%);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 1.5rem;
-  margin-bottom: 1.25rem;
+  margin-bottom: 1rem;
   transition: border-color 0.2s, background 0.2s;
 }
-.card:hover { border-color: var(--border-hover); background: var(--bg-card-hover); }
-.card-title {
-  font-size: 0.85rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;
-  color: var(--text-muted); margin-bottom: 1rem;
-  display: flex; align-items: center; gap: 8px;
+.card:hover { border-color: rgba(16,185,129,0.2); background: var(--card-hover); }
+.ct {
+  font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--text3); margin-bottom: 1rem;
 }
-
-/* Subscription links */
-.sub-item {
+.si {
   display: flex; align-items: center; gap: 12px;
-  padding: 0.85rem 1rem;
-  background: rgba(0,0,0,0.2);
-  border-radius: var(--radius-sm);
+  padding: 0.8rem 1rem;
+  background: rgba(0,0,0,0.25);
+  border-radius: var(--rs);
   border: 1px solid var(--border);
   margin-bottom: 8px;
-  transition: all 0.2s;
   cursor: pointer;
-  position: relative;
+  transition: all 0.2s;
 }
-.sub-item:hover {
-  border-color: var(--accent);
-  background: rgba(16,185,129,0.06);
-}
-.sub-item .icon { font-size: 1.3rem; flex-shrink:0; }
-.sub-item .info { flex:1; min-width:0; }
-.sub-item .info .label { font-size: 0.9rem; font-weight: 600; }
-.sub-item .info .desc { font-size: 0.75rem; color: var(--text-muted); }
-.sub-item .info .url {
-  font-size: 0.75rem; color: var(--text-secondary);
+.si:hover { border-color: var(--accent); background: rgba(16,185,129,0.05); }
+.si .ic { font-size: 1.3rem; flex-shrink:0; }
+.si .inf { flex:1; min-width:0; }
+.si .inf .lb { font-size: 0.88rem; font-weight: 600; }
+.si .inf .ds { font-size: 0.73rem; color: var(--text3); }
+.si .inf .url {
+  font-size: 0.73rem; color: var(--text2);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  max-width: 400px;
+  max-width: 350px;
 }
-.sub-item .actions { display: flex; gap: 6px; flex-shrink:0; }
+.si .ac { display: flex; gap: 6px; flex-shrink:0; }
 .btn {
-  display: inline-flex; align-items: center; justify-content: center; gap: 4px;
-  padding: 6px 14px; border-radius: var(--radius-sm);
-  font-size: 0.8rem; font-weight: 500;
-  border: none; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px;
+  border-radius: var(--rs);
+  border: 1px solid var(--border);
+  background: transparent; color: var(--text2);
+  cursor: pointer; font-size: 0.95rem;
   transition: all 0.2s;
   text-decoration: none;
-  font-family: inherit;
 }
-.btn-primary { background: var(--accent); color: #000; }
-.btn-primary:hover { background: #0d9668; transform: translateY(-1px); }
-.btn-secondary { background: rgba(255,255,255,0.08); color: var(--text); }
-.btn-secondary:hover { background: rgba(255,255,255,0.14); transform: translateY(-1px); }
-.btn-icon {
-  width: 34px; height: 34px; padding: 0;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  background: transparent; color: var(--text-secondary);
-  cursor: pointer; transition: all 0.2s;
-  display: inline-flex; align-items: center; justify-content: center;
-  font-size: 1rem;
-}
-.btn-icon:hover { color: var(--accent); border-color: var(--accent); background: rgba(16,185,129,0.08); }
-
-/* Stats grid */
-.stats-grid {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 12px; margin-bottom: 1.25rem;
-}
-.stat-card {
-  background: var(--bg-card);
-  backdrop-filter: var(--blur);
-  -webkit-backdrop-filter: var(--blur);
+.btn:hover { color: var(--accent); border-color: var(--accent); background: rgba(16,185,129,0.08); }
+.stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 1rem; }
+.sc {
+  background: var(--card);
+  backdrop-filter: blur(24px) saturate(140%);
+  -webkit-backdrop-filter: blur(24px) saturate(140%);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 1rem 1.2rem;
+  padding: 0.9rem 1.2rem;
   text-align: center;
-  transition: border-color 0.2s;
 }
-.stat-card:hover { border-color: var(--border-hover); }
-.stat-card .num {
-  font-size: 1.6rem; font-weight: 700;
-  background: var(--accent-gradient);
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-.stat-card .lbl { font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; }
+.sc .n { font-size: 1.5rem; font-weight: 700; background: var(--grad); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.sc .l { font-size: 0.7rem; color: var(--text3); margin-top: 2px; }
 
 /* QR Modal */
-.modal-overlay {
+.mo {
   display: none; position: fixed; inset:0; z-index:1000;
   background: rgba(0,0,0,0.7);
   backdrop-filter: blur(8px);
   align-items: center; justify-content: center;
 }
-.modal-overlay.active { display: flex; }
-.modal {
-  background: var(--bg-surface);
+.mo.on { display: flex; }
+.m {
+  background: #0a0e1a;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 2rem;
-  max-width: 400px; width: 90%;
+  max-width: 380px; width: 90%;
   text-align: center;
 }
-.modal h3 { margin-bottom: 0.5rem; }
-.modal img { width: 240px; height: 240px; margin: 1rem auto; border-radius: var(--radius-sm); display:block; }
-.modal .close-btn {
+.m img { width: 220px; height: 220px; margin: 1rem auto; border-radius: var(--rs); display:block; }
+.m .t { font-size: 0.75rem; color: var(--text3); word-break: break-all; }
+.m .cb {
   margin-top: 1rem; padding: 8px 24px;
   background: rgba(255,255,255,0.08); color: var(--text);
-  border: 1px solid var(--border); border-radius: var(--radius-sm);
-  cursor: pointer; font-size: 0.9rem; font-family: inherit;
-  transition: background 0.2s;
+  border: 1px solid var(--border); border-radius: var(--rs);
+  cursor: pointer; font-size: 0.85rem; font-family: inherit;
 }
-.modal .close-btn:hover { background: rgba(255,255,255,0.14); }
+.m .cb:hover { background: rgba(255,255,255,0.14); }
 
-/* Config info */
-.config-grid {
-  display: grid; grid-template-columns: auto 1fr;
-  gap: 6px 16px; font-size: 0.85rem;
-}
-.config-grid .key { color: var(--text-muted); white-space: nowrap; }
-.config-grid .value { color: var(--text-secondary); word-break: break-all; }
-
-/* Toast */
-.toast {
+#toast {
   position: fixed; bottom: 2rem; left: 50%; transform: translateX(-50%) translateY(100px);
-  background: var(--bg-card); backdrop-filter: var(--blur);
+  background: var(--card); backdrop-filter: blur(24px);
   border: 1px solid var(--accent);
-  border-radius: var(--radius-sm);
+  border-radius: var(--rs);
   padding: 10px 20px;
   color: var(--text);
-  font-size: 0.85rem;
-  opacity: 0; transition: all 0.4s ease;
+  font-size: 0.82rem;
+  opacity: 0; transition: all 0.35s ease;
   z-index: 2000;
+  pointer-events: none;
 }
-.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+#toast.on { opacity: 1; transform: translateX(-50%) translateY(0); }
 
 @media (max-width: 640px) {
-  .container { padding: 1rem; }
-  .sub-item { flex-wrap: wrap; }
-  .sub-item .info .url { max-width: 200px; }
-  .header h1 { font-size: 1.5rem; }
-  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .c { padding: 1rem; }
+  .si .inf .url { max-width: 180px; }
 }
 </style>
 </head>
 <body>
-<div class="bg-layer"></div>
-
-<div class="container">
-  <div class="header">
-    <h1>🌐 订阅管理器</h1>
-    <p>${config.SUBNAME} · 一键导入 · 多格式支持</p>
-    <div class="badge">${nodeCount} 个节点 · ${formats.length} 种格式</div>
+<div class="bg"></div>
+<div class="c">
+  <div class="hd">
+    <h1>🌐 订阅</h1>
+    <p>${config.subName}</p>
+    <div class="badge">${proxies.length} 节点 · 2 种格式</div>
   </div>
 
-  <!-- Stats -->
-  <div class="stats-grid">
-    <div class="stat-card"><div class="num">${nodeCount}</div><div class="lbl">节点数量</div></div>
-    <div class="stat-card"><div class="num">${formats.length}</div><div class="lbl">输出格式</div></div>
-    <div class="stat-card"><div class="num">${config.SUBUpdateTime}h</div><div class="lbl">更新间隔</div></div>
-    <div class="stat-card"><div class="num">${config.subConverter ? '✅' : '❌'}</div><div class="lbl">转换后端</div></div>
+  <div class="stats">
+    <div class="sc"><div class="n">${proxies.length}</div><div class="l">节点数量</div></div>
+    <div class="sc"><div class="n">2</div><div class="l">输出格式</div></div>
   </div>
 
-  <!-- Subscription Links -->
   <div class="card">
-    <div class="card-title">📡 订阅链接 · 点击复制</div>
-    ${formats.map(f => `
-    <div class="sub-item" onclick="copyUrl('${f.key}')">
-      <span class="icon">${f.icon}</span>
-      <div class="info">
-        <div class="label">${f.label}</div>
-        <div class="desc">${f.tip}</div>
-        <div class="url" id="url-${f.key}">${links[f.key]}</div>
+    <div class="ct">📡 订阅链接</div>
+    <div class="si" onclick="cp('clash')">
+      <span class="ic">⚔️</span>
+      <div class="inf">
+        <div class="lb">Clash / Meta</div>
+        <div class="ds">Clash Verge, Clash Meta 等</div>
+        <div class="url" id="u-clash">${links.clash}</div>
       </div>
-      <div class="actions">
-        <button class="btn-icon" onclick="event.stopPropagation();showQR('${links[f.key]}', '${f.label}')" title="二维码">📱</button>
-        <a class="btn-icon" href="${links[f.key]}" target="_blank" onclick="event.stopPropagation()" title="打开">🔗</a>
-        <button class="btn-icon" onclick="event.stopPropagation();copyUrl('${f.key}')" title="复制">📋</button>
+      <div class="ac">
+        <button class="btn" onclick="event.stopPropagation();qr('${links.clash}','Clash')" title="二维码">📱</button>
+        <button class="btn" onclick="event.stopPropagation();cp('clash')" title="复制">📋</button>
       </div>
     </div>
-    `).join('')}
-    ${guestLink ? `
-    <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
-      <div class="card-title" style="margin-bottom:0.5rem">👤 访客订阅</div>
-      <div class="sub-item" onclick="copyText('${guestLink}')">
-        <span class="icon">👤</span>
-        <div class="info">
-          <div class="label">访客订阅</div>
-          <div class="url">${guestLink}</div>
-        </div>
-        <button class="btn-icon" onclick="event.stopPropagation();showQR('${guestLink}','访客订阅')" title="二维码">📱</button>
+    <div class="si" onclick="cp('b64')">
+      <span class="ic">📄</span>
+      <div class="inf">
+        <div class="lb">Base64</div>
+        <div class="ds">通用 / Shadowrocket / v2rayNG</div>
+        <div class="url" id="u-b64">${links.b64}</div>
+      </div>
+      <div class="ac">
+        <button class="btn" onclick="event.stopPropagation();qr('${links.b64}','Base64')" title="二维码">📱</button>
+        <button class="btn" onclick="event.stopPropagation();cp('b64')" title="复制">📋</button>
       </div>
     </div>
-    ` : ''}
   </div>
 
-  <!-- Config Display -->
   <div class="card">
-    <div class="card-title">⚙️ 当前配置</div>
-    <div class="config-grid">
-      <span class="key">TOKEN</span><span class="value">${config.mytoken}</span>
-      <span class="key">SUBAPI</span><span class="value">${config.subConverter || '未设置'}</span>
-      <span class="key">SUBNAME</span><span class="value">${config.SUBNAME}</span>
-      <span class="key">SUBCONFIG</span><span class="value" style="font-size:0.75rem">${config.subConfig?.substring(0,80)}${config.subConfig?.length > 80 ? '...' : ''}</span>
-      <span class="key">SUBUPTIME</span><span class="value">${config.SUBUpdateTime}h</span>
-    </div>
-  </div>
-
-  <!-- Node List -->
-  <div class="card">
-    <div class="card-title">📋 节点列表 (${nodeCount})</div>
-    ${nodes.length > 0 ? `
-    <div style="font-size:0.8rem;color:var(--text-secondary);max-height:200px;overflow-y:auto">
-      ${nodes.map(n => `<div style="padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.04)">${n}</div>`).join('')}
-    </div>
-    ` : '<div style="color:var(--text-muted);font-size:0.85rem">暂无节点数据 — 请配置 LINK 环境变量</div>'}
+    <div class="ct">📋 节点列表 (${proxies.length})</div>
+    ${proxies.map(n => '<div style="padding:5px 0;font-size:0.82rem;color:var(--text2);border-bottom:1px solid rgba(255,255,255,0.04)">' + n.name + ' · ' + n.server + ':' + n.port + '</div>').join('')}
   </div>
 </div>
 
-<!-- QR Modal -->
-<div class="modal-overlay" id="qrModal">
-  <div class="modal">
-    <h3 id="qrTitle">二维码</h3>
-    <img id="qrImage" src="" alt="QR Code">
-    <p style="font-size:0.8rem;color:var(--text-muted);word-break:break-all" id="qrLink"></p>
-    <button class="close-btn" onclick="closeQR()">关闭</button>
+<div class="mo" id="qrModal">
+  <div class="m">
+    <h4 id="qrTitle" style="margin-bottom:0.3rem">二维码</h4>
+    <img id="qrImg" src="" alt="QR">
+    <p class="t" id="qrLink"></p>
+    <button class="cb" onclick="cq()">关闭</button>
   </div>
 </div>
 
-<!-- Toast -->
-<div class="toast" id="toast"></div>
+<div id="toast"></div>
 
 <script>
-function copyUrl(key) {
-  const url = document.getElementById('url-' + key).textContent;
-  copyText(url);
-}
-function copyText(text) {
-  navigator.clipboard.writeText(text).then(() => {
-    showToast('✅ 已复制到剪贴板');
-  }).catch(() => {
-    // Fallback
-    const ta = document.createElement('textarea');
-    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
-    document.body.appendChild(ta); ta.select();
-    document.execCommand('copy'); document.body.removeChild(ta);
-    showToast('✅ 已复制到剪贴板');
+function cp(k) {
+  const u = document.getElementById('u-'+k).textContent;
+  navigator.clipboard.writeText(u).then(function(){t('✅ 已复制')}).catch(function(){
+    const ta=document.createElement('textarea');ta.value=u;ta.style.position='fixed';ta.style.opacity='0';
+    document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);t('✅ 已复制');
   });
 }
-function showQR(url, name) {
-  document.getElementById('qrTitle').textContent = name + ' 二维码';
-  document.getElementById('qrImage').src = 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=' + encodeURIComponent(url);
-  document.getElementById('qrLink').textContent = url;
-  document.getElementById('qrModal').classList.add('active');
+function qr(u,n) {
+  document.getElementById('qrTitle').textContent = n + ' 二维码';
+  document.getElementById('qrImg').src = 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data='+encodeURIComponent(u);
+  document.getElementById('qrLink').textContent = u;
+  document.getElementById('qrModal').classList.add('on');
 }
-function closeQR() {
-  document.getElementById('qrModal').classList.remove('active');
-}
-document.getElementById('qrModal').addEventListener('click', function(e) {
-  if (e.target === this) closeQR();
-});
-document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeQR(); });
-
-function showToast(msg) {
-  const t = document.getElementById('toast');
-  t.textContent = msg; t.classList.add('show');
-  clearTimeout(t._timer); t._timer = setTimeout(() => t.classList.remove('show'), 2500);
+function cq() { document.getElementById('qrModal').classList.remove('on'); }
+document.getElementById('qrModal').addEventListener('click', function(e) { if(e.target===this) cq(); });
+document.addEventListener('keydown', function(e) { if(e.key==='Escape') cq(); });
+function t(m) {
+  const el=document.getElementById('toast');
+  el.textContent=m; el.classList.add('on');
+  clearTimeout(el._t); el._t=setTimeout(function(){el.classList.remove('on')},2500);
 }
 </script>
 </body>
 </html>`;
 }
 
-// ==================== Nginx 欢迎页（未授权时显示） ====================
-function renderLandingPage() {
-  return `<!DOCTYPE html>
-<html lang="zh-CN">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>订阅服务</title>
-<style>
-*{margin:0;padding:0;box-sizing:border-box;}
-body{
-  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
-  background:#050510;color:#f0fdf4;min-height:100vh;
-  display:flex;align-items:center;justify-content:center;
-  background: radial-gradient(ellipse 80% 60% at 50% -20%, rgba(16,185,129,0.08), transparent);
-}
-.card{
-  text-align:center;padding:3rem 2rem;
-  background:rgba(255,255,255,0.04);
-  backdrop-filter:blur(24px);border:1px solid rgba(255,255,255,0.08);
-  border-radius:16px;max-width:420px;
-}
-h1{font-size:1.8rem;font-weight:700;margin-bottom:0.5rem;
-  background:linear-gradient(135deg,#10b981,#818cf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;
-}
-p{color:rgba(240,253,244,0.5);font-size:0.9rem;margin-bottom:1.5rem;}
-code{padding:8px 16px;background:rgba(255,255,255,0.06);border-radius:8px;font-size:0.85rem;color:rgba(240,253,244,0.7);}
-</style></head>
-<body>
-<div class="card">
-  <h1>🌐 订阅服务</h1>
-  <p>私有订阅聚合与转换服务</p>
-  <code>访问 /your-token 获取订阅</code>
-</div>
-</body></html>`;
-}
-
-// ==================== 错误页面 ====================
-function renderError(msg) {
-  return `<!DOCTYPE html>
-<html><head><meta charset="UTF-8"><title>错误</title>
-<style>body{font-family:sans-serif;background:#050510;color:#f0fdf4;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:2rem;}
-.card{background:rgba(255,255,255,0.04);border:1px solid rgba(239,68,68,0.3);border-radius:12px;padding:2rem;max-width:500px;text-align:center;}
-h2{color:#ef4444;margin-bottom:0.5rem;}p{color:rgba(240,253,244,0.6);}</style></head>
-<body>
-<div class="card"><h2>⚠️ 配置错误</h2><p>${msg}</p></div>
-</body></html>`;
-}
-
-// ==================== 核心处理逻辑 ====================
+// ==================== 路由处理 ====================
 async function handleRequest(request, env) {
-  const url = new URL(request.url);
-  const path = url.pathname;
-  const search = url.search;
   const config = loadConfig(env);
-  const ua = (request.headers.get('User-Agent') || '').toLowerCase();
-  const isBrowser = ua.includes('mozilla') || ua.includes('chrome') || ua.includes('safari');
-  const isBot = ua.includes('telegram') || ua.includes('slack') || ua.includes('discord');
+  const url = new URL(request.url);
+  const path = url.pathname.replace(/\/$/, '') || '/';
+  const search = url.search;
 
-  // Check for KV binding
-  const kvAvailable = typeof KV !== 'undefined';
+  // 提取 token（路径第一段）
+  const pathParts = path.split('/').filter(Boolean);
+  const token = pathParts[0] || '';
 
-  // Extract token from path or query
-  let token = url.searchParams.get('token') || '';
-  if (!token && path.startsWith('/')) {
-    const parts = path.split('/').filter(Boolean);
-    if (parts.length === 1) token = parts[0];
-  }
-  if (!token && path.startsWith('/sub') && url.searchParams.get('token')) {
-    token = url.searchParams.get('token');
+  // Token 验证
+  if (!token || token !== config.token) {
+    return new Response('Not Found', { status: 404 });
   }
 
-  // Compute fake token (daily changing)
-  const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-  const fakeToken = await MD5MD5(config.mytoken + today);
+  // 解析 vless 链接
+  const lines = config.link.split('\n').filter(l => l.trim() && l.startsWith('vless://'));
+  const proxies = lines.map(l => convertVlessToClashProxy(l.trim())).filter(Boolean);
 
-  // Determine guest token
-  let guestToken = config.guestToken || '';
-  if (!guestToken) {
-    guestToken = await MD5MD5(config.mytoken);
-  }
+  // Base URL for subscription links
+  const baseUrl = url.protocol + '//' + url.host;
 
-  // Authenticate
-  const isAuthed = token === config.mytoken || token === fakeToken || token === guestToken;
-  const isMainUser = token === config.mytoken || token === fakeToken;
-
-  if (!isAuthed) {
-    // Handle unauthenticated requests
-    if (config.URL302 && !isBot) {
-      return Response.redirect(config.URL302, 302);
-    }
-    if (config.URL && !isBot) {
-      const proxys = config.URL.split(',').map(s => s.trim()).filter(Boolean);
-      if (proxys.length > 0) {
-        const target = proxys[Math.floor(Math.random() * proxys.length)];
-        const proxyUrl = target + url.pathname + url.search;
-        return fetch(proxyUrl, { headers: request.headers });
-      }
-    }
-    // Show landing page for unauthorized
-    return new Response(renderLandingPage(), {
-      headers: { 'Content-Type': 'text/html;charset=utf-8' }
+  // ====== Clash YAML ======
+  if (search.includes('clash')) {
+    const yaml = generateClashYaml(proxies, config.subName);
+    return new Response(yaml, {
+      headers: {
+        'Content-Type': 'text/yaml; charset=utf-8',
+        'Profile-Title': config.subName,
+        'Profile-Update-Interval': '6',
+      },
     });
   }
 
-  // --- Authenticated ---
-
-  // If browser accessing main token with no search params -> show dashboard
-  if (isBrowser && isMainUser && !url.search && !search.includes('?')) {
-    // Gather data for dashboard
-    let nodeData = await gatherNodes(config, env, kvAvailable);
-    return new Response(renderDashboard(config, nodeData.nodes, url.hostname, kvAvailable), {
-      headers: { 'Content-Type': 'text/html;charset=utf-8' }
+  // ====== Base64 ======
+  if (search.includes('b64')) {
+    const vlessList = lines.map(l => l.trim()).join('\n');
+    const b64 = encodeBase64(vlessList);
+    return new Response(b64, {
+      headers: {
+        'Content-Type': 'text/plain; charset=utf-8',
+        'Profile-Title': config.subName,
+        'Profile-Update-Interval': '6',
+      },
     });
   }
 
-  // If guest token access with no search -> redirect to sub
-  if (isBrowser && !isMainUser && !search) {
-    return Response.redirect(`${url.origin}/sub?token=${token}`, 302);
-  }
-
-  // Determine output format
-  let format = 'b64'; // default
-  if (search.includes('clash')) format = 'clash';
-  else if (search.includes('sb') || search.includes('singbox')) format = 'singbox';
-  else if (search.includes('surge')) format = 'surge';
-  else if (search.includes('quanx')) format = 'quanx';
-  else if (search.includes('loon')) format = 'loon';
-  // Auto-detect by UA
-  else if (ua.includes('clash') || ua.includes('meta') || ua.includes('stash') || ua.includes('clashmeta')) format = 'clash';
-  else if (ua.includes('sing-box') || ua.includes('singbox')) format = 'singbox';
-  else if (ua.includes('surge')) format = 'surge';
-  else if (ua.includes('quantumult%20x') || ua.includes('quantumultx')) format = 'quanx';
-  else if (ua.includes('loon')) format = 'loon';
-
-  // Build subscription
-  try {
-    const nodeData = await gatherNodes(config, env, kvAvailable);
-    let result = '';
-
-    if (format === 'b64') {
-      // Base64 output
-      result = nodeData.nodes.join('\n');
-      if (!result.trim()) {
-        return new Response(renderError('没有可用的节点'), {
-          headers: { 'Content-Type': 'text/html;charset=utf-8' }
-        });
-      }
-      const b64Content = encodeBase64(result);
-      const resp = new Response(b64Content, {
-        headers: {
-          'Content-Type': 'text/plain;charset=utf-8',
-          'Profile-Update-Interval': String(config.SUBUpdateTime),
-          'Profile-web-page-url': `${url.protocol}//${url.hostname}/`,
-          'Cache-Control': 'no-store',
-        }
-      });
-      if (!isBrowser) {
-        resp.headers.set('Content-Disposition', `attachment; filename*=utf-8''${encodeURIComponent(config.SUBNAME)}.txt`);
-      }
-      return resp;
-    } else {
-      // Need subscription converter
-      if (!config.subConverter) {
-        return new Response(renderError('需要配置 SUBAPI 环境变量指向订阅转换后端'), {
-          headers: { 'Content-Type': 'text/html;charset=utf-8' }
-        });
-      }
-
-      // Build the aggregation URL (self-referencing with fake token)
-      const allRemoteSubs = nodeData.remoteSubs.join('|');
-      let aggUrl = `${url.protocol}//${url.hostname}/${fakeToken}&sub=${encodeURIComponent(allRemoteSubs)}`;
-      if (allRemoteSubs) {
-        aggUrl = `${url.protocol}//${url.hostname}/${fakeToken}?sub=${encodeURIComponent(allRemoteSubs)}`;
-      } else {
-        aggUrl = `${url.protocol}//${url.hostname}/${fakeToken}`;
-      }
-
-      // Map format to target
-      const formatMap = {
-        'clash': 'clash',
-        'singbox': 'singbox',
-        'surge': 'surge',
-        'quanx': 'quantumult%20x',
-        'loon': 'loon',
-      };
-      const target = formatMap[format] || 'clash';
-
-      // 302 redirect to subconverter - client fetches directly, avoids CF loop
-      const redirectUrl = `${config.subProtocol}://${config.subConverter}/sub?target=${target}` +
-        `&url=${encodeURIComponent(aggUrl)}` +
-        `&insert=false` +
-        `&config=${encodeURIComponent(config.subConfig)}` +
-        `&emoji=true&list=false&tfo=false&scv=true&fdn=false&sort=false&new_name=true`;
-
-      try {
-        return Response.redirect(redirectUrl, 302);
-      } catch (e) {
-        return new Response(renderError(`订阅转换失败: ${e.message}`), {
-          headers: { 'Content-Type': 'text/html;charset=utf-8' }
-        });
-      }
-    }
-  } catch (e) {
-    return new Response(renderError(`处理错误: ${e.message}`), {
-      headers: { 'Content-Type': 'text/html;charset=utf-8' }
-    });
-  }
+  // ====== 管理面板 ======
+  return new Response(renderDashboard(config, proxies, baseUrl), {
+    headers: { 'Content-Type': 'text/html; charset=utf-8' },
+  });
 }
 
-// ==================== 节点数据聚合 ====================
-async function gatherNodes(config, env, kvAvailable) {
-  let lines = [];
-  let remoteSubs = [];
-
-  // Read from KV or LINK env
-  if (kvAvailable) {
-    try {
-      const kvData = await KV.get('LINK.txt');
-      if (kvData) lines = kvData.split('\n').filter(Boolean);
-    } catch (e) {}
-  }
-
-  if (lines.length === 0 && config.MainData) {
-    lines = config.MainData.split('\n').filter(Boolean);
-  }
-
-  // Also read LINKSUB
-  let subLines = [];
-  if (env?.LINKSUB) {
-    subLines = env.LINKSUB.split('\n').filter(Boolean);
-  }
-
-  // Separate regular nodes and subscription links
-  const nodes = [];
-  for (const line of lines) {
-    if (line.startsWith('http://') || line.startsWith('https://')) {
-      if (!subLines.includes(line)) subLines.push(line);
-    } else {
-      nodes.push(line);
-    }
-  }
-
-  // Fetch remote subscriptions
-  const subContents = [];
-  if (subLines.length > 0) {
-    const promises = subLines.map(subUrl =>
-      getUrl(new Request(subUrl), subUrl, 'Mozilla/5.0')
-        .then(r => r.ok ? r.text() : null)
-        .catch(() => null)
-    );
-    const results = await Promise.allSettled(promises);
-    for (const result of results) {
-      if (result.status === 'fulfilled' && result.value) {
-        const text = result.value;
-        if (text.includes('proxies:') || text.includes('- name:')) {
-          // Clash format - keep as remote sub
-          remoteSubs.push(subLines[results.indexOf(result)]);
-        } else {
-          // Try to parse as base64 or plain text
-          try {
-            const decoded = decodeBase64(text.trim());
-            const proxyLines = decoded.split('\n').filter(l => l.includes('://'));
-            nodes.push(...proxyLines);
-          } catch {
-            const proxyLines = text.split('\n').filter(l => l.includes('://'));
-            nodes.push(...proxyLines);
-          }
-        }
-      }
-    }
-  }
-
-  // Add WARP nodes if configured
-  if (config.WARP) {
-    const warpLines = config.WARP.split('\n').filter(Boolean);
-    nodes.push(...warpLines);
-  }
-
-  // Deduplicate
-  const unique = [...new Set(nodes)];
-
-  return { nodes: unique, remoteSubs };
-}
-
-// ==================== Clash WireGuard Fix ====================
-function clashFix(content) {
-  if (content.includes('wireguard') && !content.includes('remote-dns-resolve')) {
-    return content.replace(/(wireguard[^]*?mtu:\s*\d+,\s*udp:\s*true)/g, (match) => {
-      return match.replace('udp: true', 'remote-dns-resolve: true, udp: true');
-    });
-  }
-  return content;
-}
-
-// ==================== Worker Entry ====================
+// ==================== Worker 入口 ====================
 export default {
-  async fetch(request, env) {
-    return handleRequest(request, env);
-  }
+  fetch: handleRequest,
 };
