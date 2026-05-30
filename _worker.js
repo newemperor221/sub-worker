@@ -47,7 +47,7 @@ function convertVlessToClashProxy(urlStr) {
     proxy.network = network;
 
     // Reality
-    if (url.protocol.includes('reality') || allParams.get('security') === 'reality') {
+    if (allParams.get('security') === 'reality') {
       proxy['reality-opts'] = {
         'public-key': allParams.get('pbk') || '',
         'short-id': allParams.get('sid') || '',
@@ -124,7 +124,7 @@ function generateClashYaml(proxies, subName) {
     'dns:',
     '  enable: true',
     '  ipv6: false',
-    '  listen: 0.0.0.0:53',
+    '  listen: 0.0.0.0:1053',
     '  enhanced-mode: fake-ip',
     '  fake-ip-range: 198.18.0.1/16',
     '  fake-ip-filter:',
@@ -163,8 +163,6 @@ function generateClashYaml(proxies, subName) {
   yamlLines.push('');
   yamlLines.push('rules:');
   yamlLines.push('  - GEOSITE,category-ads-all,AdBlock');
-  yamlLines.push('  - GEOSITE,gfw,Proxy');
-  yamlLines.push('  - GEOSITE,geolocation-!cn,Proxy');
   yamlLines.push('  - GEOSITE,cn,DIRECT');
   yamlLines.push('  - GEOIP,telegram,Proxy');
   yamlLines.push('  - GEOIP,CN,DIRECT');
