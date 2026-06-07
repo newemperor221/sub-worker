@@ -110,7 +110,8 @@ function generateClashYaml(proxies, subName) {
     'geodata-loader: memconservative',
     'tcp-concurrent: true',
     'unified-delay: true',
-    'global-ua: clash.meta',
+    'global-client-fingerprint: random',
+    'keep-alive-interval: 1800',
     '',
     'geox-url:',
     '  geoip: "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geoip.dat"',
@@ -121,6 +122,15 @@ function generateClashYaml(proxies, subName) {
     '  store-selected: true',
     '  store-fake-ip: true',
     '',
+    'sniffer:',
+    '  enable: true',
+    '  sniff:',
+    '    TLS:',
+    '      ports: [443, 8443]',
+    '    HTTP:',
+    '      ports: [80, 8080-8880]',
+    '      override-destination: true',
+    '',
     'dns:',
     '  enable: true',
     '  ipv6: false',
@@ -130,7 +140,7 @@ function generateClashYaml(proxies, subName) {
     '    - "*.lan"',
     '    - "*.local"',
     '  default-nameserver:',
-    '    - 144.225.187.178',
+    '    - 223.5.5.5',
     '  nameserver:',
     '    - https://dns.357561.xyz/dns-query',
     '',
@@ -141,14 +151,31 @@ function generateClashYaml(proxies, subName) {
     yamlLines.push('  - {name: "' + p.name + '", type: ' + p.type + ', server: "' + p.server + '", port: ' + p.port + ', uuid: "' + p.uuid + '", udp: true, network: "' + p.network + '", tls: ' + p.tls + ', "skip-cert-verify": true, servername: "' + p.servername + '"' + formatProxyOpts(p) + '}');
   }
 
+  // 按地区分类节点
+  const hkNodes = proxies.filter(p => /港|HK|hongkong/i.test(p.name)).map(p => '"' + p.name + '"').join(', ');
+  const jpNodes = proxies.filter(p => /东京|大阪|日本|IIJ|软银|jp/i.test(p.name)).map(p => '"' + p.name + '"').join(', ');
+  const usNodes = proxies.filter(p => /洛杉矶|硅谷|堪萨斯|纽约|9929|CN2|us/i.test(p.name) && !p.name.includes('不限量')).map(p => '"' + p.name + '"').join(', ');
+  const dediNodes = proxies.filter(p => /不限量|dedione/i.test(p.name)).map(p => '"' + p.name + '"').join(', ');
+  const restNodes = proxies.filter(p => !/港|HK|hongkong|东京|大阪|日本|IIJ|软银|jp|洛杉矶|硅谷|堪萨斯|纽约|9929|CN2|us|不限量|dedione/i.test(p.name)).map(p => '"' + p.name + '"').join(', ');
+
   yamlLines.push('');
   yamlLines.push('proxy-groups:');
-  yamlLines.push('  - {name: "Proxy", type: select, proxies: [Auto, DIRECT, ' + proxyNames + ']}');
+  yamlLines.push('  - {name: "Proxy", type: select, proxies: [Auto, DIRECT' + (hkNodes ? ', 香港' : '') + (jpNodes ? ', 日本' : '') + (usNodes ? ', 美国' : '') + (dediNodes ? ', 解锁出口' : '') + (restNodes ? ', 其它地区' : '') + ']}');
   yamlLines.push('  - {name: "Auto", type: url-test, proxies: [' + proxyNames + '], url: "http://www.gstatic.com/generate_204", interval: 300, tolerance: 50}');
+  if (hkNodes) yamlLines.push('  - {name: "香港", type: url-test, proxies: [' + hkNodes + '], url: "http://www.gstatic.com/generate_204", interval: 300, tolerance: 50}');
+  if (jpNodes) yamlLines.push('  - {name: "日本", type: url-test, proxies: [' + jpNodes + '], url: "http://www.gstatic.com/generate_204", interval: 300, tolerance: 50}');
+  if (usNodes) yamlLines.push('  - {name: "美国", type: url-test, proxies: [' + usNodes + '], url: "http://www.gstatic.com/generate_204", interval: 300, tolerance: 50}');
+  if (dediNodes) yamlLines.push('  - {name: "解锁出口", type: url-test, proxies: [' + dediNodes + '], url: "http://www.gstatic.com/generate_204", interval: 300, tolerance: 50}');
+  if (restNodes) yamlLines.push('  - {name: "其它地区", type: url-test, proxies: [' + restNodes + '], url: "http://www.gstatic.com/generate_204", interval: 300, tolerance: 50}');
   yamlLines.push('  - {name: "AdBlock", type: select, proxies: [REJECT, DIRECT]}');
   yamlLines.push('');
   yamlLines.push('rules:');
   yamlLines.push('  - GEOSITE,category-ads-all,AdBlock');
+  yamlLines.push('  - GEOSITE,google,Proxy');
+  yamlLines.push('  - GEOSITE,youtube,Proxy');
+  yamlLines.push('  - GEOSITE,netflix,Proxy');
+  yamlLines.push('  - GEOSITE,telegram,Proxy');
+  yamlLines.push('  - GEOSITE,github,Proxy');
   yamlLines.push('  - GEOSITE,cn,DIRECT');
   yamlLines.push('  - GEOIP,telegram,Proxy');
   yamlLines.push('  - GEOIP,CN,DIRECT');
