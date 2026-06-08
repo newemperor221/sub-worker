@@ -1,0 +1,94 @@
+# ============================================================
+# mihomo (Clash Meta) 中国大陆最佳实践配置文件模板
+# 生成的 Clash YAML 订阅通过 CF Worker 的 ?clash 参数输出
+# 参考：wiki.metacubex.one
+# ============================================================
+
+mixed-port: 7890                 # HTTP+SOCKS5 共享端口
+allow-lan: true
+bind-address: "*"
+mode: rule
+log-level: info
+ipv6: false                      # 国内 IPv6 兼容性差，关闭
+external-controller: 127.0.0.1:9090
+find-process-mode: strict        # 精准识别进程
+geodata-mode: true                # 使用 dat 格式（更快）
+geodata-loader: memconservative
+tcp-concurrent: true              # DNS 多 IP 并发连接
+unified-delay: true               # 消除节点类型延迟差异
+global-ua: clash.meta
+
+# GEO 数据下载地址（使用 testingcf.jsdelivr.net — jsDelivr 中国 CDN，国内可访问）
+geox-url:
+  geoip: "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geoip.dat"
+  geosite: "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geosite.dat"
+  mmdb: "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/country.mmdb"
+
+# 储存策略组选择（重启记住上次选的节点）
+profile:
+  store-selected: true
+  store-fake-ip: true
+
+# ──────────── DNS 防泄漏 ────────────
+# 方案 A（默认）：独立 DNS 分流，不依赖外部自建 DNS
+# 方案 B：使用自建 DNS（取消下方注释，注释掉 A）
+dns:
+  enable: true
+  ipv6: false
+  listen: 0.0.0.0:53              # 需 root 权限；普通用户改 1053
+  enhanced-mode: fake-ip          # fake-ip 模式，首次响应极快
+  fake-ip-range: 198.18.0.1/16
+  fake-ip-filter:                 # 以下域名不返回 fake-ip
+    - "*.lan"
+    - "*.local"
+    - "+.stun.*.*"
+    - "lens.l.google.com"
+
+  # 启动时用 IP DNS 解析 DoH 地址（不能是域名，否则循环依赖）
+  default-nameserver:
+    - 223.5.5.5
+
+  # 方案 A：独立 DNS 分流（默认）
+  # nameserver:
+  #   - https://doh.pub/dns-query           # 腾讯 DoH
+  #   - https://dns.alidns.com/dns-query    # 阿里 DoH
+  # fallback:
+  #   - tls://8.8.4.4
+  #   - tls://1.1.1.1
+  # fallback-filter:
+  #   geoip: true
+  #   geoip-code: CN
+  #   geosite:
+  #     - gfw
+  #   ipcidr:
+  #     - 240.0.0.0/4
+
+  # 方案 B：自建 DNS（已停用 DNS 解锁的双层代理客户端用）
+  # ⚠️ 不适用于 Clash 解锁检测（它只测出口 IP 直连），
+  #    适用于 DNS 解锁（DNS 命中 SNI 代理 IP → nginx 转发落地点）
+  nameserver:
+    - https://dns.357561.xyz/dns-query
+  # 无 fallback — DediOne mosdns 已在服务端分流
+
+# ──────────── 策略组 ────────────
+proxy-groups:
+  # 手动策略组（默认选 Auto）
+  - {name: "Proxy", type: select, proxies: [Auto, DIRECT, "香港", "日本", "洛杉矶", "堪萨斯", "纽约", "亚特兰大"]}
+  # 自动测速（仅当新节点快 50ms+ 才切换，避免频繁跳）
+  - {name: "Auto", type: url-test, proxies: ["香港", "日本", "洛杉矶", "堪萨斯", "纽约", "亚特兰大"], url: "http://www.gstatic.com/generate_204", interval: 300, tolerance: 50}
+  # 广告拦截
+  - {name: "AdBlock", type: select, proxies: [REJECT, DIRECT]}
+
+# ──────────── 规则（GEOSITE 内置规则，免下载） ────────────
+# 匹配顺序：从上到下，匹配即停
+rules:
+  # 广告/跟踪 → 阻止
+  - GEOSITE,category-ads-all,AdBlock
+  # 国内网站 → 直连
+  - GEOSITE,cn,DIRECT
+  # Telegram IP → 走代理（IP 级别）
+  - GEOIP,telegram,Proxy
+  # 国内 IP → 直连
+  - GEOIP,CN,DIRECT
+  # 兜底：其他所有 → 走代理
+  - MATCH,Proxy
