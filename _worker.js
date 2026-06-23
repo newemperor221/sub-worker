@@ -175,7 +175,7 @@ function generateClashYaml(proxies, subName) {
   for (const p of proxies) {
     // Trojan 与 VLESS 字段不同
     if (p.type === 'trojan') {
-      yamlLines.push('  - {name: "' + p.name + '", type: trojan, server: "' + p.server + '", port: ' + p.port + ', password: "' + p.password + '", udp: true, sni: "' + p.sni + '", "skip-cert-verify": ' + p['skip-cert-verify'] + '}');
+      yamlLines.push('  - {name: "' + p.name + '", type: trojan, server: "' + p.server + '", port: ' + p.port + ', password: "' + p.password + '", udp: true, sni: "' + p.sni + '", "skip-cert-verify": ' + p['skip-cert-verify'] + ', client-fingerprint: "chrome"}');
     } else {
       yamlLines.push('  - {name: "' + p.name + '", type: ' + p.type + ', server: "' + p.server + '", port: ' + p.port + ', uuid: "' + p.uuid + '", udp: true, network: "' + p.network + '", tls: ' + p.tls + ', "skip-cert-verify": true, servername: "' + p.servername + '"' + formatProxyOpts(p) + '}');
     }
