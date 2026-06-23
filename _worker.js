@@ -136,7 +136,6 @@ function generateClashYaml(proxies, subName) {
     'geodata-loader: memconservative',
     'tcp-concurrent: true',
     'unified-delay: true',
-    'global-client-fingerprint: random',
     '',
     'geox-url:',
     '  geoip: "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geoip.dat"',
@@ -189,15 +188,22 @@ function generateClashYaml(proxies, subName) {
   const dediNodes = proxies.filter(p => /不限量|dedione/i.test(p.name)).map(p => '"' + p.name + '"').join(', ');
   const restNodes = proxies.filter(p => !/港|HK|hongkong|东京|大阪|日本|IIJ|软银|jp|洛杉矶|硅谷|堪萨斯|纽约|9929|CN2|us|不限量|dedione/i.test(p.name)).map(p => '"' + p.name + '"').join(', ');
 
+  // 策略组名加前缀避免与代理名冲突（如代理名"香港"与组名"香港"形成循环）
+  const hkGroup = hkNodes ? '\u01F1ED\u01F1F0 \u9999\u6E2F' : '';
+  const jpGroup = jpNodes ? '\u01F1EF\u01F1F5 \u65E5\u672C' : '';
+  const usGroup = usNodes ? '\u01F1FA\u01F1F8 \u7F8E\u56FD' : '';
+  const dediGroup = dediNodes ? '\uD83C\uDF0D \u89E3\u9501\u51FA\u53E3' : '';
+  const restGroup = restNodes ? '\uD83C\uDF10 \u5176\u5B83\u5730\u533A' : '';
+
   yamlLines.push('');
   yamlLines.push('proxy-groups:');
-  yamlLines.push('  - {name: "Proxy", type: select, proxies: [Auto, DIRECT' + (hkNodes ? ', 香港' : '') + (jpNodes ? ', 日本' : '') + (usNodes ? ', 美国' : '') + (dediNodes ? ', 解锁出口' : '') + (restNodes ? ', 其它地区' : '') + ']}');
+  yamlLines.push('  - {name: "Proxy", type: select, proxies: [Auto, DIRECT' + (hkGroup ? ', ' + hkGroup : '') + (jpGroup ? ', ' + jpGroup : '') + (usGroup ? ', ' + usGroup : '') + (dediGroup ? ', ' + dediGroup : '') + (restGroup ? ', ' + restGroup : '') + ']}');
   yamlLines.push('  - {name: "Auto", type: url-test, proxies: [' + proxyNames + '], url: "http://www.gstatic.com/generate_204", interval: 300, tolerance: 50}');
-  if (hkNodes) yamlLines.push('  - {name: "香港", type: url-test, proxies: [' + hkNodes + '], url: "http://www.gstatic.com/generate_204", interval: 300, tolerance: 50}');
-  if (jpNodes) yamlLines.push('  - {name: "日本", type: url-test, proxies: [' + jpNodes + '], url: "http://www.gstatic.com/generate_204", interval: 300, tolerance: 50}');
-  if (usNodes) yamlLines.push('  - {name: "美国", type: url-test, proxies: [' + usNodes + '], url: "http://www.gstatic.com/generate_204", interval: 300, tolerance: 50}');
-  if (dediNodes) yamlLines.push('  - {name: "解锁出口", type: url-test, proxies: [' + dediNodes + '], url: "http://www.gstatic.com/generate_204", interval: 300, tolerance: 50}');
-  if (restNodes) yamlLines.push('  - {name: "其它地区", type: url-test, proxies: [' + restNodes + '], url: "http://www.gstatic.com/generate_204", interval: 300, tolerance: 50}');
+  if (hkNodes) yamlLines.push('  - {name: "' + hkGroup + '", type: url-test, proxies: [' + hkNodes + '], url: "http://www.gstatic.com/generate_204", interval: 300, tolerance: 50}');
+  if (jpNodes) yamlLines.push('  - {name: "' + jpGroup + '", type: url-test, proxies: [' + jpNodes + '], url: "http://www.gstatic.com/generate_204", interval: 300, tolerance: 50}');
+  if (usNodes) yamlLines.push('  - {name: "' + usGroup + '", type: url-test, proxies: [' + usNodes + '], url: "http://www.gstatic.com/generate_204", interval: 300, tolerance: 50}');
+  if (dediNodes) yamlLines.push('  - {name: "' + dediGroup + '", type: url-test, proxies: [' + dediNodes + '], url: "http://www.gstatic.com/generate_204", interval: 300, tolerance: 50}');
+  if (restNodes) yamlLines.push('  - {name: "' + restGroup + '", type: url-test, proxies: [' + restNodes + '], url: "http://www.gstatic.com/generate_204", interval: 300, tolerance: 50}');
   yamlLines.push('  - {name: "AdBlock", type: select, proxies: [REJECT, DIRECT]}');
   yamlLines.push('');
   yamlLines.push('rules:');
