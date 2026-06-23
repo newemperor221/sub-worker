@@ -116,9 +116,8 @@ function convertTrojanToClashProxy(urlStr) {
   }
 }
 
-// ==================== Clash YAML 生成（mihomo 最佳实践） ====================
+// ==================== Clash YAML 生成（仅 proxies，兼容 Clash Verge 订阅导入） ====================
 function generateClashYaml(proxies, subName) {
-  const proxyNames = proxies.map(p => '"' + p.name + '"').join(', ');
   const yamlLines = [
     '# 订阅: ' + subName,
     '',
@@ -128,48 +127,12 @@ function generateClashYaml(proxies, subName) {
   for (const p of proxies) {
     // Trojan 与 VLESS 字段不同
     if (p.type === 'trojan') {
-      yamlLines.push('  - {name: "' + p.name + '", type: trojan, server: "' + p.server + '", port: ' + p.port + ', password: "' + p.password + '", udp: true, sni: "' + p.sni + '", "skip-cert-verify": ' + p['skip-cert-verify'] + ', client-fingerprint: "chrome"}');
+      yamlLines.push('  - {name: "' + p.name + '", type: trojan, server: "' + p.server + '", port: ' + p.port + ', password: "' + p.password + '", udp: true, sni: "' + p.sni + '", "skip-cert-verify": ' + p['skip-cert-verify'] + '}');
     } else {
       yamlLines.push('  - {name: "' + p.name + '", type: ' + p.type + ', server: "' + p.server + '", port: ' + p.port + ', uuid: "' + p.uuid + '", udp: true, network: "' + p.network + '", tls: ' + p.tls + ', "skip-cert-verify": true, servername: "' + p.servername + '"' + formatProxyOpts(p) + '}');
     }
   }
 
-  // 按地区分类节点
-  const hkNodes = proxies.filter(p => /港|HK|hongkong/i.test(p.name)).map(p => '"' + p.name + '"').join(', ');
-  const jpNodes = proxies.filter(p => /东京|大阪|日本|IIJ|软银|jp/i.test(p.name)).map(p => '"' + p.name + '"').join(', ');
-  const usNodes = proxies.filter(p => /洛杉矶|硅谷|堪萨斯|纽约|9929|CN2|us/i.test(p.name) && !p.name.includes('不限量')).map(p => '"' + p.name + '"').join(', ');
-  const dediNodes = proxies.filter(p => /不限量|dedione/i.test(p.name)).map(p => '"' + p.name + '"').join(', ');
-  const restNodes = proxies.filter(p => !/港|HK|hongkong|东京|大阪|日本|IIJ|软银|jp|洛杉矶|硅谷|堪萨斯|纽约|9929|CN2|us|不限量|dedione/i.test(p.name)).map(p => '"' + p.name + '"').join(', ');
-
-  // 策略组名加后缀避免与代理名冲突（如代理名"香港"与组名"香港"形成循环）
-  const hkGroup = hkNodes ? '\u9999\u6E2F-\u8282\u70B9' : '';
-  const jpGroup = jpNodes ? '\u65E5\u672C-\u8282\u70B9' : '';
-  const usGroup = usNodes ? '\u7F8E\u56FD-\u8282\u70B9' : '';
-  const dediGroup = dediNodes ? '\u89E3\u9501\u51FA\u53E3' : '';
-  const restGroup = restNodes ? '\u5176\u5B83\u5730\u533A' : '';
-
-  yamlLines.push('');
-  yamlLines.push('proxy-groups:');
-  yamlLines.push('  - {name: "Proxy", type: select, proxies: [Auto, DIRECT' + (hkGroup ? ', "' + hkGroup + '"' : '') + (jpGroup ? ', "' + jpGroup + '"' : '') + (usGroup ? ', "' + usGroup + '"' : '') + (dediGroup ? ', "' + dediGroup + '"' : '') + (restGroup ? ', "' + restGroup + '"' : '') + ']}');
-  yamlLines.push('  - {name: "Auto", type: url-test, proxies: [' + proxyNames + '], url: "http://www.gstatic.com/generate_204", interval: 300, tolerance: 50}');
-  if (hkNodes) yamlLines.push('  - {name: "' + hkGroup + '", type: url-test, proxies: [' + hkNodes + '], url: "http://www.gstatic.com/generate_204", interval: 300, tolerance: 50}');
-  if (jpNodes) yamlLines.push('  - {name: "' + jpGroup + '", type: url-test, proxies: [' + jpNodes + '], url: "http://www.gstatic.com/generate_204", interval: 300, tolerance: 50}');
-  if (usNodes) yamlLines.push('  - {name: "' + usGroup + '", type: url-test, proxies: [' + usNodes + '], url: "http://www.gstatic.com/generate_204", interval: 300, tolerance: 50}');
-  if (dediNodes) yamlLines.push('  - {name: "' + dediGroup + '", type: url-test, proxies: [' + dediNodes + '], url: "http://www.gstatic.com/generate_204", interval: 300, tolerance: 50}');
-  if (restNodes) yamlLines.push('  - {name: "' + restGroup + '", type: url-test, proxies: [' + restNodes + '], url: "http://www.gstatic.com/generate_204", interval: 300, tolerance: 50}');
-  yamlLines.push('  - {name: "AdBlock", type: select, proxies: [REJECT, DIRECT]}');
-  yamlLines.push('');
-  yamlLines.push('rules:');
-  yamlLines.push('  - GEOSITE,category-ads-all,AdBlock');
-  yamlLines.push('  - GEOSITE,google,Proxy');
-  yamlLines.push('  - GEOSITE,youtube,Proxy');
-  yamlLines.push('  - GEOSITE,netflix,Proxy');
-  yamlLines.push('  - GEOSITE,telegram,Proxy');
-  yamlLines.push('  - GEOSITE,github,Proxy');
-  yamlLines.push('  - GEOSITE,cn,DIRECT');
-  yamlLines.push('  - GEOIP,telegram,Proxy');
-  yamlLines.push('  - GEOIP,CN,DIRECT');
-  yamlLines.push('  - MATCH,Proxy');
   yamlLines.push('');
   return yamlLines.join('\n');
 }
