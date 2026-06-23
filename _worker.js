@@ -158,9 +158,9 @@ function generateClashYaml(proxies, subName) {
   lines.push('proxy-groups:');
   // 主选择器
   const groupRefs = [];
-  if (hkNodes) groupRefs.push('"香港-节点"');
-  if (jpNodes) groupRefs.push('"日本-节点"');
-  if (usNodes) groupRefs.push('"美国-节点"');
+  if (hkNodes) groupRefs.push('"🇭🇰香港-节点"');
+  if (jpNodes) groupRefs.push('"🇯🇵日本-节点"');
+  if (usNodes) groupRefs.push('"🇺🇸美国-节点"');
   if (dediNodes) groupRefs.push('"解锁出口"');
   if (restNodes) groupRefs.push('"其它地区"');
   lines.push('  - name: "Proxy"');
@@ -175,7 +175,7 @@ function generateClashYaml(proxies, subName) {
   lines.push('    tolerance: 50');
   // 地区组
   if (hkNodes) {
-    lines.push('  - name: "香港-节点"');
+    lines.push('  - name: "🇭🇰香港-节点"');
     lines.push('    type: url-test');
     lines.push('    proxies: [' + hkNodes + ']');
     lines.push('    url: "http://www.gstatic.com/generate_204"');
@@ -183,7 +183,7 @@ function generateClashYaml(proxies, subName) {
     lines.push('    tolerance: 50');
   }
   if (jpNodes) {
-    lines.push('  - name: "日本-节点"');
+    lines.push('  - name: "🇯🇵日本-节点"');
     lines.push('    type: url-test');
     lines.push('    proxies: [' + jpNodes + ']');
     lines.push('    url: "http://www.gstatic.com/generate_204"');
@@ -191,7 +191,7 @@ function generateClashYaml(proxies, subName) {
     lines.push('    tolerance: 50');
   }
   if (usNodes) {
-    lines.push('  - name: "美国-节点"');
+    lines.push('  - name: "🇺🇸美国-节点"');
     lines.push('    type: url-test');
     lines.push('    proxies: [' + usNodes + ']');
     lines.push('    url: "http://www.gstatic.com/generate_204"');
