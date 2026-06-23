@@ -118,6 +118,7 @@ function convertTrojanToClashProxy(urlStr) {
 
 // ==================== Clash YAML 生成（block 格式，Go YAML 解析器兼容） ====================
 function generateClashYaml(proxies, subName) {
+  const proxyNames = proxies.map(p => '"' + p.name + '"').join(', ');
   const lines = [
     '# 订阅: ' + subName,
     '',
@@ -142,14 +143,22 @@ function generateClashYaml(proxies, subName) {
     }
     lines.push('    sni: "' + p.sni + '"');
     lines.push('    skip-cert-verify: ' + (p['skip-cert-verify'] || false));
-    if (p.type === 'trojan') {
-      // trojan 不需要额外字段
-    } else {
-      const extra = formatProxyOpts(p);
-      if (extra) lines.push(extra);
-    }
   }
 
+  lines.push('');
+  lines.push('proxy-groups:');
+  lines.push('  - name: "Proxy"');
+  lines.push('    type: select');
+  lines.push('    proxies: [Auto, DIRECT, ' + proxyNames + ']');
+  lines.push('  - name: "Auto"');
+  lines.push('    type: url-test');
+  lines.push('    proxies: [' + proxyNames + ']');
+  lines.push('    url: "http://www.gstatic.com/generate_204"');
+  lines.push('    interval: 300');
+  lines.push('    tolerance: 50');
+  lines.push('');
+  lines.push('rules:');
+  lines.push('  - MATCH,Proxy');
   lines.push('');
   return lines.join('\n');
 }
