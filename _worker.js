@@ -90,6 +90,32 @@ function convertVlessToClashProxy(urlStr) {
   }
 }
 
+// ==================== Trojan → Clash 代理转换 ====================
+function convertTrojanToClashProxy(urlStr) {
+  try {
+    const url = new URL(urlStr);
+    const remark = url.hash ? decodeURIComponent(url.hash.replace(/^#/, '')) : url.hostname;
+    const password = url.username;
+    const host = url.hostname;
+    const port = parseInt(url.port) || 443;
+
+    const proxy = {
+      name: remark,
+      type: 'trojan',
+      server: host,
+      port: port,
+      password: password,
+      udp: true,
+      sni: host,
+      'skip-cert-verify': false,
+    };
+
+    return proxy;
+  } catch {
+    return null;
+  }
+}
+
 // ==================== Clash YAML 生成（mihomo 最佳实践） ====================
 function generateClashYaml(proxies, subName) {
   const proxyNames = proxies.map(p => '"' + p.name + '"').join(', ');
@@ -149,7 +175,12 @@ function generateClashYaml(proxies, subName) {
   ];
 
   for (const p of proxies) {
-    yamlLines.push('  - {name: "' + p.name + '", type: ' + p.type + ', server: "' + p.server + '", port: ' + p.port + ', uuid: "' + p.uuid + '", udp: true, network: "' + p.network + '", tls: ' + p.tls + ', "skip-cert-verify": true, servername: "' + p.servername + '"' + formatProxyOpts(p) + '}');
+    // Trojan 与 VLESS 字段不同
+    if (p.type === 'trojan') {
+      yamlLines.push('  - {name: "' + p.name + '", type: trojan, server: "' + p.server + '", port: ' + p.port + ', password: "' + p.password + '", udp: true, sni: "' + p.sni + '", "skip-cert-verify": ' + p['skip-cert-verify'] + '}');
+    } else {
+      yamlLines.push('  - {name: "' + p.name + '", type: ' + p.type + ', server: "' + p.server + '", port: ' + p.port + ', uuid: "' + p.uuid + '", udp: true, network: "' + p.network + '", tls: ' + p.tls + ', "skip-cert-verify": true, servername: "' + p.servername + '"' + formatProxyOpts(p) + '}');
+    }
   }
 
   // 按地区分类节点
@@ -470,9 +501,13 @@ async function handleRequest(request, env) {
     return new Response('Not Found', { status: 404 });
   }
 
-  // 解析 vless 链接
-  const lines = config.link.split('\n').filter(l => l.trim() && l.startsWith('vless://'));
-  const proxies = lines.map(l => convertVlessToClashProxy(l.trim())).filter(Boolean);
+  // 解析 vless / trojan 链接
+  const allLines = config.link.split('\n').filter(l => l.trim());
+  const vlessLines = allLines.filter(l => l.startsWith('vless://'));
+  const trojanLines = allLines.filter(l => l.startsWith('trojan://'));
+  const vlessProxies = vlessLines.map(l => convertVlessToClashProxy(l.trim())).filter(Boolean);
+  const trojanProxies = trojanLines.map(l => convertTrojanToClashProxy(l.trim())).filter(Boolean);
+  const proxies = [...vlessProxies, ...trojanProxies];
 
   // Base URL for subscription links
   const baseUrl = url.protocol + '//' + url.host;
@@ -492,9 +527,12 @@ async function handleRequest(request, env) {
 
   // ====== Base64 ======
   if (search.includes('b64')) {
-    // 清理空值的 flow 参数（某些客户端如 NekoBox 会报 unknown version: 72）
-    const vlessList = lines.map(l => l.trim().replace(/[?&]flow=(&|$)/g, '$1')).join('\n');
-    const b64 = encodeBase64(vlessList);
+    // 清理空值的 flow 参数（仅 vless，某些客户端如 NekoBox 会报 unknown version: 72）
+    const linkList = allLines.map(l => {
+      const t = l.trim();
+      return t.startsWith('vless://') ? t.replace(/[?&]flow=(&|$)/g, '$1') : t;
+    }).join('\n');
+    const b64 = encodeBase64(linkList);
     return new Response(b64, {
       headers: {
         'Content-Type': 'text/plain; charset=utf-8',
