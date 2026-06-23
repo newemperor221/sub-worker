@@ -143,6 +143,8 @@ function generateClashYaml(proxies, subName) {
     }
     lines.push('    sni: "' + p.sni + '"');
     lines.push('    skip-cert-verify: ' + (p['skip-cert-verify'] || false));
+    lines.push('    client-fingerprint: chrome');
+    lines.push('    keep-alive-interval: 1800');
   }
 
   // 按地区分类
