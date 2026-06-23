@@ -136,6 +136,7 @@ function generateClashYaml(proxies, subName) {
     'geodata-loader: memconservative',
     'tcp-concurrent: true',
     'unified-delay: true',
+    'keep-alive-interval: 1800',
     '',
     'geox-url:',
     '  geoip: "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geoip.dat"',
