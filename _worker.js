@@ -532,7 +532,6 @@ async function handleRequest(request, env) {
     lines.push('  - GEOSITE,telegram,Proxy');
     lines.push('  - GEOSITE,github,Proxy');
     lines.push('  - GEOSITE,cn,DIRECT');
-    lines.push('  - GEOIP,telegram,Proxy');
     lines.push('  - GEOIP,CN,DIRECT');
     lines.push('  - MATCH,Proxy');
     lines.push('');
