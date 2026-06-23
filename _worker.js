@@ -189,12 +189,12 @@ function generateClashYaml(proxies, subName) {
   const dediNodes = proxies.filter(p => /不限量|dedione/i.test(p.name)).map(p => '"' + p.name + '"').join(', ');
   const restNodes = proxies.filter(p => !/港|HK|hongkong|东京|大阪|日本|IIJ|软银|jp|洛杉矶|硅谷|堪萨斯|纽约|9929|CN2|us|不限量|dedione/i.test(p.name)).map(p => '"' + p.name + '"').join(', ');
 
-  // 策略组名加前缀避免与代理名冲突（如代理名"香港"与组名"香港"形成循环）
-  const hkGroup = hkNodes ? '\u01F1ED\u01F1F0 \u9999\u6E2F' : '';
-  const jpGroup = jpNodes ? '\u01F1EF\u01F1F5 \u65E5\u672C' : '';
-  const usGroup = usNodes ? '\u01F1FA\u01F1F8 \u7F8E\u56FD' : '';
-  const dediGroup = dediNodes ? '\uD83C\uDF0D \u89E3\u9501\u51FA\u53E3' : '';
-  const restGroup = restNodes ? '\uD83C\uDF10 \u5176\u5B83\u5730\u533A' : '';
+  // 策略组名加后缀避免与代理名冲突（如代理名"香港"与组名"香港"形成循环）
+  const hkGroup = hkNodes ? '\u9999\u6E2F \u8282\u70B9' : '';
+  const jpGroup = jpNodes ? '\u65E5\u672C \u8282\u70B9' : '';
+  const usGroup = usNodes ? '\u7F8E\u56FD \u8282\u70B9' : '';
+  const dediGroup = dediNodes ? '\u89E3\u9501\u51FA\u53E3' : '';
+  const restGroup = restNodes ? '\u5176\u5B83\u5730\u533A' : '';
 
   yamlLines.push('');
   yamlLines.push('proxy-groups:');
