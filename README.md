@@ -11,6 +11,16 @@ Cloudflare Workers 订阅服务。解析 vless 链接，直接生成 Clash YAML 
 
 ## 部署
 
+### 方式一：GitHub 导入（推荐）
+
+1. Fork 或推送此仓库到你的 GitHub
+2. 打开 [Cloudflare Dashboard](https://dash.cloudflare.com) → **Workers & Pages** → **Pages** → **Connect to Git**
+3. 选择此仓库，构建配置保持默认（无需构建命令）
+4. 部署后，在 Pages 项目 **设置 → 环境变量** 中添加：
+5. （可选）绑自定义域：Pages → **自定义域** → 添加
+
+### 方式二：复制粘贴
+
 1. 复制 `_worker.js` 全部内容
 2. 打开 [Cloudflare Dashboard](https://dash.cloudflare.com) → **Workers & Pages** → **创建 Worker**
 3. 粘贴代码 → **部署**

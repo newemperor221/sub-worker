@@ -143,7 +143,7 @@ function generateClashYaml(proxies, subName) {
     '    - 223.5.5.5',
     '    - 1.1.1.1',
     '  nameserver:',
-    '    - https://dns.357561.xyz/dns-query',
+    '    - https://doh.pub/dns-query',
     '',
     'proxies:',
   ];

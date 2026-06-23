@@ -63,12 +63,10 @@ dns:
   #   ipcidr:
   #     - 240.0.0.0/4
 
-  # 方案 B：自建 DNS（已停用 DNS 解锁的双层代理客户端用）
-  # ⚠️ 不适用于 Clash 解锁检测（它只测出口 IP 直连），
-  #    适用于 DNS 解锁（DNS 命中 SNI 代理 IP → nginx 转发落地点）
+  # 方案 B：自建 DNS（需配合自己的 DNS 服务器）
   nameserver:
-    - https://dns.357561.xyz/dns-query
-  # 无 fallback — DediOne mosdns 已在服务端分流
+    - https://doh.pub/dns-query
+  # 无 fallback — 自建 DNS 已在服务端分流
 
 # ──────────── 策略组 ────────────
 proxy-groups:
