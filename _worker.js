@@ -145,19 +145,86 @@ function generateClashYaml(proxies, subName) {
     lines.push('    skip-cert-verify: ' + (p['skip-cert-verify'] || false));
   }
 
+  // 按地区分类
+  const hkNodes = proxies.filter(p => /港|HK|hongkong/i.test(p.name)).map(p => '"' + p.name + '"').join(', ');
+  const jpNodes = proxies.filter(p => /东京|大阪|日本|IIJ|软银|jp/i.test(p.name)).map(p => '"' + p.name + '"').join(', ');
+  const usNodes = proxies.filter(p => /洛杉矶|硅谷|堪萨斯|纽约|9929|CN2|us/i.test(p.name) && !p.name.includes('不限量')).map(p => '"' + p.name + '"').join(', ');
+  const dediNodes = proxies.filter(p => /不限量|dedione/i.test(p.name)).map(p => '"' + p.name + '"').join(', ');
+  const restNodes = proxies.filter(p => !/港|HK|hongkong|东京|大阪|日本|IIJ|软银|jp|洛杉矶|硅谷|堪萨斯|纽约|9929|CN2|us|不限量|dedione/i.test(p.name)).map(p => '"' + p.name + '"').join(', ');
+
   lines.push('');
   lines.push('proxy-groups:');
+  // 主选择器
+  const groupRefs = [];
+  if (hkNodes) groupRefs.push('"香港-节点"');
+  if (jpNodes) groupRefs.push('"日本-节点"');
+  if (usNodes) groupRefs.push('"美国-节点"');
+  if (dediNodes) groupRefs.push('"解锁出口"');
+  if (restNodes) groupRefs.push('"其它地区"');
   lines.push('  - name: "Proxy"');
   lines.push('    type: select');
-  lines.push('    proxies: [Auto, DIRECT, ' + proxyNames + ']');
+  lines.push('    proxies: [Auto, DIRECT' + (groupRefs.length ? ', ' + groupRefs.join(', ') : '') + ']');
+  // 自动测速
   lines.push('  - name: "Auto"');
   lines.push('    type: url-test');
   lines.push('    proxies: [' + proxyNames + ']');
   lines.push('    url: "http://www.gstatic.com/generate_204"');
   lines.push('    interval: 300');
   lines.push('    tolerance: 50');
+  // 地区组
+  if (hkNodes) {
+    lines.push('  - name: "香港-节点"');
+    lines.push('    type: url-test');
+    lines.push('    proxies: [' + hkNodes + ']');
+    lines.push('    url: "http://www.gstatic.com/generate_204"');
+    lines.push('    interval: 300');
+    lines.push('    tolerance: 50');
+  }
+  if (jpNodes) {
+    lines.push('  - name: "日本-节点"');
+    lines.push('    type: url-test');
+    lines.push('    proxies: [' + jpNodes + ']');
+    lines.push('    url: "http://www.gstatic.com/generate_204"');
+    lines.push('    interval: 300');
+    lines.push('    tolerance: 50');
+  }
+  if (usNodes) {
+    lines.push('  - name: "美国-节点"');
+    lines.push('    type: url-test');
+    lines.push('    proxies: [' + usNodes + ']');
+    lines.push('    url: "http://www.gstatic.com/generate_204"');
+    lines.push('    interval: 300');
+    lines.push('    tolerance: 50');
+  }
+  if (dediNodes) {
+    lines.push('  - name: "解锁出口"');
+    lines.push('    type: url-test');
+    lines.push('    proxies: [' + dediNodes + ']');
+    lines.push('    url: "http://www.gstatic.com/generate_204"');
+    lines.push('    interval: 300');
+    lines.push('    tolerance: 50');
+  }
+  if (restNodes) {
+    lines.push('  - name: "其它地区"');
+    lines.push('    type: url-test');
+    lines.push('    proxies: [' + restNodes + ']');
+    lines.push('    url: "http://www.gstatic.com/generate_204"');
+    lines.push('    interval: 300');
+    lines.push('    tolerance: 50');
+  }
+  lines.push('  - name: "AdBlock"');
+  lines.push('    type: select');
+  lines.push('    proxies: [REJECT, DIRECT]');
   lines.push('');
   lines.push('rules:');
+  lines.push('  - GEOSITE,category-ads-all,AdBlock');
+  lines.push('  - GEOSITE,google,Proxy');
+  lines.push('  - GEOSITE,youtube,Proxy');
+  lines.push('  - GEOSITE,netflix,Proxy');
+  lines.push('  - GEOSITE,telegram,Proxy');
+  lines.push('  - GEOSITE,github,Proxy');
+  lines.push('  - GEOSITE,cn,DIRECT');
+  lines.push('  - GEOIP,CN,DIRECT');
   lines.push('  - MATCH,Proxy');
   lines.push('');
   return lines.join('\n');
