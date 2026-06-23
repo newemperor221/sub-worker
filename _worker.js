@@ -232,23 +232,6 @@ function generateClashYaml(proxies, subName) {
   return lines.join('\n');
 }
 
-function formatProxyOpts(p) {
-  const parts = [];
-  if (p['reality-opts']) {
-    parts.push(', reality-opts: { "public-key": "' + p['reality-opts']['public-key'] + '", "short-id": "' + p['reality-opts']['short-id'] + '" }');
-    parts.push(', client-fingerprint: "' + (p['client-fingerprint'] || 'chrome') + '"');
-  }
-  if (p.flow) {
-    parts.push(', flow: "' + p.flow + '"');
-  }
-  if (p['xhttp-opts']) {
-    // mihomo 不认 mode=auto，转 packet-up；Shadowrocket 不受影响（走 Base64 原始链接）
-    const clashMode = p['xhttp-opts'].mode === 'auto' ? 'packet-up' : p['xhttp-opts'].mode;
-    parts.push(', xhttp-opts: { mode: "' + clashMode + '", path: "' + p['xhttp-opts'].path + '" }');
-  }
-  return parts.join('');
-}
-
 // ==================== Base64 生成 ====================
 function encodeBase64(str) {
   return btoa(unescape(encodeURIComponent(str)));
@@ -285,9 +268,6 @@ function renderDashboard(config, proxies, baseUrl) {
   --coral: #ed947c;
   --leaf: #62a95a;
   --white: #fffdf7;
-  --r-sm: 15px;
-  --r-md: 22px;
-  --r-lg: 30px;
   --ease: cubic-bezier(.25,.8,.25,1);
 }
 html { min-height: 100%; background: var(--sky); }
