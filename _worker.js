@@ -116,24 +116,42 @@ function convertTrojanToClashProxy(urlStr) {
   }
 }
 
-// ==================== Clash 订阅生成（纯 Trojan 链接，兼容 Clash Verge） ====================
+// ==================== Clash YAML 生成（block 格式，Go YAML 解析器兼容） ====================
 function generateClashYaml(proxies, subName) {
-  const yamlLines = [
+  const lines = [
     '# 订阅: ' + subName,
     '',
     'proxies:',
   ];
 
   for (const p of proxies) {
+    lines.push('  - name: "' + p.name + '"');
+    lines.push('    type: ' + p.type);
+    lines.push('    server: "' + p.server + '"');
+    lines.push('    port: ' + p.port);
     if (p.type === 'trojan') {
-      yamlLines.push('  - {name: "' + p.name + '", type: trojan, server: "' + p.server + '", port: ' + p.port + ', password: "' + p.password + '", udp: true, sni: "' + p.sni + '", "skip-cert-verify": ' + p['skip-cert-verify'] + '}');
+      lines.push('    password: "' + p.password + '"');
     } else {
-      yamlLines.push('  - {name: "' + p.name + '", type: ' + p.type + ', server: "' + p.server + '", port: ' + p.port + ', uuid: "' + p.uuid + '", udp: true, network: "' + p.network + '", tls: ' + p.tls + ', "skip-cert-verify": true, servername: "' + p.servername + '"' + formatProxyOpts(p) + '}');
+      lines.push('    uuid: "' + p.uuid + '"');
+    }
+    lines.push('    udp: true');
+    if (p.type !== 'trojan') {
+      lines.push('    network: "' + p.network + '"');
+      lines.push('    tls: ' + p.tls);
+      lines.push('    servername: "' + p.servername + '"');
+    }
+    lines.push('    sni: "' + p.sni + '"');
+    lines.push('    skip-cert-verify: ' + (p['skip-cert-verify'] || false));
+    if (p.type === 'trojan') {
+      // trojan 不需要额外字段
+    } else {
+      const extra = formatProxyOpts(p);
+      if (extra) lines.push(extra);
     }
   }
 
-  yamlLines.push('');
-  return yamlLines.join('\n');
+  lines.push('');
+  return lines.join('\n');
 }
 
 function formatProxyOpts(p) {
@@ -432,11 +450,10 @@ async function handleRequest(request, env) {
   // Base URL for subscription links
   const baseUrl = url.protocol + '//' + url.host;
 
-  // ====== Clash 订阅（纯 Trojan 链接，不经过 YAML） ======
+  // ====== Clash YAML ======
   if (search.includes('clash')) {
-    // Clash Verge 解析 YAML 有兼容问题，直接输出原始 Trojan 链接（一行一个）
-    const rawLinks = allLines.join('\n');
-    return new Response(rawLinks, {
+    const yaml = generateClashYaml(proxies, config.subName);
+    return new Response(yaml, {
       headers: {
         'Content-Type': 'text/plain; charset=utf-8',
         'content-disposition': 'inline; filename="' + config.subName + '"; filename*=UTF-8\'\'' + encodeURIComponent(config.subName),
