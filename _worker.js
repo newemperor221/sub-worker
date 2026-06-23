@@ -43,6 +43,7 @@ async function handleRequest(request, env) {
         'content-disposition': 'inline; filename="' + config.subName + '"; filename*=UTF-8\'\'' + encodeURIComponent(config.subName),
         'profile-title': config.subName,
         'profile-update-interval': '6',
+        'Subscription-Userinfo': 'upload=0; download=0; total=1099511627776; expire=0',
       },
     });
   }
@@ -61,6 +62,7 @@ async function handleRequest(request, env) {
         'content-disposition': 'inline; filename="' + config.subName + '"; filename*=UTF-8\'\'' + encodeURIComponent(config.subName),
         'profile-title': config.subName,
         'profile-update-interval': '6',
+        'Subscription-Userinfo': 'upload=0; download=0; total=1099511627776; expire=0',
       },
     });
   }
