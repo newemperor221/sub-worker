@@ -142,9 +142,9 @@ function generateClashYaml(proxies, subName) {
   const restNodes = proxies.filter(p => !/港|HK|hongkong|东京|大阪|日本|IIJ|软银|jp|洛杉矶|硅谷|堪萨斯|纽约|9929|CN2|us|不限量|dedione/i.test(p.name)).map(p => '"' + p.name + '"').join(', ');
 
   // 策略组名加后缀避免与代理名冲突（如代理名"香港"与组名"香港"形成循环）
-  const hkGroup = hkNodes ? '\u9999\u6E2F \u8282\u70B9' : '';
-  const jpGroup = jpNodes ? '\u65E5\u672C \u8282\u70B9' : '';
-  const usGroup = usNodes ? '\u7F8E\u56FD \u8282\u70B9' : '';
+  const hkGroup = hkNodes ? '\u9999\u6E2F-\u8282\u70B9' : '';
+  const jpGroup = jpNodes ? '\u65E5\u672C-\u8282\u70B9' : '';
+  const usGroup = usNodes ? '\u7F8E\u56FD-\u8282\u70B9' : '';
   const dediGroup = dediNodes ? '\u89E3\u9501\u51FA\u53E3' : '';
   const restGroup = restNodes ? '\u5176\u5B83\u5730\u533A' : '';
 
