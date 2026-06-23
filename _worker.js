@@ -438,7 +438,7 @@ async function handleRequest(request, env) {
     const yaml = generateClashYaml(proxies, config.subName);
     return new Response(yaml, {
       headers: {
-        'Content-Type': 'text/yaml; charset=utf-8',
+        'Content-Type': 'text/plain; charset=utf-8',
         'content-disposition': 'inline; filename="' + config.subName + '"; filename*=UTF-8\'\'' + encodeURIComponent(config.subName),
         'profile-title': config.subName,
         'profile-update-interval': '6',
