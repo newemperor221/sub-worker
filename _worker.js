@@ -150,7 +150,7 @@ function generateClashYaml(proxies, subName) {
 
   yamlLines.push('');
   yamlLines.push('proxy-groups:');
-  yamlLines.push('  - {name: "Proxy", type: select, proxies: [Auto, DIRECT' + (hkGroup ? ', ' + hkGroup : '') + (jpGroup ? ', ' + jpGroup : '') + (usGroup ? ', ' + usGroup : '') + (dediGroup ? ', ' + dediGroup : '') + (restGroup ? ', ' + restGroup : '') + ']}');
+  yamlLines.push('  - {name: "Proxy", type: select, proxies: [Auto, DIRECT' + (hkGroup ? ', "' + hkGroup + '"' : '') + (jpGroup ? ', "' + jpGroup + '"' : '') + (usGroup ? ', "' + usGroup + '"' : '') + (dediGroup ? ', "' + dediGroup + '"' : '') + (restGroup ? ', "' + restGroup + '"' : '') + ']}');
   yamlLines.push('  - {name: "Auto", type: url-test, proxies: [' + proxyNames + '], url: "http://www.gstatic.com/generate_204", interval: 300, tolerance: 50}');
   if (hkNodes) yamlLines.push('  - {name: "' + hkGroup + '", type: url-test, proxies: [' + hkNodes + '], url: "http://www.gstatic.com/generate_204", interval: 300, tolerance: 50}');
   if (jpNodes) yamlLines.push('  - {name: "' + jpGroup + '", type: url-test, proxies: [' + jpNodes + '], url: "http://www.gstatic.com/generate_204", interval: 300, tolerance: 50}');
