@@ -128,11 +128,6 @@ export function generateClashYaml(proxies, subName) {
   lines.push('    type: select');
   lines.push('    proxies: [REJECT, DIRECT]');
 
-  // 9) DIRECT
-  lines.push('  - name: "DIRECT"');
-  lines.push('    type: select');
-  lines.push('    proxies: [DIRECT]');
-
   // --- rule-providers (ACL4SSR) ---
   lines.push('');
   lines.push('rule-providers:');
