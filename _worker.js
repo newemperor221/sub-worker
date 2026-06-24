@@ -58,6 +58,7 @@ async function handleRequest(request, env) {
     return new Response(b64, {
       headers: {
         'Content-Type': 'text/plain; charset=utf-8',
+        'content-disposition': 'attachment; filename="' + config.subName + '.conf"',
         'profile-title': config.subName,
         'profile-update-interval': '6',
       },
