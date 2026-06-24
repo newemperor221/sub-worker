@@ -15,7 +15,7 @@ export function renderDashboard(config, proxies, baseUrl) {
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#a9d9bd">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🏝️%3C/text%3E%3C/svg%3E">
-<title>小鲨鱼</title>
+<title>订阅小岛</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700;800;900&family=Noto+Sans+SC:wght@400;500;700;900&display=swap');
 
@@ -207,12 +207,12 @@ button, .route-card, .node-row { -webkit-tap-highlight-color: transparent; }
 
 <main class="shell">
   <div class="corner-note"><span class="mini-leaf"></span><span>ISLAND NET</span></div>
-  <div class="status-ticket"><b>● CONNECTED</b>小鲨鱼已就绪</div>
+  <div class="status-ticket"><b>● CONNECTED</b>订阅小岛已开放</div>
 
   <header class="hero">
     <div class="sign-wrap">
       <div class="sign">
-        <h1>小鲨鱼</h1>
+        <h1>订阅小岛</h1>
         <p>{{SUB_NAME}}</p>
       </div>
     </div>
