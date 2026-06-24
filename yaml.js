@@ -186,5 +186,5 @@ export function generateClashYaml(proxies, subName) {
   lines.push('  - geoip,cn,DIRECT');
   lines.push('  - match,Proxy');
 
-  return lines.join('\\n');
+  return lines.join('\n');
 }
