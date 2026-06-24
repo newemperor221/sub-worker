@@ -5,7 +5,7 @@ export function loadConfig(env) {
   return {
     token: env?.TOKEN || '',
     link: env?.LINK || '',
-    subName: env?.SUBNAME || '自用',
+    subName: env?.SUBNAME || '小鲨鱼',
   };
 }
 
