@@ -13,10 +13,18 @@ export function convertVlessToClashProxy(urlStr) {
     for (const [k, v] of params) allParams.set(k, v);
     for (const [k, v] of hash) allParams.set(k, v);
 
-    // 如果 flow 为空则删掉
     const flow = allParams.get('flow') || '';
     const mode = allParams.get('mode') || '';
     const sni = allParams.get('sni') || '';
+    const host = allParams.get('host') || '';
+    const path = allParams.get('path') || '/';
+    const serviceName = allParams.get('serviceName') || '';
+    const security = allParams.get('security') || 'tls';
+    const fp = allParams.get('fp') || '';
+    const pbk = allParams.get('pbk') || '';
+    const sid = allParams.get('sid') || '';
+    const alpn = allParams.get('alpn') || '';
+    const network = allParams.get('type') || 'tcp';
 
     // 节点名：优先用 URL 片段（#香港），否则用 hostname
     const remark = url.hash ? decodeURIComponent(url.hash.replace(/^#/, '')) : url.hostname;
@@ -27,56 +35,49 @@ export function convertVlessToClashProxy(urlStr) {
       server: url.hostname,
       port: parseInt(url.port) || 443,
       uuid: url.username,
-      network: 'tcp',
-      tls: true,
+      network,
+      tls: security !== 'none',
       'skip-cert-verify': true,
-      servername: sni || url.hostname,
+      servername: sni || host || url.hostname,
     };
 
     if (sni && sni !== 'undefined') {
       proxy.sni = sni;
     }
-
-    // network 类型
-    let network = allParams.get('type') || 'tcp';
-    proxy.network = network;
-
-    // Reality
-    if (allParams.get('security') === 'reality') {
-      proxy['reality-opts'] = {
-        'public-key': allParams.get('pbk') || '',
-        'short-id': allParams.get('sid') || '',
-      };
-      proxy['client-fingerprint'] = allParams.get('fp') || 'chrome';
+    if (alpn) {
+      proxy.alpn = alpn.split(',').map(x => x.trim()).filter(Boolean);
     }
 
-    // flow（只保留非空值，Reality XTLS 用）
-    if (flow && flow !== 'none') {
+    if (security === 'reality') {
+      proxy['reality-opts'] = {
+        'public-key': pbk,
+        'short-id': sid,
+      };
+      proxy['client-fingerprint'] = fp || 'chrome';
+    }
+
+    // flow：仅非空且非 xhttp 时保留；xhttp 不需要 flow
+    if (flow && flow !== 'none' && network !== 'xhttp') {
       proxy.flow = flow;
     }
 
-    // XHTTP / XTLS / gRPC
     if (network === 'xhttp') {
       proxy['xhttp-opts'] = {
         mode: mode || 'packet-up',
-        path: allParams.get('path') || '/',
+        path,
       };
-      proxy.flow = '';
+      delete proxy.flow;
     } else if (network === 'grpc') {
       proxy['grpc-opts'] = {
-        'grpc-service-name': allParams.get('serviceName') || '',
+        'grpc-service-name': serviceName,
       };
     } else if (network === 'ws') {
       proxy['ws-opts'] = {
-        path: allParams.get('path') || '/',
-        headers: allParams.get('host') ? { Host: allParams.get('host') } : undefined,
+        path,
       };
-    } else if (network === 'tcp' && allParams.get('security') === 'reality') {
-      proxy['reality-opts'] = {
-        'public-key': allParams.get('pbk') || '',
-        'short-id': allParams.get('sid') || '',
-      };
-      proxy['client-fingerprint'] = allParams.get('fp') || 'chrome';
+      if (host) {
+        proxy['ws-opts'].headers = { Host: host };
+      }
     }
 
     return proxy;
