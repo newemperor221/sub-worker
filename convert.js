@@ -48,12 +48,18 @@ export function convertVlessToClashProxy(urlStr) {
       proxy.alpn = alpn.split(',').map(x => x.trim()).filter(Boolean);
     }
 
+    if (fp) {
+      proxy['client-fingerprint'] = fp;
+    }
+
     if (security === 'reality') {
       proxy['reality-opts'] = {
         'public-key': pbk,
         'short-id': sid,
       };
-      proxy['client-fingerprint'] = fp || 'chrome';
+      if (!proxy['client-fingerprint']) {
+        proxy['client-fingerprint'] = 'chrome';
+      }
     }
 
     // flow：仅非空且非 xhttp 时保留；xhttp 不需要 flow
@@ -66,6 +72,9 @@ export function convertVlessToClashProxy(urlStr) {
         mode: mode || 'packet-up',
         path,
       };
+      if (host) {
+        proxy['xhttp-opts'].host = host;
+      }
       delete proxy.flow;
     } else if (network === 'grpc') {
       proxy['grpc-opts'] = {
