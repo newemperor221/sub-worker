@@ -39,6 +39,9 @@ export function generateClashYaml(proxies, subName) {
         lines.push('    xhttp-opts:');
         lines.push('      mode: "' + (p['xhttp-opts'].mode || 'packet-up') + '"');
         lines.push('      path: "' + (p['xhttp-opts'].path || '/') + '"');
+        if (p['xhttp-opts'].host) {
+          lines.push('      host: "' + p['xhttp-opts'].host + '"');
+        }
       }
     }
     lines.push('    udp: true');
