@@ -16,6 +16,7 @@ export function convertVlessToClashProxy(urlStr) {
     // 如果 flow 为空则删掉
     const flow = allParams.get('flow') || '';
     const mode = allParams.get('mode') || '';
+    const sni = allParams.get('sni') || '';
 
     // 节点名：优先用 URL 片段（#香港），否则用 hostname
     const remark = url.hash ? decodeURIComponent(url.hash.replace(/^#/, '')) : url.hostname;
@@ -29,8 +30,12 @@ export function convertVlessToClashProxy(urlStr) {
       network: 'tcp',
       tls: true,
       'skip-cert-verify': true,
-      servername: allParams.get('sni') || url.hostname,
+      servername: sni || url.hostname,
     };
+
+    if (sni && sni !== 'undefined') {
+      proxy.sni = sni;
+    }
 
     // network 类型
     let network = allParams.get('type') || 'tcp';
