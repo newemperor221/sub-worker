@@ -20,6 +20,26 @@ export function generateClashYaml(proxies, subName) {
       if (p.flow) {
         lines.push('    flow: ' + p.flow);
       }
+      if (p.alpn && p.alpn.length) {
+        lines.push('    alpn: [' + p.alpn.map(x => '"' + x + '"').join(', ') + ']');
+      }
+      if (p['ws-opts']) {
+        lines.push('    ws-opts:');
+        lines.push('      path: "' + p['ws-opts'].path + '"');
+        if (p['ws-opts'].headers?.Host) {
+          lines.push('      headers:');
+          lines.push('        Host: "' + p['ws-opts'].headers.Host + '"');
+        }
+      }
+      if (p['grpc-opts']) {
+        lines.push('    grpc-opts:');
+        lines.push('      grpc-service-name: "' + (p['grpc-opts']['grpc-service-name'] || '') + '"');
+      }
+      if (p['xhttp-opts']) {
+        lines.push('    xhttp-opts:');
+        lines.push('      mode: "' + (p['xhttp-opts'].mode || 'packet-up') + '"');
+        lines.push('      path: "' + (p['xhttp-opts'].path || '/') + '"');
+      }
     }
     lines.push('    udp: true');
     if (p.sni) {
@@ -31,7 +51,9 @@ export function generateClashYaml(proxies, subName) {
       lines.push('      public-key: "' + p['reality-opts']['public-key'] + '"');
       lines.push('      short-id: "' + p['reality-opts']['short-id'] + '"');
     }
-    lines.push('    client-fingerprint: chrome');
+    if (p['client-fingerprint']) {
+      lines.push('    client-fingerprint: ' + p['client-fingerprint']);
+    }
     lines.push('    keep-alive-interval: 1800');
   }
 
