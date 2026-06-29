@@ -10,15 +10,21 @@ export function generateClashYaml(proxies, subName) {
     lines.push('    type: ' + p.type);
     lines.push('    server: "' + p.server + '"');
     lines.push('    port: ' + p.port);
-    lines.push('    password: "' + (p.type === 'trojan' ? p.password : '') + '"');
-    if (p.type !== 'trojan') {
+    if (p.type === 'trojan') {
+      lines.push('    password: "' + (p.password || '') + '"');
+    } else {
       lines.push('    uuid: "' + (p.uuid || '') + '"');
       lines.push('    network: "' + p.network + '"');
       lines.push('    tls: ' + p.tls);
       lines.push('    servername: "' + p.servername + '"');
+      if (p.flow) {
+        lines.push('    flow: ' + p.flow);
+      }
     }
     lines.push('    udp: true');
-    lines.push('    sni: "' + p.sni + '"');
+    if (p.sni) {
+      lines.push('    sni: "' + p.sni + '"');
+    }
     lines.push('    skip-cert-verify: ' + (p['skip-cert-verify'] || false));
     if (p['reality-opts']) {
       lines.push('    reality-opts:');
