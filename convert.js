@@ -1,4 +1,4 @@
-// Protocol converters — VLESS → Clash proxy, Trojan → Clash proxy
+// Protocol converters — VLESS / Trojan / Hysteria2 → Clash proxy
 // ==============================================================
 
 // ==================== VLESS → Clash 代理转换 ====================
@@ -114,6 +114,62 @@ export function convertTrojanToClashProxy(urlStr) {
       sni: host,
       'skip-cert-verify': false,
     };
+
+    return proxy;
+  } catch {
+    return null;
+  }
+}
+
+// ==================== Hysteria2 → Clash 代理转换 ====================
+export function convertHysteria2ToClashProxy(urlStr) {
+  try {
+    const url = new URL(urlStr);
+    const params = new URLSearchParams(url.search.replace(/^\?/, ''));
+    const remark = url.hash ? decodeURIComponent(url.hash.replace(/^#/, '')) : url.hostname;
+
+    const proxy = {
+      name: remark,
+      type: 'hysteria2',
+      server: url.hostname,
+      port: parseInt(url.port) || 443,
+      password: decodeURIComponent(url.username || ''),
+      udp: true,
+    };
+
+    const sni = params.get('sni') || params.get('peer') || '';
+    if (sni) {
+      proxy.sni = sni;
+    }
+
+    const insecure = params.get('insecure') || params.get('allowInsecure') || '';
+    if (insecure === '1' || insecure === 'true') {
+      proxy['skip-cert-verify'] = true;
+    }
+
+    const alpn = params.get('alpn') || '';
+    if (alpn) {
+      proxy.alpn = alpn.split(',').map(x => x.trim()).filter(Boolean);
+    }
+
+    const obfs = params.get('obfs') || '';
+    if (obfs && obfs !== 'none') {
+      proxy.obfs = obfs;
+    }
+
+    const obfsPassword = params.get('obfs-password') || params.get('obfsParam') || '';
+    if (obfsPassword) {
+      proxy['obfs-password'] = obfsPassword;
+    }
+
+    const up = params.get('upmbps') || params.get('up') || '';
+    const down = params.get('downmbps') || params.get('down') || '';
+    if (up) {
+      proxy.up = parseInt(up, 10);
+    }
+    if (down) {
+      proxy.down = parseInt(down, 10);
+    }
 
     return proxy;
   } catch {

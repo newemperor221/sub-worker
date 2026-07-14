@@ -10,8 +10,23 @@ export function generateClashYaml(proxies, subName) {
     lines.push('    type: ' + p.type);
     lines.push('    server: "' + p.server + '"');
     lines.push('    port: ' + p.port);
-    if (p.type === 'trojan') {
+    if (p.type === 'trojan' || p.type === 'hysteria2') {
       lines.push('    password: "' + (p.password || '') + '"');
+      if (p.type === 'hysteria2' && p.alpn && p.alpn.length) {
+        lines.push('    alpn: [' + p.alpn.map(x => '"' + x + '"').join(', ') + ']');
+      }
+      if (p.type === 'hysteria2' && p.obfs) {
+        lines.push('    obfs: "' + p.obfs + '"');
+      }
+      if (p.type === 'hysteria2' && p['obfs-password']) {
+        lines.push('    obfs-password: "' + p['obfs-password'] + '"');
+      }
+      if (p.type === 'hysteria2' && p.up) {
+        lines.push('    up: ' + p.up);
+      }
+      if (p.type === 'hysteria2' && p.down) {
+        lines.push('    down: ' + p.down);
+      }
     } else {
       lines.push('    uuid: "' + (p.uuid || '') + '"');
       lines.push('    network: "' + p.network + '"');

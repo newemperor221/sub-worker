@@ -1,6 +1,6 @@
 # Sub Worker — 订阅聚合与转换
 
-Cloudflare Workers 订阅服务。解析 vless 链接，直接生成 Clash YAML 和 Base64 订阅。**无后端依赖**，全部跑在 CF 边缘节点。
+Cloudflare Workers 订阅服务。解析 vless / trojan / hysteria2 链接，直接生成 Clash YAML 和 Base64 订阅。**无后端依赖**，全部跑在 CF 边缘节点。
 
 ## 功能
 
@@ -29,7 +29,7 @@ Cloudflare Workers 订阅服务。解析 vless 链接，直接生成 Clash YAML 
 | 变量名 | 必填 | 说明 | 示例 |
 |--------|------|------|------|
 | `TOKEN` | ✅ | 访问令牌 | `mysecret` |
-| `LINK` | ✅ | 节点链接（每行一条 vless://） | `vless://...` 多行 |
+| `LINK` | ✅ | 节点链接（每行一条 vless:// / trojan:// / hysteria2://） | `vless://...` 多行 |
 | `SUBNAME` | ❌ | 订阅导入名称（默认：`自用`） | `MyNodes` |
 
 5. （可选）绑自定义域：Worker → **触发器** → **自定义域** → 添加
@@ -47,5 +47,5 @@ https://你的域名/<TOKEN>?b64    → Base64 订阅
 ## 环境变量说明
 
 - **TOKEN**：访问管理面板和订阅的唯一凭据
-- **LINK**：vless 链接，一行一条。支持 VLESS + Reality + XHTTP 协议
+- **LINK**：节点链接，一行一条。支持 VLESS + Reality + XHTTP、Trojan、Hysteria2
 - **SUBNAME**：订阅导入后在客户端显示的名称（默认 `自用`）

@@ -3,7 +3,7 @@
 // ==/UserScript==
 
 import { loadConfig, encodeBase64 } from './utils.js';
-import { convertVlessToClashProxy, convertTrojanToClashProxy } from './convert.js';
+import { convertVlessToClashProxy, convertTrojanToClashProxy, convertHysteria2ToClashProxy } from './convert.js';
 import { generateClashYaml } from './yaml.js';
 import { renderDashboard } from './dashboard.js';
 
@@ -23,13 +23,15 @@ async function handleRequest(request, env) {
     return new Response('Not Found', { status: 404 });
   }
 
-  // 解析 vless / trojan 链接
+  // 解析 vless / trojan / hysteria2 链接
   const allLines = config.link.split('\n').filter(l => l.trim());
   const vlessLines = allLines.filter(l => l.startsWith('vless://'));
   const trojanLines = allLines.filter(l => l.startsWith('trojan://'));
+  const hysteria2Lines = allLines.filter(l => l.startsWith('hysteria2://') || l.startsWith('hy2://'));
   const vlessProxies = vlessLines.map(l => convertVlessToClashProxy(l.trim())).filter(Boolean);
   const trojanProxies = trojanLines.map(l => convertTrojanToClashProxy(l.trim())).filter(Boolean);
-  const proxies = [...vlessProxies, ...trojanProxies];
+  const hysteria2Proxies = hysteria2Lines.map(l => convertHysteria2ToClashProxy(l.trim().replace(/^hy2:\/\//, 'hysteria2://'))).filter(Boolean);
+  const proxies = [...vlessProxies, ...trojanProxies, ...hysteria2Proxies];
 
   // Base URL for subscription links
   const baseUrl = url.protocol + '//' + url.host;
