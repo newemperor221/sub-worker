@@ -5,6 +5,7 @@
 import { loadConfig, encodeBase64 } from './utils.js';
 import { convertVlessToClashProxy, convertTrojanToClashProxy, convertHysteria2ToClashProxy } from './convert.js';
 import { generateClashYaml } from './yaml.js';
+import { generateSingboxConfig } from './singbox.js';
 import { renderDashboard } from './dashboard.js';
 
 // ==================== 路由处理 ====================
@@ -42,7 +43,20 @@ async function handleRequest(request, env) {
     return new Response(yaml, {
       headers: {
         'Content-Type': 'text/plain; charset=utf-8',
-        'content-disposition': 'inline; filename="' + config.subName + '"; filename*=UTF-8\'\'' + encodeURIComponent(config.subName),
+        'content-disposition': 'inline; filename="' + config.subName + '.yaml"; filename*=UTF-8\'\'' + encodeURIComponent(config.subName + '.yaml'),
+        'profile-title': config.subName,
+        'profile-update-interval': '6',
+      },
+    });
+  }
+
+  // ====== sing-box JSON ======
+  if (search.includes('sing-box') || search.includes('singbox') || search.includes('sb')) {
+    const json = generateSingboxConfig(proxies, config.subName);
+    return new Response(json, {
+      headers: {
+        'Content-Type': 'application/json; charset=utf-8',
+        'content-disposition': 'inline; filename="' + config.subName + '.json"; filename*=UTF-8\'\'' + encodeURIComponent(config.subName + '.json'),
         'profile-title': config.subName,
         'profile-update-interval': '6',
       },

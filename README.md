@@ -1,10 +1,11 @@
 # Sub Worker — 订阅聚合与转换
 
-Cloudflare Workers 订阅服务。解析 vless / trojan / hysteria2 链接，直接生成 Clash YAML 和 Base64 订阅。**无后端依赖**，全部跑在 CF 边缘节点。
+Cloudflare Workers 订阅服务。解析 vless / trojan / hysteria2 链接，直接生成 **Mihomo/Clash YAML**、**sing-box JSON** 和 **Base64 订阅**。**无后端依赖**，全部跑在 CF 边缘节点。
 
 ## 功能
 
 - 🔗 **Clash YAML** — 内联节点（不走 SubConverter/ proxy-provider），Clash Verge 直接导入
+- 🧩 **sing-box JSON** — 完整客户端配置，内置 DNS / 分流 / 策略组
 - 📄 **Base64** — Shadowrocket / v2rayNG 通用格式
 - 🎨 **暗色玻璃管理面板** — 二维码、复制、节点统计
 - 📛 **订阅名称自定义** — 通过 `Content-Disposition` / `profile-title` 响应头
@@ -37,9 +38,10 @@ Cloudflare Workers 订阅服务。解析 vless / trojan / hysteria2 链接，直
 ## 使用
 
 ```
-https://你的域名/<TOKEN>       → 管理面板
-https://你的域名/<TOKEN>?clash  → Clash YAML 订阅
-https://你的域名/<TOKEN>?b64    → Base64 订阅
+https://你的域名/<TOKEN>            → 管理面板
+https://你的域名/<TOKEN>?clash      → Mihomo / Clash YAML 订阅
+https://你的域名/<TOKEN>?sing-box   → sing-box JSON 配置
+https://你的域名/<TOKEN>?b64        → Base64 订阅
 ```
 
 浏览器直接访问 Token 路径显示管理面板，客户端导入时自动识别格式。

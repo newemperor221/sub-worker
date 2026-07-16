@@ -5,6 +5,7 @@
 export function renderDashboard(config, proxies, baseUrl) {
   const links = {
     clash: baseUrl + '/' + config.token + '?clash',
+    singbox: baseUrl + '/' + config.token + '?sing-box',
     b64: baseUrl + '/' + config.token + '?b64',
   };
 
@@ -107,12 +108,13 @@ button, .route-card, .node-row { -webkit-tap-highlight-color: transparent; }
 .route-card:hover { transform: translateY(-4px) rotate(-.3deg); box-shadow:0 7px 0 rgba(103,72,43,.44),0 13px 24px rgba(100,78,43,.14); }
 .route-card:focus-visible { outline:3px solid var(--yellow); outline-offset:3px; }
 .route-card.clash { background:linear-gradient(135deg,#e9fbf4 0%,#f8f3da 100%); }
+.route-card.singbox { background:linear-gradient(135deg,#eef1ff 0%,#f5ecff 100%); }
 .route-card.b64 { background:linear-gradient(135deg,#fff0e4 0%,#fff9db 100%); }
 .route-card .postmark { position:absolute; top:15px; right:17px; width:48px; height:48px; border:2px dashed rgba(108,73,45,.75); border-radius:50%; color:rgba(108,73,45,.82); display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:9px; line-height:1; font-weight:900; transform:rotate(12deg); }
 .route-card .postmark b { font-size:15px; line-height:.9; }
 .route-card .route-head { display:flex; align-items:center; gap:11px; padding-right:48px; }
 .route-card .route-icon { width:48px; height:48px; flex:0 0 48px; display:grid; place-items:center; border:3px solid var(--brown); border-radius:18px 17px 20px 16px; font-size:24px; box-shadow:0 3px 0 rgba(110,76,45,.30); }
-.clash .route-icon { background:#71cdb5; } .b64 .route-icon { background:#f5b67e; }
+.clash .route-icon { background:#71cdb5; } .singbox .route-icon { background:#b6b7ff; } .b64 .route-icon { background:#f5b67e; }
 .route-card h2 { font-size:20px; line-height:1.05; font-weight:900; }
 .route-card .hint { margin-top:3px; font-size:12px; color:var(--brown-soft); font-weight:800; }
 .route-card .route-line { position:relative; margin:16px 0 13px; padding:10px 12px; border:2px dashed rgba(119,84,49,.43); border-radius:15px; background:rgba(255,255,255,.52); font-family:Nunito,"Noto Sans SC",sans-serif; font-size:12px; line-height:1.35; color:#886742; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
@@ -218,7 +220,7 @@ button, .route-card, .node-row { -webkit-tap-highlight-color: transparent; }
     </div>
     <div class="hero-sub">
       <span class="chip"><i class="dot"></i><span>{{COUNT}} 条航线已登记</span></span>
-      <span class="chip">☀️ 两种订阅格式</span>
+      <span class="chip">☀️ 三种订阅格式</span>
       <span class="chip">🍃 点击卡片即可复制</span>
     </div>
   </header>
@@ -236,8 +238,17 @@ button, .route-card, .node-row { -webkit-tap-highlight-color: transparent; }
             <button class="action-btn" type="button" onclick="event.stopPropagation();qr('{{CLASH_URL}}','Clash / Meta')" aria-label="打开 Clash 二维码">📱</button>
           </div>
         </article>
-        <article class="route-card b64" role="button" tabindex="0" onclick="cp('b64')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();cp('b64')}">
+        <article class="route-card singbox" role="button" tabindex="0" onclick="cp('singbox')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();cp('singbox')}">
           <div class="postmark"><span>ROUTE</span><b>02</b></div>
+          <div class="route-head"><div class="route-icon">🧩</div><div><h2>sing-box</h2><p class="hint">完整 JSON / DNS / 分流</p></div></div>
+          <div class="route-line" id="u-singbox">{{SINGBOX_URL}}</div>
+          <div class="route-actions">
+            <button class="action-btn primary" type="button" onclick="event.stopPropagation();cp('singbox')">📋 复制航线</button>
+            <button class="action-btn" type="button" onclick="event.stopPropagation();qr('{{SINGBOX_URL}}','sing-box')" aria-label="打开 sing-box 二维码">📱</button>
+          </div>
+        </article>
+        <article class="route-card b64" role="button" tabindex="0" onclick="cp('b64')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();cp('b64')}">
+          <div class="postmark"><span>ROUTE</span><b>03</b></div>
           <div class="route-head"><div class="route-icon">📮</div><div><h2>Base64</h2><p class="hint">通用 / 移动端客户端</p></div></div>
           <div class="route-line" id="u-b64">{{B64_URL}}</div>
           <div class="route-actions">
@@ -252,7 +263,7 @@ button, .route-card, .node-row { -webkit-tap-highlight-color: transparent; }
       <div class="ribbon">✦ 岛屿小报 ✦</div>
       <div class="summary-strip">
         <div class="summary-card"><div class="big">{{COUNT}}</div><div class="small">登记节点</div></div>
-        <div class="summary-card"><div class="big">02</div><div class="small">订阅格式</div></div>
+        <div class="summary-card"><div class="big">03</div><div class="small">订阅格式</div></div>
         <div class="summary-card"><div class="big">24H</div><div class="small">随时取用</div></div>
       </div>
     </section>
@@ -371,6 +382,7 @@ renderNodes();
   html = html.replace(/\{\{SUB_NAME\}\}/g, config.subName);
   html = html.replace(/\{\{COUNT\}\}/g, proxies.length);
   html = html.replace(/\{\{CLASH_URL\}\}/g, links.clash);
+  html = html.replace(/\{\{SINGBOX_URL\}\}/g, links.singbox);
   html = html.replace(/\{\{B64_URL\}\}/g, links.b64);
   html = html.replace('var proxies = [];', 'var proxies = ' + JSON.stringify(proxies) + ';');
 
