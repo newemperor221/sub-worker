@@ -5,9 +5,7 @@
 export function renderDashboard(config, proxies, baseUrl) {
   const links = {
     clash: baseUrl + '/' + config.token + '?clash',
-    singbox: baseUrl + '/' + config.token + '?sing-box',
-    singboxNodes: baseUrl + '/' + config.token + '?sing-box-nodes',
-    xrayLinks: baseUrl + '/' + config.token + '?xray-links',
+    singbox: baseUrl + '/' + config.token + '?sb',
     b64: baseUrl + '/' + config.token + '?b64',
   };
 
@@ -223,7 +221,7 @@ button, .route-card, .node-row { -webkit-tap-highlight-color: transparent; }
     </div>
     <div class="hero-sub">
       <span class="chip"><i class="dot"></i><span>{{COUNT}} 条航线已登记</span></span>
-      <span class="chip">☀️ 六种导出形式</span>
+      <span class="chip">☀️ 三种导出形式</span>
       <span class="chip">🍃 点击卡片即可复制</span>
     </div>
   </header>
@@ -243,25 +241,15 @@ button, .route-card, .node-row { -webkit-tap-highlight-color: transparent; }
         </article>
         <article class="route-card singbox" role="button" tabindex="0" onclick="cp('singbox')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();cp('singbox')}">
           <div class="postmark"><span>ROUTE</span><b>02</b></div>
-          <div class="route-head"><div class="route-icon">🧩</div><div><h2>sing-box 配置</h2><p class="hint">完整 JSON / DNS / 分流</p></div></div>
+          <div class="route-head"><div class="route-icon">🧩</div><div><h2>sing-box</h2><p class="hint">完整 JSON / DNS / 分流</p></div></div>
           <div class="route-line" id="u-singbox">{{SINGBOX_URL}}</div>
           <div class="route-actions">
-            <button class="action-btn primary" type="button" onclick="event.stopPropagation();cp('singbox')">📋 复制配置</button>
-            <button class="action-btn" type="button" onclick="event.stopPropagation();qr('{{SINGBOX_URL}}','sing-box config')" aria-label="打开 sing-box 二维码">📱</button>
-          </div>
-          <div class="hint" style="margin-top:10px">节点订阅：<span id="u-singbox-nodes">{{SINGBOX_NODES_URL}}</span></div>
-        </article>
-        <article class="route-card xray" role="button" tabindex="0" onclick="cp('xray-links')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();cp('xray-links')}">
-          <div class="postmark"><span>ROUTE</span><b>03</b></div>
-          <div class="route-head"><div class="route-icon">🛰️</div><div><h2>Xray / v2rayN</h2><p class="hint">节点链接订阅 / 多节点导入</p></div></div>
-          <div class="route-line" id="u-xray-links">{{XRAY_LINKS_URL}}</div>
-          <div class="route-actions">
-            <button class="action-btn primary" type="button" onclick="event.stopPropagation();cp('xray-links')">📋 复制订阅</button>
-            <button class="action-btn" type="button" onclick="event.stopPropagation();qr('{{XRAY_LINKS_URL}}','Xray links')" aria-label="打开 Xray links 二维码">📱</button>
+            <button class="action-btn primary" type="button" onclick="event.stopPropagation();cp('singbox')">📋 复制订阅</button>
+            <button class="action-btn" type="button" onclick="event.stopPropagation();qr('{{SINGBOX_URL}}','sing-box')" aria-label="打开 sing-box 二维码">📱</button>
           </div>
         </article>
         <article class="route-card b64" role="button" tabindex="0" onclick="cp('b64')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();cp('b64')}">
-          <div class="postmark"><span>ROUTE</span><b>04</b></div>
+          <div class="postmark"><span>ROUTE</span><b>03</b></div>
           <div class="route-head"><div class="route-icon">📮</div><div><h2>Base64</h2><p class="hint">通用 / 移动端客户端</p></div></div>
           <div class="route-line" id="u-b64">{{B64_URL}}</div>
           <div class="route-actions">
@@ -276,7 +264,7 @@ button, .route-card, .node-row { -webkit-tap-highlight-color: transparent; }
       <div class="ribbon">✦ 岛屿小报 ✦</div>
       <div class="summary-strip">
         <div class="summary-card"><div class="big">{{COUNT}}</div><div class="small">登记节点</div></div>
-        <div class="summary-card"><div class="big">06</div><div class="small">导出形式</div></div>
+        <div class="summary-card"><div class="big">03</div><div class="small">导出形式</div></div>
         <div class="summary-card"><div class="big">24H</div><div class="small">随时取用</div></div>
       </div>
     </section>
@@ -396,8 +384,6 @@ renderNodes();
   html = html.replace(/\{\{COUNT\}\}/g, proxies.length);
   html = html.replace(/\{\{CLASH_URL\}\}/g, links.clash);
   html = html.replace(/\{\{SINGBOX_URL\}\}/g, links.singbox);
-  html = html.replace(/\{\{SINGBOX_NODES_URL\}\}/g, links.singboxNodes);
-  html = html.replace(/\{\{XRAY_LINKS_URL\}\}/g, links.xrayLinks);
   html = html.replace(/\{\{B64_URL\}\}/g, links.b64);
   html = html.replace('var proxies = [];', 'var proxies = ' + JSON.stringify(proxies) + ';');
 

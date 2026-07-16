@@ -1,13 +1,11 @@
 # Sub Worker — 订阅聚合与转换
 
-Cloudflare Workers 订阅服务。解析 vless / trojan / hysteria2 链接，直接生成 **Mihomo/Clash YAML**、**sing-box JSON**、**节点型 sing-box 订阅**、**Xray/v2rayN 链接订阅** 和 **Base64 订阅**。**无后端依赖**，全部跑在 CF 边缘节点。
+Cloudflare Workers 订阅服务。解析 vless / trojan / hysteria2 链接，直接生成 **Mihomo/Clash YAML**、**sing-box JSON** 和 **Base64 订阅**。**无后端依赖**，全部跑在 CF 边缘节点。
 
 ## 功能
 
 - 🔗 **Clash YAML** — 内联节点（不走 SubConverter/ proxy-provider），Clash Verge 直接导入
 - 🧩 **sing-box JSON** — 完整客户端配置，内置 DNS / 分流 / 策略组
-- 🧷 **sing-box Nodes JSON** — 更偏“节点导入”的 outbounds 订阅
-- 🚇 **Xray Links** — 更适合 v2rayN / Xray 系客户端按节点导入的链接订阅
 - 📄 **Base64** — Shadowrocket / v2rayNG 通用格式
 - 🎨 **暗色玻璃管理面板** — 二维码、复制、节点统计
 - 📛 **订阅名称自定义** — 通过 `Content-Disposition` / `profile-title` 响应头
@@ -40,12 +38,10 @@ Cloudflare Workers 订阅服务。解析 vless / trojan / hysteria2 链接，直
 ## 使用
 
 ```
-https://你的域名/<TOKEN>                 → 管理面板
-https://你的域名/<TOKEN>?clash           → Mihomo / Clash YAML 订阅
-https://你的域名/<TOKEN>?xray-links      → Xray / v2rayN 节点链接订阅
-https://你的域名/<TOKEN>?sing-box        → sing-box 完整 JSON 配置
-https://你的域名/<TOKEN>?sing-box-nodes  → sing-box 节点订阅 JSON
-https://你的域名/<TOKEN>?b64             → Base64 订阅
+https://你的域名/<TOKEN>       → 管理面板
+https://你的域名/<TOKEN>?clash → Mihomo / Clash YAML 订阅
+https://你的域名/<TOKEN>?sb    → sing-box JSON 配置
+https://你的域名/<TOKEN>?b64   → Base64 订阅
 ```
 
 浏览器直接访问 Token 路径显示管理面板，客户端导入时自动识别格式。
@@ -53,18 +49,15 @@ https://你的域名/<TOKEN>?b64             → Base64 订阅
 ### 推荐导入方式
 
 - **Clash Verge / Mihomo Party**：优先用 `?clash`
-- **Xray / v2rayNG / Xray 系客户端**：优先用 `?xray-links` 或 `?b64`
-- **sing-box GUI 客户端**：
-  - 想直接导入一整套 DNS / 分流 / 流媒体配置，用 `?sing-box`
-  - 想按“节点列表”导入，看多个节点，用 `?sing-box-nodes`
+- **sing-box GUI 客户端**：优先用 `?sb`
+- **通用客户端 / 移动端**：优先用 `?b64`
 
 
 ## 配置风格说明
 
-当前生成的三套主配置遵循“自包含 + 可直接导入”的思路，重点参考了常见的流行做法：
+当前生成的两套主配置遵循“自包含 + 可直接导入”的思路，重点参考了常见的流行做法：
 
 - **Clash / Mihomo**：参考 MetaCubeX / Clash.Meta 常见写法，内置 fake-ip、nameserver-policy、fallback、GEOSITE/GEOIP 分流
-- **Xray-core**：使用内建 DNS + routing + observatory + balancer，偏 `leastPing` 自动选路
 - **sing-box**：使用 remote rule-set + selector/urltest + 分类型 DNS server / rule
 
 重点补齐：
@@ -74,8 +67,6 @@ https://你的域名/<TOKEN>?b64             → Base64 订阅
 - IPv4-only 倾向
 - 流媒体域名优先远端 DNS 解析
 - 代理节点去重与基础自动选路
-
-> 说明：当前 **Xray-core 导出优先覆盖 VLESS / Trojan**。若订阅里包含 Hysteria2，生成结果会在 `_meta.skipped_nodes` 里标出未导出的节点，避免静默丢失。
 
 ## 环境变量说明
 
