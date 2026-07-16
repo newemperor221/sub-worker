@@ -109,13 +109,12 @@ button, .route-card, .node-row { -webkit-tap-highlight-color: transparent; }
 .route-card:focus-visible { outline:3px solid var(--yellow); outline-offset:3px; }
 .route-card.clash { background:linear-gradient(135deg,#e9fbf4 0%,#f8f3da 100%); }
 .route-card.singbox { background:linear-gradient(135deg,#eef1ff 0%,#f5ecff 100%); }
-.route-card.xray { background:linear-gradient(135deg,#ffeef0 0%,#fff4e5 100%); }
 .route-card.b64 { background:linear-gradient(135deg,#fff0e4 0%,#fff9db 100%); }
 .route-card .postmark { position:absolute; top:15px; right:17px; width:48px; height:48px; border:2px dashed rgba(108,73,45,.75); border-radius:50%; color:rgba(108,73,45,.82); display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:9px; line-height:1; font-weight:900; transform:rotate(12deg); }
 .route-card .postmark b { font-size:15px; line-height:.9; }
 .route-card .route-head { display:flex; align-items:center; gap:11px; padding-right:48px; }
 .route-card .route-icon { width:48px; height:48px; flex:0 0 48px; display:grid; place-items:center; border:3px solid var(--brown); border-radius:18px 17px 20px 16px; font-size:24px; box-shadow:0 3px 0 rgba(110,76,45,.30); }
-.clash .route-icon { background:#71cdb5; } .singbox .route-icon { background:#b6b7ff; } .xray .route-icon { background:#ffb6be; } .b64 .route-icon { background:#f5b67e; }
+.clash .route-icon { background:#71cdb5; } .singbox .route-icon { background:#b6b7ff; } .b64 .route-icon { background:#f5b67e; }
 .route-card h2 { font-size:20px; line-height:1.05; font-weight:900; }
 .route-card .hint { margin-top:3px; font-size:12px; color:var(--brown-soft); font-weight:800; }
 .route-card .route-line { position:relative; margin:16px 0 13px; padding:10px 12px; border:2px dashed rgba(119,84,49,.43); border-radius:15px; background:rgba(255,255,255,.52); font-family:Nunito,"Noto Sans SC",sans-serif; font-size:12px; line-height:1.35; color:#886742; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
