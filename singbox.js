@@ -1,5 +1,5 @@
-// sing-box JSON generator — self-contained DNS + routing profile
-// ============================================================
+// sing-box JSON generator — enriched DNS + streaming / AI template
+// ==============================================================
 
 function dedupeProxyNames(proxies) {
   const seen = new Map();
@@ -16,6 +16,10 @@ function dedupeProxyNames(proxies) {
 
 function matchNames(proxies, re) {
   return proxies.filter(p => re.test(p.name)).map(p => p.name);
+}
+
+function uniq(values) {
+  return values.filter((value, index) => value && index === values.indexOf(value));
 }
 
 function buildRegionGroups(proxies) {
@@ -72,9 +76,7 @@ function buildTransport(proxy) {
       type: 'http',
       path: proxy['xhttp-opts'].path || '/',
     };
-    if (proxy['xhttp-opts'].host) {
-      transport.host = [proxy['xhttp-opts'].host];
-    }
+    if (proxy['xhttp-opts'].host) transport.host = [proxy['xhttp-opts'].host];
     return transport;
   }
   return undefined;
@@ -106,9 +108,8 @@ function proxyToSingboxOutbound(proxy) {
       server: proxy.server,
       server_port: proxy.port,
       password: proxy.password,
+      tls: buildTls(proxy) || { enabled: true, insecure: false },
     };
-    const tls = buildTls(proxy) || { enabled: true, insecure: false };
-    outbound.tls = tls;
     return outbound;
   }
 
@@ -145,6 +146,28 @@ function remoteRuleSet(tag, url) {
   };
 }
 
+function selector(tag, outbounds, defaultOutbound) {
+  return {
+    type: 'selector',
+    tag,
+    outbounds: uniq(outbounds),
+    default: defaultOutbound,
+    interrupt_exist_connections: false,
+  };
+}
+
+function urlTest(tag, outbounds) {
+  return {
+    type: 'urltest',
+    tag,
+    outbounds: uniq(outbounds),
+    url: 'http://www.gstatic.com/generate_204',
+    interval: '5m',
+    tolerance: 50,
+    interrupt_exist_connections: false,
+  };
+}
+
 export function generateSingboxConfig(inputProxies, subName) {
   const proxies = dedupeProxyNames(inputProxies || []);
   const nodeOutbounds = proxies.map(proxyToSingboxOutbound).filter(Boolean);
@@ -155,98 +178,66 @@ export function generateSingboxConfig(inputProxies, subName) {
     .filter(p => !regionGroups.some(group => group.members.includes(p.name)))
     .map(p => p.name);
 
+  const proxyOptions = uniq(['auto', ...regionTags, ...(miscMembers.length ? ['region-other'] : []), 'direct']);
+  const commonOptions = uniq(['proxy', 'auto', ...regionTags, ...(miscMembers.length ? ['region-other'] : []), 'direct']);
+  const aiOptions = uniq(['proxy', 'auto', 'region-sg', 'region-jp', 'region-us', 'region-hk', 'direct'].filter(tag => tag === 'proxy' || tag === 'auto' || tag === 'direct' || regionTags.includes(tag)));
+  const directPreferred = uniq(['direct', 'proxy', 'auto', ...regionTags, ...(miscMembers.length ? ['region-other'] : [])]);
+
   const outbounds = [
-    {
-      type: 'selector',
-      tag: 'proxy',
-      outbounds: ['auto', ...regionTags, ...(miscMembers.length ? ['region-other'] : []), 'direct'],
-      default: 'auto',
-      interrupt_exist_connections: false,
-    },
-    {
-      type: 'urltest',
-      tag: 'auto',
-      outbounds: nodeTags,
-      url: 'http://www.gstatic.com/generate_204',
-      interval: '5m',
-      tolerance: 50,
-      interrupt_exist_connections: false,
-    },
-    {
-      type: 'selector',
-      tag: 'streaming',
-      outbounds: ['proxy', 'auto', ...regionTags, ...(miscMembers.length ? ['region-other'] : []), 'direct'],
-      default: 'proxy',
-    },
-    {
-      type: 'selector',
-      tag: 'ai',
-      outbounds: ['proxy', 'auto', ...['region-sg', 'region-jp', 'region-us', 'region-hk'].filter(tag => regionTags.includes(tag)), 'direct'],
-      default: 'proxy',
-    },
-    {
-      type: 'selector',
-      tag: 'telegram',
-      outbounds: ['proxy', 'auto', ...regionTags, 'direct'],
-      default: 'proxy',
-    },
-    {
-      type: 'selector',
-      tag: 'google',
-      outbounds: ['proxy', 'auto', ...regionTags, 'direct'],
-      default: 'proxy',
-    },
-    {
-      type: 'selector',
-      tag: 'github',
-      outbounds: ['proxy', 'auto', ...regionTags, 'direct'],
-      default: 'proxy',
-    },
-    {
-      type: 'selector',
-      tag: 'apple',
-      outbounds: ['direct', 'proxy', 'auto', ...regionTags],
-      default: 'direct',
-    },
-    {
-      type: 'selector',
-      tag: 'microsoft',
-      outbounds: ['direct', 'proxy', 'auto', ...regionTags],
-      default: 'direct',
-    },
-    {
-      type: 'selector',
-      tag: 'games',
-      outbounds: ['direct', 'proxy', 'auto', ...regionTags],
-      default: 'direct',
-    },
+    selector('proxy', proxyOptions, 'auto'),
+    urlTest('auto', nodeTags),
+    selector('streaming', commonOptions, 'proxy'),
+    selector('ai', aiOptions, 'proxy'),
+    selector('telegram', commonOptions, 'proxy'),
+    selector('google', commonOptions, 'proxy'),
+    selector('github', commonOptions, 'proxy'),
+    selector('social', commonOptions, 'proxy'),
+    selector('apple', directPreferred, 'direct'),
+    selector('microsoft', directPreferred, 'direct'),
+    selector('games', directPreferred, 'direct'),
     { type: 'direct', tag: 'direct' },
     { type: 'block', tag: 'block' },
   ];
 
   for (const group of regionGroups) {
-    outbounds.splice(outbounds.length - 2, 0, {
-      type: 'urltest',
-      tag: group.tag,
-      outbounds: group.members,
-      url: 'http://www.gstatic.com/generate_204',
-      interval: '5m',
-      tolerance: 50,
-      interrupt_exist_connections: false,
-    });
+    outbounds.splice(outbounds.length - 2, 0, urlTest(group.tag, group.members));
   }
   if (miscMembers.length) {
-    outbounds.splice(outbounds.length - 2, 0, {
-      type: 'urltest',
-      tag: 'region-other',
-      outbounds: miscMembers,
-      url: 'http://www.gstatic.com/generate_204',
-      interval: '5m',
-      tolerance: 50,
-      interrupt_exist_connections: false,
-    });
+    outbounds.splice(outbounds.length - 2, 0, urlTest('region-other', miscMembers));
   }
   outbounds.push(...nodeOutbounds);
+
+  const ruleSets = [
+    remoteRuleSet('geosite-category-ads-all', 'https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/category-ads-all.srs'),
+    remoteRuleSet('geosite-openai', 'https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/openai.srs'),
+    remoteRuleSet('geosite-anthropic', 'https://testingcf.jsdelivr.net/gh/SagerNet/sing-geosite@rule-set/geosite-anthropic.srs'),
+    remoteRuleSet('geosite-google-gemini', 'https://testingcf.jsdelivr.net/gh/SagerNet/sing-geosite@rule-set/geosite-google-gemini.srs'),
+    remoteRuleSet('geosite-google', 'https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/google.srs'),
+    remoteRuleSet('geosite-youtube', 'https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/youtube.srs'),
+    remoteRuleSet('geosite-github', 'https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/github.srs'),
+    remoteRuleSet('geosite-telegram', 'https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/telegram.srs'),
+    remoteRuleSet('geosite-twitter', 'https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/twitter.srs'),
+    remoteRuleSet('geosite-facebook', 'https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/facebook.srs'),
+    remoteRuleSet('geosite-tiktok', 'https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/tiktok.srs'),
+    remoteRuleSet('geosite-netflix', 'https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/netflix.srs'),
+    remoteRuleSet('geosite-disney', 'https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/disney.srs'),
+    remoteRuleSet('geosite-primevideo', 'https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/primevideo.srs'),
+    remoteRuleSet('geosite-hbo', 'https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/hbo.srs'),
+    remoteRuleSet('geosite-spotify', 'https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/spotify.srs'),
+    remoteRuleSet('geosite-bahamut', 'https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/bahamut.srs'),
+    remoteRuleSet('geosite-bilibili', 'https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/bilibili.srs'),
+    remoteRuleSet('geosite-apple', 'https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/apple.srs'),
+    remoteRuleSet('geosite-apple-cn', 'https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/apple-cn.srs'),
+    remoteRuleSet('geosite-microsoft', 'https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/microsoft.srs'),
+    remoteRuleSet('geosite-microsoft-cn', 'https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/microsoft@cn.srs'),
+    remoteRuleSet('geosite-steam-cn', 'https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/steam@cn.srs'),
+    remoteRuleSet('geosite-category-games', 'https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/category-games.srs'),
+    remoteRuleSet('geosite-category-games-cn', 'https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/category-games@cn.srs'),
+    remoteRuleSet('geosite-private', 'https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/private.srs'),
+    remoteRuleSet('geosite-cn', 'https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/cn.srs'),
+    remoteRuleSet('geoip-private', 'https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geoip/private.srs'),
+    remoteRuleSet('geoip-cn', 'https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geoip/cn.srs'),
+  ];
 
   const config = {
     log: {
@@ -294,17 +285,22 @@ export function generateSingboxConfig(inputProxies, subName) {
       ],
       rules: [
         {
-          rule_set: ['geosite-private', 'geosite-cn', 'geosite-apple-cn', 'geosite-microsoft-cn', 'geosite-steam-cn', 'geosite-category-games-cn'],
+          rule_set: ['geosite-private', 'geosite-cn', 'geosite-apple-cn', 'geosite-microsoft-cn', 'geosite-steam-cn', 'geosite-category-games-cn', 'geosite-bilibili'],
+          action: 'route',
           server: 'dns-direct-ali',
         },
         {
-          rule_set: ['geosite-openai', 'geosite-google', 'geosite-youtube', 'geosite-github', 'geosite-telegram', 'geosite-netflix', 'geosite-disney', 'geosite-spotify'],
+          rule_set: ['geosite-openai', 'geosite-anthropic', 'geosite-google-gemini', 'geosite-google', 'geosite-youtube', 'geosite-github', 'geosite-telegram', 'geosite-twitter', 'geosite-facebook', 'geosite-tiktok', 'geosite-netflix', 'geosite-disney', 'geosite-primevideo', 'geosite-hbo', 'geosite-spotify', 'geosite-bahamut'],
+          action: 'route',
           server: 'dns-remote-cf',
         },
       ],
       final: 'dns-remote-cf',
       strategy: 'ipv4_only',
-      independent_cache: true,
+      disable_cache: false,
+      cache_capacity: 4096,
+      reverse_mapping: true,
+      timeout: '10s',
     },
     inbounds: [
       {
@@ -321,36 +317,17 @@ export function generateSingboxConfig(inputProxies, subName) {
     route: {
       auto_detect_interface: true,
       final: 'proxy',
-      rule_set: [
-        remoteRuleSet('geosite-category-ads-all', 'https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/category-ads-all.srs'),
-        remoteRuleSet('geosite-openai', 'https://testingcf.jsdelivr.net/gh/Toperlock/sing-box-geosite@main/rule/OpenAI.srs'),
-        remoteRuleSet('geosite-google', 'https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/google.srs'),
-        remoteRuleSet('geosite-youtube', 'https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/youtube.srs'),
-        remoteRuleSet('geosite-github', 'https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/github.srs'),
-        remoteRuleSet('geosite-telegram', 'https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/telegram.srs'),
-        remoteRuleSet('geosite-netflix', 'https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/netflix.srs'),
-        remoteRuleSet('geosite-disney', 'https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/disney.srs'),
-        remoteRuleSet('geosite-spotify', 'https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/spotify.srs'),
-        remoteRuleSet('geosite-apple', 'https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/apple.srs'),
-        remoteRuleSet('geosite-apple-cn', 'https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/apple-cn.srs'),
-        remoteRuleSet('geosite-microsoft', 'https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/microsoft.srs'),
-        remoteRuleSet('geosite-microsoft-cn', 'https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/microsoft@cn.srs'),
-        remoteRuleSet('geosite-steam-cn', 'https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/steam@cn.srs'),
-        remoteRuleSet('geosite-category-games', 'https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/category-games.srs'),
-        remoteRuleSet('geosite-category-games-cn', 'https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/category-games@cn.srs'),
-        remoteRuleSet('geosite-private', 'https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/private.srs'),
-        remoteRuleSet('geosite-cn', 'https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/cn.srs'),
-        remoteRuleSet('geoip-private', 'https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geoip/private.srs'),
-        remoteRuleSet('geoip-cn', 'https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geoip/cn.srs'),
-      ],
+      rule_set: ruleSets,
       rules: [
         { ip_is_private: true, outbound: 'direct' },
         { rule_set: 'geosite-category-ads-all', outbound: 'block' },
-        { rule_set: 'geosite-openai', outbound: 'ai' },
+        { rule_set: ['geosite-openai', 'geosite-anthropic', 'geosite-google-gemini'], outbound: 'ai' },
         { rule_set: 'geosite-telegram', outbound: 'telegram' },
         { rule_set: 'geosite-github', outbound: 'github' },
         { rule_set: ['geosite-google', 'geosite-youtube'], outbound: 'google' },
-        { rule_set: ['geosite-netflix', 'geosite-disney', 'geosite-spotify'], outbound: 'streaming' },
+        { rule_set: ['geosite-twitter', 'geosite-facebook', 'geosite-tiktok'], outbound: 'social' },
+        { rule_set: ['geosite-netflix', 'geosite-disney', 'geosite-primevideo', 'geosite-hbo', 'geosite-spotify', 'geosite-bahamut'], outbound: 'streaming' },
+        { rule_set: 'geosite-bilibili', outbound: 'direct' },
         { rule_set: 'geosite-apple-cn', outbound: 'direct' },
         { rule_set: 'geosite-apple', outbound: 'apple' },
         { rule_set: 'geosite-microsoft-cn', outbound: 'direct' },
@@ -376,6 +353,7 @@ export function generateSingboxConfig(inputProxies, subName) {
       name: subName,
       generated_for: 'sing-box',
       node_count: proxies.length,
+      profile_style: 'full-config',
     },
     ...config,
   };

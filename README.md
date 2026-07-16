@@ -57,13 +57,16 @@ https://你的域名/<TOKEN>?b64   → Base64 订阅
 
 当前生成的两套主配置遵循“自包含 + 可直接导入”的思路，重点参考了常见的流行做法：
 
-- **Clash / Mihomo**：参考 MetaCubeX / Clash.Meta 常见写法，内置 fake-ip、nameserver-policy、fallback、GEOSITE/GEOIP 分流
-- **sing-box**：使用 remote rule-set + selector/urltest + 分类型 DNS server / rule
+- **Clash / Mihomo**：参考 MetaCubeX / Clash.Meta 常见写法，内置 fake-ip、cache-algorithm、nameserver-policy、fallback、GEOSITE/GEOIP 分流
+- **sing-box**：参考常见 sing-box 全配置模板，使用 remote rule-set + selector/urltest + 分类型 DNS server / rule
 
 重点补齐：
 
 - DNS 国内外分流
-- AI / Telegram / Google / GitHub / 流媒体分流
+- AI（OpenAI / Anthropic / Gemini）分流
+- Telegram / Google / GitHub / Twitter / Facebook / TikTok 分流
+- Netflix / Disney+ / Prime Video / HBO / Spotify / Bahamut 流媒体分流
+- Apple / Microsoft / Games / Bilibili 分流
 - IPv4-only 倾向
 - 流媒体域名优先远端 DNS 解析
 - 代理节点去重与基础自动选路
