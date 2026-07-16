@@ -6,7 +6,6 @@ import { loadConfig, encodeBase64 } from './utils.js';
 import { convertVlessToClashProxy, convertTrojanToClashProxy, convertHysteria2ToClashProxy } from './convert.js';
 import { generateClashYaml } from './yaml.js';
 import { generateSingboxConfig } from './singbox.js';
-import { generateXrayConfig } from './xray.js';
 import { generateSingboxNodeSubscription, generateXrayLinksSubscription } from './subscriptions.js';
 import { renderDashboard } from './dashboard.js';
 
@@ -87,19 +86,6 @@ async function handleRequest(request, env) {
         'Content-Type': 'text/plain; charset=utf-8',
         'content-disposition': 'inline; filename="' + config.subName + '.xray.txt"; filename*=UTF-8\'\'' + encodeURIComponent(config.subName + '.xray.txt'),
         'profile-title': config.subName + ' xray-links',
-        'profile-update-interval': '6',
-      },
-    });
-  }
-
-  // ====== Xray-core JSON ======
-  if (params.has('xray-core') || params.has('xray')) {
-    const json = generateXrayConfig(proxies, config.subName);
-    return new Response(json, {
-      headers: {
-        'Content-Type': 'application/json; charset=utf-8',
-        'content-disposition': 'inline; filename="' + config.subName + '.xray.json"; filename*=UTF-8\'\'' + encodeURIComponent(config.subName + '.xray.json'),
-        'profile-title': config.subName,
         'profile-update-interval': '6',
       },
     });

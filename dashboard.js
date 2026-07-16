@@ -7,7 +7,6 @@ export function renderDashboard(config, proxies, baseUrl) {
     clash: baseUrl + '/' + config.token + '?clash',
     singbox: baseUrl + '/' + config.token + '?sing-box',
     singboxNodes: baseUrl + '/' + config.token + '?sing-box-nodes',
-    xray: baseUrl + '/' + config.token + '?xray',
     xrayLinks: baseUrl + '/' + config.token + '?xray-links',
     b64: baseUrl + '/' + config.token + '?b64',
   };
@@ -252,15 +251,14 @@ button, .route-card, .node-row { -webkit-tap-highlight-color: transparent; }
           </div>
           <div class="hint" style="margin-top:10px">节点订阅：<span id="u-singbox-nodes">{{SINGBOX_NODES_URL}}</span></div>
         </article>
-        <article class="route-card xray" role="button" tabindex="0" onclick="cp('xray')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();cp('xray')}">
+        <article class="route-card xray" role="button" tabindex="0" onclick="cp('xray-links')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();cp('xray-links')}">
           <div class="postmark"><span>ROUTE</span><b>03</b></div>
-          <div class="route-head"><div class="route-icon">🛰️</div><div><h2>Xray-core 配置</h2><p class="hint">完整 JSON / DNS / 流媒体</p></div></div>
-          <div class="route-line" id="u-xray">{{XRAY_URL}}</div>
+          <div class="route-head"><div class="route-icon">🛰️</div><div><h2>Xray / v2rayN</h2><p class="hint">节点链接订阅 / 多节点导入</p></div></div>
+          <div class="route-line" id="u-xray-links">{{XRAY_LINKS_URL}}</div>
           <div class="route-actions">
-            <button class="action-btn primary" type="button" onclick="event.stopPropagation();cp('xray')">📋 复制配置</button>
-            <button class="action-btn" type="button" onclick="event.stopPropagation();qr('{{XRAY_URL}}','Xray-core config')" aria-label="打开 Xray-core 二维码">📱</button>
+            <button class="action-btn primary" type="button" onclick="event.stopPropagation();cp('xray-links')">📋 复制订阅</button>
+            <button class="action-btn" type="button" onclick="event.stopPropagation();qr('{{XRAY_LINKS_URL}}','Xray links')" aria-label="打开 Xray links 二维码">📱</button>
           </div>
-          <div class="hint" style="margin-top:10px">节点订阅：<span id="u-xray-links">{{XRAY_LINKS_URL}}</span></div>
         </article>
         <article class="route-card b64" role="button" tabindex="0" onclick="cp('b64')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();cp('b64')}">
           <div class="postmark"><span>ROUTE</span><b>04</b></div>
@@ -399,7 +397,6 @@ renderNodes();
   html = html.replace(/\{\{CLASH_URL\}\}/g, links.clash);
   html = html.replace(/\{\{SINGBOX_URL\}\}/g, links.singbox);
   html = html.replace(/\{\{SINGBOX_NODES_URL\}\}/g, links.singboxNodes);
-  html = html.replace(/\{\{XRAY_URL\}\}/g, links.xray);
   html = html.replace(/\{\{XRAY_LINKS_URL\}\}/g, links.xrayLinks);
   html = html.replace(/\{\{B64_URL\}\}/g, links.b64);
   html = html.replace('var proxies = [];', 'var proxies = ' + JSON.stringify(proxies) + ';');
