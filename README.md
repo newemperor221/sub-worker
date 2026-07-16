@@ -1,12 +1,14 @@
 # Sub Worker — 订阅聚合与转换
 
-Cloudflare Workers 订阅服务。解析 vless / trojan / hysteria2 链接，直接生成 **Mihomo/Clash YAML**、**Xray-core JSON**、**sing-box JSON** 和 **Base64 订阅**。**无后端依赖**，全部跑在 CF 边缘节点。
+Cloudflare Workers 订阅服务。解析 vless / trojan / hysteria2 链接，直接生成 **Mihomo/Clash YAML**、**Xray-core JSON**、**sing-box JSON**、**节点型 sing-box 订阅**、**Xray/v2rayN 链接订阅** 和 **Base64 订阅**。**无后端依赖**，全部跑在 CF 边缘节点。
 
 ## 功能
 
 - 🔗 **Clash YAML** — 内联节点（不走 SubConverter/ proxy-provider），Clash Verge 直接导入
 - ☄️ **Xray-core JSON** — 完整 DNS / routing / observatory / streaming 分流配置
 - 🧩 **sing-box JSON** — 完整客户端配置，内置 DNS / 分流 / 策略组
+- 🧷 **sing-box Nodes JSON** — 更偏“节点导入”的 outbounds 订阅
+- 🚇 **Xray Links** — 更适合 v2rayN / Xray 系客户端按节点导入的链接订阅
 - 📄 **Base64** — Shadowrocket / v2rayNG 通用格式
 - 🎨 **暗色玻璃管理面板** — 二维码、复制、节点统计
 - 📛 **订阅名称自定义** — 通过 `Content-Disposition` / `profile-title` 响应头
@@ -39,14 +41,28 @@ Cloudflare Workers 订阅服务。解析 vless / trojan / hysteria2 链接，直
 ## 使用
 
 ```
-https://你的域名/<TOKEN>            → 管理面板
-https://你的域名/<TOKEN>?clash      → Mihomo / Clash YAML 订阅
-https://你的域名/<TOKEN>?xray       → Xray-core JSON 配置
-https://你的域名/<TOKEN>?sing-box   → sing-box JSON 配置
-https://你的域名/<TOKEN>?b64        → Base64 订阅
+https://你的域名/<TOKEN>                 → 管理面板
+https://你的域名/<TOKEN>?clash           → Mihomo / Clash YAML 订阅
+https://你的域名/<TOKEN>?xray            → Xray-core 完整 JSON 配置
+https://你的域名/<TOKEN>?xray-links      → Xray / v2rayN 节点链接订阅
+https://你的域名/<TOKEN>?sing-box        → sing-box 完整 JSON 配置
+https://你的域名/<TOKEN>?sing-box-nodes  → sing-box 节点订阅 JSON
+https://你的域名/<TOKEN>?b64             → Base64 订阅
 ```
 
 浏览器直接访问 Token 路径显示管理面板，客户端导入时自动识别格式。
+
+### 推荐导入方式
+
+- **Clash Verge / Mihomo Party**：优先用 `?clash`
+- **v2rayN / v2rayNG / Xray 系客户端**：优先用 `?xray-links` 或 `?b64`
+- **sing-box GUI 客户端**：
+  - 想直接导入一整套 DNS / 分流 / 流媒体配置，用 `?sing-box`
+  - 想按“节点列表”导入，看多个节点，用 `?sing-box-nodes`
+- **Xray-core 原生 / JSON 配置型客户端**：
+  - 想导入完整配置，用 `?xray`
+  - 想只导入节点列表，用 `?xray-links`
+
 
 ## 配置风格说明
 

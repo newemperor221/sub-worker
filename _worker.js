@@ -7,6 +7,7 @@ import { convertVlessToClashProxy, convertTrojanToClashProxy, convertHysteria2To
 import { generateClashYaml } from './yaml.js';
 import { generateSingboxConfig } from './singbox.js';
 import { generateXrayConfig } from './xray.js';
+import { generateSingboxNodeSubscription, generateXrayLinksSubscription } from './subscriptions.js';
 import { renderDashboard } from './dashboard.js';
 
 // ==================== 路由处理 ====================
@@ -52,6 +53,19 @@ async function handleRequest(request, env) {
   }
 
   // ====== sing-box JSON ======
+  if (params.has('sing-box-nodes') || params.has('singbox-nodes')) {
+    const json = generateSingboxNodeSubscription(proxies, config.subName);
+    return new Response(json, {
+      headers: {
+        'Content-Type': 'application/json; charset=utf-8',
+        'content-disposition': 'inline; filename="' + config.subName + '.singbox-nodes.json"; filename*=UTF-8\'\'' + encodeURIComponent(config.subName + '.singbox-nodes.json'),
+        'profile-title': config.subName + ' nodes',
+        'profile-update-interval': '6',
+      },
+    });
+  }
+
+  // ====== sing-box JSON ======
   if (params.has('sing-box') || params.has('singbox') || params.has('sb')) {
     const json = generateSingboxConfig(proxies, config.subName);
     return new Response(json, {
@@ -59,6 +73,20 @@ async function handleRequest(request, env) {
         'Content-Type': 'application/json; charset=utf-8',
         'content-disposition': 'inline; filename="' + config.subName + '.json"; filename*=UTF-8\'\'' + encodeURIComponent(config.subName + '.json'),
         'profile-title': config.subName,
+        'profile-update-interval': '6',
+      },
+    });
+  }
+
+  // ====== Xray / v2rayN links ======
+  if (params.has('xray-links') || params.has('xray-sub')) {
+    const links = generateXrayLinksSubscription(allLines);
+    const b64 = encodeBase64(links);
+    return new Response(b64, {
+      headers: {
+        'Content-Type': 'text/plain; charset=utf-8',
+        'content-disposition': 'inline; filename="' + config.subName + '.xray.txt"; filename*=UTF-8\'\'' + encodeURIComponent(config.subName + '.xray.txt'),
+        'profile-title': config.subName + ' xray-links',
         'profile-update-interval': '6',
       },
     });
