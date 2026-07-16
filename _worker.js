@@ -6,6 +6,7 @@ import { loadConfig, encodeBase64 } from './utils.js';
 import { convertVlessToClashProxy, convertTrojanToClashProxy, convertHysteria2ToClashProxy } from './convert.js';
 import { generateClashYaml } from './yaml.js';
 import { generateSingboxConfig } from './singbox.js';
+import { generateXrayConfig } from './xray.js';
 import { renderDashboard } from './dashboard.js';
 
 // ==================== 路由处理 ====================
@@ -13,7 +14,7 @@ async function handleRequest(request, env) {
   const config = loadConfig(env);
   const url = new URL(request.url);
   const path = url.pathname.replace(/\/$/, '') || '/';
-  const search = url.search;
+  const params = url.searchParams;
 
   // 提取 token（路径第一段）
   const pathParts = path.split('/').filter(Boolean);
@@ -38,7 +39,7 @@ async function handleRequest(request, env) {
   const baseUrl = url.protocol + '//' + url.host;
 
   // ====== Clash YAML ======
-  if (search.includes('clash')) {
+  if (params.has('clash')) {
     const yaml = generateClashYaml(proxies, config.subName);
     return new Response(yaml, {
       headers: {
@@ -51,7 +52,7 @@ async function handleRequest(request, env) {
   }
 
   // ====== sing-box JSON ======
-  if (search.includes('sing-box') || search.includes('singbox') || search.includes('sb')) {
+  if (params.has('sing-box') || params.has('singbox') || params.has('sb')) {
     const json = generateSingboxConfig(proxies, config.subName);
     return new Response(json, {
       headers: {
@@ -63,8 +64,21 @@ async function handleRequest(request, env) {
     });
   }
 
+  // ====== Xray-core JSON ======
+  if (params.has('xray-core') || params.has('xray')) {
+    const json = generateXrayConfig(proxies, config.subName);
+    return new Response(json, {
+      headers: {
+        'Content-Type': 'application/json; charset=utf-8',
+        'content-disposition': 'inline; filename="' + config.subName + '.xray.json"; filename*=UTF-8\'\'' + encodeURIComponent(config.subName + '.xray.json'),
+        'profile-title': config.subName,
+        'profile-update-interval': '6',
+      },
+    });
+  }
+
   // ====== Base64 ======
-  if (search.includes('b64')) {
+  if (params.has('b64')) {
     // 清理空值的 flow 参数
     const linkList = allLines.map(l => {
       const t = l.trim();

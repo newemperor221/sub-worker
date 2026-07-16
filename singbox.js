@@ -119,7 +119,6 @@ function proxyToSingboxOutbound(proxy) {
       server: proxy.server,
       server_port: proxy.port,
       password: proxy.password,
-      network: 'tcp',
       tls: buildTls(proxy) || { enabled: true, insecure: false },
     };
     if (Number.isFinite(proxy.up)) outbound.up_mbps = proxy.up;
