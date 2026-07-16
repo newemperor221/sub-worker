@@ -180,9 +180,10 @@ export function generateXrayConfig(inputProxies, subName) {
       },
       queryStrategy: 'UseIPv4',
       disableFallbackIfMatch: true,
+      disableCache: false,
       servers: [
         {
-          address: '223.5.5.5',
+          address: 'https://223.5.5.5/dns-query',
           domains: [
             'geosite:private',
             'geosite:cn',
@@ -218,7 +219,6 @@ export function generateXrayConfig(inputProxies, subName) {
           skipFallback: true,
         },
         'https://8.8.8.8/dns-query',
-        'localhost',
       ],
     },
     inbounds: [
