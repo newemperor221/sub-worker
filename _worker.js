@@ -14,6 +14,7 @@ async function handleRequest(request, env) {
   const url = new URL(request.url);
   const path = url.pathname.replace(/\/$/, '') || '/';
   const params = url.searchParams;
+  const subscriptionContentDisposition = "inline; filename*=UTF-8''" + encodeURIComponent(config.subName);
 
   // 提取 token（路径第一段）
   const pathParts = path.split('/').filter(Boolean);
@@ -43,7 +44,7 @@ async function handleRequest(request, env) {
     return new Response(yaml, {
       headers: {
         'Content-Type': 'text/plain; charset=utf-8',
-        'content-disposition': 'inline; filename="' + config.subName + '.yaml"; filename*=UTF-8\'\'' + encodeURIComponent(config.subName + '.yaml'),
+        'content-disposition': subscriptionContentDisposition,
         'profile-title': config.subName,
         'profile-update-interval': '6',
       },
@@ -56,7 +57,7 @@ async function handleRequest(request, env) {
     return new Response(json, {
       headers: {
         'Content-Type': 'application/json; charset=utf-8',
-        'content-disposition': 'inline; filename="' + config.subName + '.json"; filename*=UTF-8\'\'' + encodeURIComponent(config.subName + '.json'),
+        'content-disposition': subscriptionContentDisposition,
         'profile-title': config.subName,
         'profile-update-interval': '6',
       },
