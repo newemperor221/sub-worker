@@ -73,9 +73,13 @@ function buildTransport(proxy) {
   }
   if (proxy['xhttp-opts']) {
     const transport = {
+      // sing-box uses HTTP transport fields for XHTTP-style VLESS imports.
+      // Preserve the original XHTTP URI options so modes such as stream-up do
+      // not silently fall back to the client/core default.
       type: 'http',
       path: proxy['xhttp-opts'].path || '/',
     };
+    if (proxy['xhttp-opts'].mode) transport.mode = proxy['xhttp-opts'].mode;
     if (proxy['xhttp-opts'].host) transport.host = [proxy['xhttp-opts'].host];
     return transport;
   }
