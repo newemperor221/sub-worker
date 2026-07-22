@@ -189,6 +189,26 @@ async function handleLogin(request, config) {
   });
 }
 
+function noStoreHeaders(extra = {}) {
+  return {
+    'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+    Pragma: 'no-cache',
+    Expires: '0',
+    ...extra,
+  };
+}
+
+function buildClearSessionHeaders(url) {
+  const headers = new Headers(noStoreHeaders({
+    Location: '/login',
+    'Clear-Site-Data': '"cache"',
+  }));
+  const cookieAttrs = 'Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax';
+  headers.append('Set-Cookie', `${SESSION_COOKIE}=; ${cookieAttrs}`);
+  headers.append('Set-Cookie', `${SESSION_COOKIE}=; Domain=${url.hostname}; ${cookieAttrs}`);
+  return headers;
+}
+
 // ==================== 路由处理 ====================
 async function handleRequest(request, env) {
   const config = loadConfig(env);
@@ -214,10 +234,7 @@ async function handleRequest(request, env) {
   if (path === '/logout') {
     return new Response(null, {
       status: 303,
-      headers: {
-        Location: '/login',
-        'Set-Cookie': `${SESSION_COOKIE}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax`,
-      },
+      headers: buildClearSessionHeaders(url),
     });
   }
 
