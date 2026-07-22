@@ -189,6 +189,8 @@ npm test
 - 如果用户 token 泄露，只需要在后台改该用户 token；
 - 如果 `SESSION_SECRET` 泄露，需要更换它，所有用户会重新登录；
 - 修改 D1 binding 或环境变量后，等待 Cloudflare Pages 重新部署生效。
+- 新建用户时如果用户名或 token 重复，后台会显示错误提示，不会再抛 Cloudflare 1101。
+- 普通用户密码以轻量 salted SHA-256 格式保存；旧版 PBKDF2 / plain 测试格式仍可兼容校验。
 
 ---
 

@@ -116,7 +116,9 @@ test('admin can create, update, and delete ordinary users only', async () => {
 
   let res = await fetchPath(adminUsersPath, { headers: { cookie }, method: 'POST', body: new URLSearchParams({ action: 'create', username: 'charlie', password: 'charliepass', token: 'charlietoken', link: USER2_LINK, subname: 'Charlie订阅', enabled: 'on' }) }, env);
   assert.equal(res.status, 303);
-  assert.ok(env.DB._users.some(u => u.username === 'charlie' && u.role === 'user'));
+  const created = env.DB._users.find(u => u.username === 'charlie' && u.role === 'user');
+  assert.ok(created);
+  assert.match(created.password_hash, /^sha256\$/);
 
   const charlie = env.DB._users.find(u => u.username === 'charlie');
   res = await fetchPath(adminUsersPath, { headers: { cookie }, method: 'POST', body: new URLSearchParams({ action: 'update', id: String(charlie.id), username: 'charlie2', password: '', token: 'charlietoken2', link: LINK, subname: 'Charlie2', enabled: 'on' }) }, env);
@@ -128,6 +130,20 @@ test('admin can create, update, and delete ordinary users only', async () => {
   assert.equal(res.status, 303);
   assert.equal(env.DB._users.some(u => u.id === charlie.id), false);
   assert.equal(env.DB._users.some(u => u.role === 'admin'), false);
+});
+
+test('admin create duplicate user returns admin page error instead of throwing Worker exception', async () => {
+  const env = makeEnv();
+  const { cookie, homePath } = await loginAs('admin', 'pass123', env);
+  const homeId = homePath.split('/')[1];
+  const res = await fetchPath(`/${homeId}/admin/users`, {
+    headers: { cookie },
+    method: 'POST',
+    body: new URLSearchParams({ action: 'create', username: 'alice', password: 'newpass', token: 'newtoken', link: USER2_LINK, subname: 'Duplicate', enabled: 'on' }),
+  }, env);
+  const body = await res.text();
+  assert.equal(res.status, 400);
+  assert.match(body, /用户名或 token 已存在|保存失败/);
 });
 
 test('ADMIN_USER/ADMIN_PASS are env-only and admin has no subscription token', async () => {

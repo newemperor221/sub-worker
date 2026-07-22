@@ -9,7 +9,7 @@ import { renderDashboard } from './dashboard.js';
 
 const SESSION_COOKIE = 'sub_worker_session';
 const SESSION_TTL_SECONDS = 7 * 24 * 60 * 60;
-const PASSWORD_ITERATIONS = 120000;
+
 
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -60,14 +60,20 @@ function randomUrlToken(byteLength = 16) {
 async function hashPassword(password) {
   const salt = new Uint8Array(16);
   crypto.getRandomValues(salt);
-  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits']);
-  const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt, iterations: PASSWORD_ITERATIONS, hash: 'SHA-256' }, key, 256);
-  return `pbkdf2$${PASSWORD_ITERATIONS}$${bytesToHex(salt)}$${bytesToHex(bits)}`;
+  const material = new Uint8Array([...salt, ...new TextEncoder().encode(password)]);
+  const digest = await crypto.subtle.digest('SHA-256', material);
+  return `sha256$${bytesToHex(salt)}$${bytesToHex(digest)}`;
 }
 
 async function verifyPassword(password, stored) {
   if (!stored) return false;
   if (stored.startsWith('plain:')) return constantTimeEqual(password, stored.slice(6));
+  if (stored.startsWith('sha256$')) {
+    const [, saltHex, hashHex] = stored.split('$');
+    const material = new Uint8Array([...hexToBytes(saltHex), ...new TextEncoder().encode(password)]);
+    const digest = await crypto.subtle.digest('SHA-256', material);
+    return constantTimeEqual(bytesToHex(digest), hashHex);
+  }
   if (!stored.startsWith('pbkdf2$')) return false;
   const [, iter, saltHex, hashHex] = stored.split('$');
   const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits']);
@@ -127,6 +133,11 @@ async function dbGetUserByToken(db, token) {
   return normalizeUser(await db.prepare("SELECT * FROM users WHERE token = ? AND enabled = 1 AND role = 'user' LIMIT 1").bind(token).first());
 }
 
+async function dbGetAnyUserByToken(db, token) {
+  if (hasTestUsers(db)) return normalizeUser(db._users.find(u => u.token === token && (u.role || 'user') === 'user'));
+  return normalizeUser(await db.prepare("SELECT * FROM users WHERE token = ? AND role = 'user' LIMIT 1").bind(token).first());
+}
+
 async function dbListUsers(db) {
   if (hasTestUsers(db)) return db._users.filter(u => (u.role || 'user') === 'user').map(normalizeUser).sort((a, b) => a.id - b.id);
   const result = await db.prepare("SELECT id, username, role, token, subname, enabled FROM users WHERE role = 'user' ORDER BY id ASC").all();
@@ -134,12 +145,17 @@ async function dbListUsers(db) {
 }
 
 async function dbCreateUser(db, data) {
+  const username = String(data.username || '').trim();
+  const token = String(data.token || '').trim() || randomUrlToken(24);
+  if (!username || !data.password) throw new Error('INVALID_USER_INPUT');
+  if (await dbGetUserByUsername(db, username)) throw new Error('DUPLICATE_USER');
+  if (await dbGetAnyUserByToken(db, token)) throw new Error('DUPLICATE_TOKEN');
   const user = {
     id: hasTestUsers(db) ? db._nextId++ : undefined,
-    username: data.username,
+    username,
     password_hash: await hashPassword(data.password || randomUrlToken()),
     role: 'user',
-    token: data.token || randomUrlToken(24),
+    token,
     link: data.link || '',
     subname: data.subname || data.username || '我的订阅',
     enabled: data.enabled ? 1 : 0,
@@ -156,10 +172,16 @@ async function dbCreateUser(db, data) {
 async function dbUpdateUser(db, id, data) {
   const user = await dbGetUserById(db, id);
   if (!user) return false;
+  const nextUsername = String(data.username || user.username).trim();
+  const nextToken = String(data.token || user.token).trim();
+  const sameUsername = await dbGetUserByUsername(db, nextUsername);
+  if (sameUsername && sameUsername.id !== user.id) throw new Error('DUPLICATE_USER');
+  const sameToken = await dbGetAnyUserByToken(db, nextToken);
+  if (sameToken && sameToken.id !== user.id) throw new Error('DUPLICATE_TOKEN');
   const patch = {
-    username: data.username || user.username,
+    username: nextUsername,
     password_hash: data.password ? await hashPassword(data.password) : user.password_hash,
-    token: data.token || user.token,
+    token: nextToken,
     link: data.link ?? user.link,
     subname: data.subname || user.subname,
     enabled: data.enabled ? 1 : 0,
@@ -351,8 +373,18 @@ async function handleRequest(request, env) {
   }
   if (session && session.role === 'admin' && path === `/${session.homeId}/admin/users`) {
     if (request.method !== 'POST') return new Response('Method Not Allowed', { status: 405 });
-    await handleAdminUsers(request, db);
-    return redirect(session.homePath);
+    try {
+      await handleAdminUsers(request, db);
+      return redirect(session.homePath);
+    } catch (error) {
+      const message = ['DUPLICATE_USER', 'DUPLICATE_TOKEN'].includes(error?.message)
+        ? '保存失败：用户名或 token 已存在'
+        : '保存失败：请检查用户名、密码、token 和代理链接';
+      return new Response(renderAdminPage(await dbListUsers(db), message), {
+        status: 400,
+        headers: noStoreHeaders({ 'Content-Type': 'text/html; charset=utf-8' }),
+      });
+    }
   }
   if (session && session.role === 'user' && path === session.homePath) {
     const userConfig = db ? configForUser(session.user, config) : config;
