@@ -23,7 +23,15 @@
 
 ### 私有管理面板
 
-浏览器访问 Token 路径时会显示管理面板。
+浏览器访问根路径 `/` 时会显示登录页；输入 `ADMIN_USER` / `ADMIN_PASS` 后跳回根路径并显示管理面板。
+
+面板地址固定为：
+
+```text
+https://sub.example.com/
+```
+
+不会把主页放在 `/TOKEN` 路径下。
 
 面板特性：
 
@@ -176,9 +184,16 @@ my-secret-token
 则入口为：
 
 ```text
-https://sub.example.com/my-secret-token          # 私有面板
-https://sub.example.com/my-secret-token?clash    # Mihomo / Clash YAML
-https://sub.example.com/my-secret-token?b64      # Base64 原始链接订阅
+https://sub.example.com/                                      # 登录页 / 登录后的私有面板
+https://sub.example.com/api/sub?token=my-secret-token&type=clash  # Mihomo / Clash YAML
+https://sub.example.com/api/sub?token=my-secret-token&type=b64    # Base64 原始链接订阅
+```
+
+兼容旧订阅地址：
+
+```text
+https://sub.example.com/my-secret-token?clash
+https://sub.example.com/my-secret-token?b64
 ```
 
 > README 中只写示例地址，不应提交真实 Token、真实节点 IP、UUID、密码或订阅链接。
@@ -189,9 +204,12 @@ https://sub.example.com/my-secret-token?b64      # Base64 原始链接订阅
 
 | 变量名 | 必填 | 说明 |
 |---|---:|---|
-| `TOKEN` | ✅ | 访问令牌，也是订阅路径第一段 |
+| `TOKEN` | ✅ | 订阅接口访问令牌 |
 | `LINK` | ✅ | 节点链接，一行一个 |
 | `SUBNAME` | ❌ | 订阅显示名称 |
+| `ADMIN_USER` | ✅ | 面板登录用户名 |
+| `ADMIN_PASS` | ✅ | 面板登录密码 |
+| `SESSION_SECRET` | ✅ | Cookie 签名密钥，建议用随机长字符串，例如 `openssl rand -hex 32` |
 
 ### `LINK` 示例
 
@@ -247,6 +265,9 @@ dashboard.js
    - `TOKEN`
    - `LINK`
    - `SUBNAME`
+   - `ADMIN_USER`
+   - `ADMIN_PASS`
+   - `SESSION_SECRET`
 7. 绑定自定义域名。
 
 ---

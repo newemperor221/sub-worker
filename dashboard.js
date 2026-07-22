@@ -4,8 +4,8 @@
 // ==================== 管理面板（小岛主题 by GPT） ====================
 export function renderDashboard(config, proxies, baseUrl) {
   const links = {
-    clash: baseUrl + '/' + config.token + '?clash',
-    b64: baseUrl + '/' + config.token + '?b64',
+    clash: baseUrl + '/api/sub?token=' + encodeURIComponent(config.token) + '&type=clash',
+    b64: baseUrl + '/api/sub?token=' + encodeURIComponent(config.token) + '&type=b64',
   };
 
   var html = `<!DOCTYPE html>
@@ -290,8 +290,7 @@ button, .route-card, .node-row { -webkit-tap-highlight-color: transparent; }
 
 <script>
 var proxies = [];
-var routeBase = window.location.origin + window.location.pathname.replace(/[?#].*$/, "");
-var routeLinks = { clash: routeBase + "?clash", b64: routeBase + "?b64" };
+var routeLinks = __ROUTE_LINKS__;
 function esc(v) {
   return String(v == null ? "" : v).replace(/[&<>"\\'"]/g, function(c) {
     return {"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[c];
@@ -445,6 +444,7 @@ renderNodes();
   html = html.replace(/\{\{CLASH_URL\}\}/g, links.clash);
 
   html = html.replace(/\{\{B64_URL\}\}/g, links.b64);
+  html = html.replace('__ROUTE_LINKS__', JSON.stringify(links));
   const panelProxies = proxies.map((p) => ({
     name: p.name,
     type: p.type,
