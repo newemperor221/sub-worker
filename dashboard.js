@@ -117,6 +117,8 @@ button, .route-card, .node-row { -webkit-tap-highlight-color: transparent; }
 .route-card .hint { margin-top:3px; font-size:12px; color:var(--brown-soft); font-weight:800; }
 .route-card .route-line { position:relative; margin:16px 0 13px; padding:10px 12px; border:2px dashed rgba(119,84,49,.43); border-radius:15px; background:rgba(255,255,255,.52); font-family:Nunito,"Noto Sans SC",sans-serif; font-size:12px; line-height:1.35; color:#886742; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
 .route-card .route-line:before { content:"URL"; position:absolute; left:11px; top:-10px; padding:0 5px; font-family:Nunito,sans-serif; font-size:9px; font-weight:900; color:var(--brown-soft); background:var(--paper); letter-spacing:.08em; }
+.route-card .route-line.hidden-line { color:var(--brown-soft); font-weight:900; letter-spacing:.03em; }
+.route-card .route-line.hidden-line:before { content:"PRIVATE"; }
 .route-actions { display:flex; gap:9px; }
 .action-btn { height:38px; min-width:38px; display:inline-flex; align-items:center; justify-content:center; gap:7px; padding:0 13px; border:2px solid var(--brown); border-radius:999px; background:var(--white); color:var(--brown); cursor:pointer; font-size:12px; font-weight:900; line-height:1; box-shadow:0 4px 0 #bba887; transition:transform .16s var(--ease), box-shadow .16s var(--ease), background .16s var(--ease); }
 .action-btn.primary { flex:1; background:var(--yellow); }
@@ -145,6 +147,8 @@ button, .route-card, .node-row { -webkit-tap-highlight-color: transparent; }
 .node-main { min-width:0; }
 .node-name { overflow:hidden; white-space:nowrap; text-overflow:ellipsis; color:var(--brown-deep); font-size:14px; font-weight:900; }
 .node-meta { margin-top:4px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; color:var(--brown-soft); font-size:11px; font-weight:800; }
+.node-detail { margin-top:5px; display:flex; flex-wrap:wrap; gap:5px; }
+.detail-pill { padding:3px 7px; border:1.5px solid rgba(105,74,44,.46); border-radius:999px; background:#fff7dc; color:var(--brown-deep); font-size:9px; font-weight:900; line-height:1; }
 .node-badges { display:flex; justify-content:flex-end; align-items:center; flex-wrap:wrap; gap:6px; }
 .proto { padding:4px 7px; border:1.5px solid rgba(105,74,44,.74); border-radius:999px; color:var(--brown-deep); background:#e9f6e9; font-size:9px; font-weight:900; letter-spacing:.04em; }
 .port { padding:4px 7px; border:1.5px solid rgba(105,74,44,.58); border-radius:9px; background:#fff2c3; color:var(--brown); font-size:10px; font-weight:900; }
@@ -232,19 +236,19 @@ button, .route-card, .node-row { -webkit-tap-highlight-color: transparent; }
         <article class="route-card clash" role="button" tabindex="0" onclick="cp('clash')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();cp('clash')}">
           <div class="postmark"><span>ROUTE</span><b>01</b></div>
           <div class="route-head"><div class="route-icon">⚔️</div><div><h2>Clash / Meta</h2><p class="hint">桌面与规则客户端</p></div></div>
-          <div class="route-line" id="u-clash">{{CLASH_URL}}</div>
+          <div class="route-line hidden-line" id="u-clash">订阅链接已隐藏，点击复制或扫码使用</div>
           <div class="route-actions">
             <button class="action-btn primary" type="button" onclick="event.stopPropagation();cp('clash')">📋 复制航线</button>
-            <button class="action-btn" type="button" onclick="event.stopPropagation();qr('{{CLASH_URL}}','Clash / Meta')" aria-label="打开 Clash 二维码">📱</button>
+            <button class="action-btn" type="button" onclick="event.stopPropagation();qrKey('clash','Clash / Meta')" aria-label="打开 Clash 二维码">📱</button>
           </div>
         </article>
         <article class="route-card b64" role="button" tabindex="0" onclick="cp('b64')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();cp('b64')}">
           <div class="postmark"><span>ROUTE</span><b>02</b></div>
           <div class="route-head"><div class="route-icon">📮</div><div><h2>Base64</h2><p class="hint">通用 / 移动端客户端</p></div></div>
-          <div class="route-line" id="u-b64">{{B64_URL}}</div>
+          <div class="route-line hidden-line" id="u-b64">订阅链接已隐藏，点击复制或扫码使用</div>
           <div class="route-actions">
             <button class="action-btn primary" type="button" onclick="event.stopPropagation();cp('b64')">📋 复制航线</button>
-            <button class="action-btn" type="button" onclick="event.stopPropagation();qr('{{B64_URL}}','Base64')" aria-label="打开 Base64 二维码">📱</button>
+            <button class="action-btn" type="button" onclick="event.stopPropagation();qrKey('b64','Base64')" aria-label="打开 Base64 二维码">📱</button>
           </div>
         </article>
       </div>
@@ -275,7 +279,7 @@ button, .route-card, .node-row { -webkit-tap-highlight-color: transparent; }
     <h3 id="qrTitle">航线二维码</h3>
     <p>打开客户端扫一扫，就能登上小岛。</p>
     <div class="qr-frame"><img id="qrImg" src="" alt="二维码"></div>
-    <div class="modal-link" id="qrLink"></div>
+    <div class="modal-link" id="qrLink">订阅链接已隐藏，可直接扫码或复制。</div>
     <div class="modal-actions">
       <button class="action-btn primary" type="button" onclick="copyModalLink()">📋 复制链接</button>
       <button class="action-btn" type="button" onclick="cq()">关闭</button>
@@ -286,6 +290,8 @@ button, .route-card, .node-row { -webkit-tap-highlight-color: transparent; }
 
 <script>
 var proxies = [];
+var routeBase = window.location.origin + window.location.pathname.replace(/[?#].*$/, "");
+var routeLinks = { clash: routeBase + "?clash", b64: routeBase + "?b64" };
 function esc(v) {
   return String(v == null ? "" : v).replace(/[&<>"\\'"]/g, function(c) {
     return {"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[c];
@@ -343,6 +349,30 @@ function nodeIcon(name, server, type) {
   if (t.indexOf("ss") >= 0) return "🌻";
   return "⛵";
 }
+function detailPill(text) {
+  return '<span class="detail-pill">' + esc(text) + '</span>';
+}
+function vlessDetails(n) {
+  var parts = ["VLESS"];
+  if (n && n["reality-opts"]) parts.push("REALITY");
+  else if (n && n.tls) parts.push("TLS");
+  var network = String(n && n.network || "tcp").toUpperCase();
+  parts.push(network);
+  if (n && n.flow) parts.push("Vision");
+  if (n && n["xhttp-opts"] && n["xhttp-opts"].mode) parts.push(String(n["xhttp-opts"].mode));
+  if (n && n["grpc-opts"]) parts.push("gRPC");
+  if (n && n["ws-opts"]) parts.push("WS");
+  var sni = n && (n.sni || n.servername);
+  if (sni) parts.push("SNI " + sni);
+  return parts.map(detailPill).join("");
+}
+function nodeDetails(n) {
+  var type = String(n && n.type || "").toLowerCase();
+  if (type === "vless") return vlessDetails(n);
+  if (type === "trojan") return detailPill("Trojan") + (n && n.sni ? detailPill("SNI " + n.sni) : "");
+  if (type === "hysteria2") return detailPill("Hysteria2") + (n && n.sni ? detailPill("SNI " + n.sni) : "");
+  return detailPill(type || "Proxy");
+}
 function renderNodes() {
   var el = document.getElementById("nodeList");
   if (!el) return;
@@ -353,14 +383,13 @@ function renderNodes() {
   el.innerHTML = proxies.map(function(n) {
     var name = esc(n && n.name || "未命名节点");
     var type = esc(n && n.type || "Unknown");
-    var server = esc(n && n.server || "—");
-    var port = esc(n && n.port != null ? n.port : "—");
     var color = protocolColor(n && n.type || "");
-    var icon = nodeIcon(n && n.name || "", n && n.server || "", n && n.type || "");
+    var icon = nodeIcon(n && n.name || "", "", n && n.type || "");
+    var details = nodeDetails(n || {});
     return "<div class=\\"node-row\\">" +
       "<div class=\\"node-mark\\" style=\\"--node-color:" + color + "\\">" + icon + "</div>" +
-      "<div class=\\"node-main\\"><div class=\\"node-name\\">" + name + "</div><div class=\\"node-meta\\">" + server + "</div></div>" +
-      "<div class=\\"node-badges\\"><span class=\\"proto\\">" + type + "</span><span class=\\"port\\">:" + port + "</span></div>" +
+      "<div class=\\"node-main\\"><div class=\\"node-name\\">" + name + "</div><div class=\\"node-meta\\">连接地址与端口已隐藏</div><div class=\\"node-detail\\">" + details + "</div></div>" +
+      "<div class=\\"node-badges\\"><span class=\\"proto\\">" + type + "</span></div>" +
       "</div>";
   }).join("");
 }
@@ -380,16 +409,17 @@ function fallbackCopy(text, done) {
   document.body.removeChild(ta); done();
 }
 function cp(k) {
-  var el = document.getElementById("u-" + k);
-  copyText(el ? el.textContent.trim() : "", "🍃 航线已经装进口袋");
+  copyText(routeLinks[k] || "", "🍃 航线已经装进口袋");
 }
+function qrKey(k, name) { qr(routeLinks[k] || "", name); }
 function qr(url, name) {
   document.getElementById("qrTitle").textContent = name + " 航线二维码";
   document.getElementById("qrImg").src = "https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=" + encodeURIComponent(url);
-  document.getElementById("qrLink").textContent = url;
+  document.getElementById("qrLink").textContent = "订阅链接已隐藏，可直接扫码或复制。";
+  document.getElementById("qrLink").dataset.url = url;
   document.getElementById("qrModal").classList.add("on");
 }
-function copyModalLink() { copyText(document.getElementById("qrLink").textContent, "🍃 二维码链接已复制"); }
+function copyModalLink() { copyText(document.getElementById("qrLink").dataset.url || "", "🍃 二维码链接已复制"); }
 function cq() { document.getElementById("qrModal").classList.remove("on"); }
 document.getElementById("qrModal").addEventListener("click", function(e) { if (e.target === this) cq(); });
 document.addEventListener("keydown", function(e) { if (e.key === "Escape") cq(); });
@@ -409,7 +439,27 @@ renderNodes();
   html = html.replace(/\{\{CLASH_URL\}\}/g, links.clash);
 
   html = html.replace(/\{\{B64_URL\}\}/g, links.b64);
-  html = html.replace('var proxies = [];', 'var proxies = ' + JSON.stringify(proxies) + ';');
+  const safeHost = (value) => {
+    const v = String(value || '');
+    if (!v) return undefined;
+    if (/^(\d{1,3}\.){3}\d{1,3}$/.test(v)) return undefined;
+    if (v.includes(':')) return undefined;
+    return v;
+  };
+  const panelProxies = proxies.map((p) => ({
+    name: p.name,
+    type: p.type,
+    network: p.network,
+    tls: p.tls,
+    sni: safeHost(p.sni),
+    servername: safeHost(p.servername),
+    flow: p.flow,
+    'reality-opts': p['reality-opts'] ? {} : undefined,
+    'xhttp-opts': p['xhttp-opts'] ? { mode: p['xhttp-opts'].mode } : undefined,
+    'grpc-opts': p['grpc-opts'] ? {} : undefined,
+    'ws-opts': p['ws-opts'] ? {} : undefined,
+  }));
+  html = html.replace('var proxies = [];', 'var proxies = ' + JSON.stringify(panelProxies) + ';');
 
   return html;
 }
