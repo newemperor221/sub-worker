@@ -147,6 +147,27 @@ test('subscription API is per-user token protected and returns matching user lin
   assert.equal(await bob.text(), btoa(unescape(encodeURIComponent(USER2_LINK))));
 });
 
+test('without D1 binding, legacy single-admin dashboard still works instead of 500', async () => {
+  const legacyEnv = {
+    TOKEN: 'legacytoken',
+    LINK,
+    SUBNAME: 'Legacy订阅',
+    ADMIN_USER: 'admin',
+    ADMIN_PASS: 'pass123',
+    SESSION_SECRET: 'unit-test-secret',
+  };
+  const login = await fetchPath('/login', { method: 'POST', body: new URLSearchParams({ username: 'admin', password: 'pass123' }) }, legacyEnv);
+  const cookie = login.headers.get('set-cookie').split(';')[0];
+  const homePath = login.headers.get('location');
+  assert.match(homePath || '', /^\/[A-Za-z0-9_-]{22,}\/admin$/);
+
+  const res = await fetchPath(homePath, { headers: { cookie } }, legacyEnv);
+  const body = await res.text();
+  assert.equal(res.status, 200);
+  assert.match(body, /Legacy订阅/);
+  assert.match(body, /\/api\/sub\?token=legacytoken&type=clash/);
+});
+
 test('GET /logout clears new and legacy browser sessions and redirects to /login', async () => {
   const res = await fetchPath('/logout');
   const cookie = res.headers.get('set-cookie') || '';

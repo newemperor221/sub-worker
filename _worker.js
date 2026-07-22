@@ -352,7 +352,10 @@ async function handleRequest(request, env) {
   if (path === '/') return redirect(session ? session.homePath : '/login');
 
   if (session && session.role === 'admin' && path === session.homePath) {
-    if (!db) return new Response('D1 DB is required for admin users', { status: 500 });
+    if (!db) {
+      const { proxies } = parseProxiesFromLink(config.link);
+      return new Response(renderDashboard(config, proxies, baseUrl), { headers: noStoreHeaders({ 'Content-Type': 'text/html; charset=utf-8' }) });
+    }
     return new Response(renderAdminPage(await dbListUsers(db)), { headers: noStoreHeaders({ 'Content-Type': 'text/html; charset=utf-8' }) });
   }
   if (session && session.role === 'admin' && path === `/${session.homeId}/admin/users`) {
