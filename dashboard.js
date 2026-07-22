@@ -310,7 +310,7 @@ function flagIcon(code, label) {
     tw: '<svg viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg"><rect width="60" height="40" fill="#FE0000"/><rect width="30" height="20" fill="#000095"/><circle cx="15" cy="10" r="6" fill="#fff"/></svg>',
     jp: '<svg viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg"><rect width="60" height="40" fill="#fff"/><circle cx="30" cy="20" r="11" fill="#BC002D"/></svg>'
   };
-  return "<span class=\"flag-svg\" role=\"img\" aria-label=\"" + esc(label || code.toUpperCase()) + "\" title=\"" + esc(label || code.toUpperCase()) + "\">" + (flags[code] || "") + "</span>";
+  return '<span class="flag-svg" role="img" aria-label="' + esc(label || code.toUpperCase()) + '" title="' + esc(label || code.toUpperCase()) + '">' + (flags[code] || '') + '</span>';
 }
 function regionIcon(name, server) {
   var text = String((name || "") + " " + (server || "")).toLowerCase();
@@ -323,13 +323,13 @@ function regionIcon(name, server) {
   if (text.indexOf("🇯🇵") >= 0) return flagIcon("jp", "日本");
   // 先匹配更具体的新地区。比如“英国代理出口（反连香港）”同时包含
   // “英国”和“香港”，应显示英国旗，而不是被香港关键字抢先命中。
-  if (/\b(uk|gb|london|united\s*kingdom|great\s*britain)\b|英国|英國|倫敦|伦敦/.test(text)) return flagIcon("gb", "英国");
+  if (/\b(uk|gb|london|united[ -]*kingdom|great[ -]*britain)\b|英国|英國|倫敦|伦敦/.test(text)) return flagIcon("gb", "英国");
   if (/\b(ng|nigeria|lagos|abuja)\b|尼日利亚|尼日利亞|奈及利亚|奈及利亞/.test(text)) return flagIcon("ng", "尼日利亚");
-  if (/\b(hk|hong\s*kong)\b|香港|港/.test(text)) return flagIcon("hk", "香港");
+  if (/\b(hk|hong[ -]*kong)\b|香港|港/.test(text)) return flagIcon("hk", "香港");
   if (/\b(tw|taiwan)\b|台湾|臺灣/.test(text)) return flagIcon("tw", "台湾");
   if (/\b(sg|singapore)\b|新加坡|狮城/.test(text)) return flagIcon("sg", "新加坡");
   if (/\b(jp|japan|tokyo|osaka)\b|日本|东京|東京|大阪|软银|iij/.test(text)) return flagIcon("jp", "日本");
-  if (/\b(us|usa|united\s*states|los\s*angeles|new\s*york|seattle|san\s*jose|dallas|atlanta)\b|美国|美國|洛杉矶|洛杉磯|硅谷|纽约|紐約|西雅图|西雅圖|圣何塞|聖何塞|达拉斯|達拉斯|堪萨斯|堪薩斯/.test(text)) return flagIcon("us", "美国");
+  if (/\b(us|usa|united[ -]*states|los[ -]*angeles|new[ -]*york|seattle|san[ -]*jose|dallas|atlanta)\b|美国|美國|洛杉矶|洛杉磯|硅谷|纽约|紐約|西雅图|西雅圖|圣何塞|聖何塞|达拉斯|達拉斯|堪萨斯|堪薩斯/.test(text)) return flagIcon("us", "美国");
   return "";
 }
 function nodeIcon(name, server, type) {
