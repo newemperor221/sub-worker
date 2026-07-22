@@ -300,11 +300,20 @@ function protocolColor(type) {
 }
 function regionIcon(name, server) {
   var text = String((name || "") + " " + (server || "")).toLowerCase();
+  if (text.indexOf("🇬🇧") >= 0) return "🇬🇧";
+  if (text.indexOf("🇳🇬") >= 0) return "🇳🇬";
+  if (text.indexOf("🇺🇸") >= 0) return "🇺🇸";
+  if (text.indexOf("🇸🇬") >= 0) return "🇸🇬";
+  if (text.indexOf("🇭🇰") >= 0) return "🇭🇰";
+  if (text.indexOf("🇹🇼") >= 0) return "🇹🇼";
+  if (text.indexOf("🇯🇵") >= 0) return "🇯🇵";
+  // 先匹配更具体的新地区。比如“英国代理出口（反连香港）”同时包含
+  // “英国”和“香港”，应显示英国旗，而不是被香港关键字抢先命中。
+  if (/\b(uk|gb|london|united\s*kingdom|great\s*britain)\b|英国|英國|倫敦|伦敦/.test(text)) return "🇬🇧";
+  if (/\b(ng|nigeria|lagos|abuja)\b|尼日利亚|尼日利亞|奈及利亚|奈及利亞/.test(text)) return "🇳🇬";
   if (/\b(hk|hong\s*kong)\b|香港|港/.test(text)) return "🇭🇰";
   if (/\b(tw|taiwan)\b|台湾|臺灣/.test(text)) return "🇹🇼";
   if (/\b(sg|singapore)\b|新加坡|狮城/.test(text)) return "🇸🇬";
-  if (/\b(uk|gb|london|united\s*kingdom|great\s*britain)\b|英国|倫敦|伦敦/.test(text)) return "🇬🇧";
-  if (/\b(ng|nigeria|lagos|abuja)\b|尼日利亚|奈及利亚/.test(text)) return "🇳🇬";
   if (/\b(jp|japan|tokyo|osaka)\b|日本|东京|東京|大阪|软银|iij/.test(text)) return "🇯🇵";
   if (/\b(us|usa|united\s*states|los\s*angeles|new\s*york|seattle|san\s*jose|dallas|atlanta)\b|美国|美國|洛杉矶|洛杉磯|硅谷|纽约|紐約|西雅图|西雅圖|圣何塞|聖何塞|达拉斯|達拉斯|堪萨斯|堪薩斯/.test(text)) return "🇺🇸";
   return "";

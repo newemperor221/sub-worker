@@ -31,15 +31,25 @@ function uniq(values) {
 }
 
 function buildRegionGroups(proxies) {
-  return [
-    { name: '🇭🇰 香港节点', members: matchNames(proxies, /\bHK\b|香港|港|hong\s*kong/i) },
-    { name: '🇹🇼 台湾节点', members: matchNames(proxies, /\bTW\b|台湾|臺灣|taiwan/i) },
-    { name: '🇸🇬 新加坡节点', members: matchNames(proxies, /\bSG\b|新加坡|狮城|singapore/i) },
-    { name: '🇬🇧 英国节点', members: matchNames(proxies, /\bUK\b|\bGB\b|英国|伦敦|london|united\s*kingdom|great\s*britain/i) },
-    { name: '🇳🇬 尼日利亚节点', members: matchNames(proxies, /\bNG\b|尼日利亚|奈及利亚|nigeria|lagos|abuja/i) },
-    { name: '🇯🇵 日本节点', members: matchNames(proxies, /\bJP\b|日本|东京|大阪|软银|iij|japan/i) },
-    { name: '🇺🇸 美国节点', members: matchNames(proxies, /\bUS\b|美国|洛杉矶|硅谷|纽约|西雅图|圣何塞|达拉斯|堪萨斯|atlanta|los\s*angeles|united\s*states/i) },
-  ].filter(group => group.members.length > 0);
+  const specs = [
+    { name: '🇬🇧 英国节点', re: /🇬🇧|\bUK\b|\bGB\b|英国|英國|伦敦|倫敦|london|united\s*kingdom|great\s*britain/i },
+    { name: '🇳🇬 尼日利亚节点', re: /🇳🇬|\bNG\b|尼日利亚|尼日利亞|奈及利亚|奈及利亞|nigeria|lagos|abuja/i },
+    { name: '🇭🇰 香港节点', re: /🇭🇰|\bHK\b|香港|港|hong\s*kong/i },
+    { name: '🇹🇼 台湾节点', re: /🇹🇼|\bTW\b|台湾|臺灣|taiwan/i },
+    { name: '🇸🇬 新加坡节点', re: /🇸🇬|\bSG\b|新加坡|狮城|singapore/i },
+    { name: '🇯🇵 日本节点', re: /🇯🇵|\bJP\b|日本|东京|東京|大阪|软银|iij|japan/i },
+    { name: '🇺🇸 美国节点', re: /🇺🇸|\bUS\b|\bUSA\b|美国|美國|洛杉矶|洛杉磯|硅谷|纽约|紐約|西雅图|西雅圖|圣何塞|聖何塞|达拉斯|達拉斯|堪萨斯|堪薩斯|atlanta|los\s*angeles|united\s*states/i },
+  ];
+  const used = new Set();
+  const groups = [];
+  for (const spec of specs) {
+    const members = proxies
+      .filter(p => !used.has(p.name) && spec.re.test(p.name))
+      .map(p => p.name);
+    for (const name of members) used.add(name);
+    if (members.length) groups.push({ name: spec.name, members });
+  }
+  return groups;
 }
 
 function findRegionGroup(regionGroups, name) {
