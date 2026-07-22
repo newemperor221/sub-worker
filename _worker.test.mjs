@@ -16,8 +16,15 @@ async function fetchPath(path, init = {}) {
   return worker.fetch(new Request('https://sub.example.com' + path, init), env);
 }
 
-test('GET / without session renders the login page instead of token path dashboard', async () => {
+test('GET / without session redirects to /login', async () => {
   const res = await fetchPath('/');
+
+  assert.equal(res.status, 303);
+  assert.equal(res.headers.get('location'), '/login');
+});
+
+test('GET /login renders the login page', async () => {
+  const res = await fetchPath('/login');
   const body = await res.text();
 
   assert.equal(res.status, 200);
@@ -39,14 +46,15 @@ test('POST /login rejects invalid credentials', async () => {
   assert.equal(res.headers.get('set-cookie'), null);
 });
 
-test('POST /login accepts valid credentials and redirects back to / with HttpOnly session cookie', async () => {
+test('POST /login accepts valid credentials and redirects to a random home path with HttpOnly session cookie', async () => {
   const res = await fetchPath('/login', {
     method: 'POST',
     body: new URLSearchParams({ username: 'admin', password: 'pass123' }),
   });
 
   assert.equal(res.status, 303);
-  assert.equal(res.headers.get('location'), '/');
+  const location = res.headers.get('location') || '';
+  assert.match(location, /^\/[A-Za-z0-9_-]{22,}\/home$/);
   const cookie = res.headers.get('set-cookie') || '';
   assert.match(cookie, /sw_session=/);
   assert.match(cookie, /HttpOnly/);
@@ -54,14 +62,29 @@ test('POST /login accepts valid credentials and redirects back to / with HttpOnl
   assert.doesNotMatch(cookie, /pass123|subtoken/);
 });
 
-test('GET / with a valid session renders dashboard at the root path', async () => {
+test('GET / with a valid session redirects to that session random home path', async () => {
   const login = await fetchPath('/login', {
     method: 'POST',
     body: new URLSearchParams({ username: 'admin', password: 'pass123' }),
   });
   const cookie = login.headers.get('set-cookie').split(';')[0];
+  const homePath = login.headers.get('location');
 
   const res = await fetchPath('/', { headers: { cookie } });
+
+  assert.equal(res.status, 303);
+  assert.equal(res.headers.get('location'), homePath);
+});
+
+test('GET /random/home with a valid matching session renders dashboard', async () => {
+  const login = await fetchPath('/login', {
+    method: 'POST',
+    body: new URLSearchParams({ username: 'admin', password: 'pass123' }),
+  });
+  const cookie = login.headers.get('set-cookie').split(';')[0];
+  const homePath = login.headers.get('location');
+
+  const res = await fetchPath(homePath, { headers: { cookie } });
   const body = await res.text();
 
   assert.equal(res.status, 200);
@@ -73,12 +96,24 @@ test('GET / with a valid session renders dashboard at the root path', async () =
   assert.doesNotMatch(body, /sub\.example\.com\/subtoken\?/);
 });
 
-test('GET /logout clears the browser session and redirects to root login page', async () => {
+test('GET another random home path with the same session is rejected', async () => {
+  const login = await fetchPath('/login', {
+    method: 'POST',
+    body: new URLSearchParams({ username: 'admin', password: 'pass123' }),
+  });
+  const cookie = login.headers.get('set-cookie').split(';')[0];
+
+  const res = await fetchPath('/wrong-random-home-id/home', { headers: { cookie } });
+
+  assert.equal(res.status, 404);
+});
+
+test('GET /logout clears the browser session and redirects to /login', async () => {
   const res = await fetchPath('/logout');
   const cookie = res.headers.get('set-cookie') || '';
 
   assert.equal(res.status, 303);
-  assert.equal(res.headers.get('location'), '/');
+  assert.equal(res.headers.get('location'), '/login');
   assert.match(cookie, /sw_session=;/);
   assert.match(cookie, /Max-Age=0/);
   assert.match(cookie, /HttpOnly/);
