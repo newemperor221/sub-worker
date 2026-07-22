@@ -349,6 +349,13 @@ function nodeIcon(name, server, type) {
   if (t.indexOf("ss") >= 0) return "🌻";
   return "⛵";
 }
+function displayName(name) {
+  return String(name || "未命名节点")
+    .replace(/[🇦-🇿]{2}/gu, "")
+    .replace(/^\s*[-|｜·•:：_]+\s*/, "")
+    .replace(/\s{2,}/g, " ")
+    .trim() || "未命名节点";
+}
 function detailPill(text) {
   return '<span class="detail-pill">' + esc(text) + '</span>';
 }
@@ -381,7 +388,7 @@ function renderNodes() {
     return;
   }
   el.innerHTML = proxies.map(function(n) {
-    var name = esc(n && n.name || "未命名节点");
+    var name = esc(displayName(n && n.name));
     var type = esc(n && n.type || "Unknown");
     var color = protocolColor(n && n.type || "");
     var icon = nodeIcon(n && n.name || "", "", n && n.type || "");
