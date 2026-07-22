@@ -96,12 +96,7 @@ function hasTestUsers(db) {
 async function ensureDb(env, config) {
   const db = env?.DB;
   if (!db) return null;
-  if (hasTestUsers(db)) {
-    if (!db._users.some(u => u.role === 'admin')) {
-      db._users.push({ id: db._nextId++, username: config.adminUser, password_hash: 'plain:' + config.adminPass, role: 'admin', token: randomUrlToken(), link: '', subname: config.subName, enabled: 1 });
-    }
-    return db;
-  }
+  if (hasTestUsers(db)) return db;
   await db.prepare(`CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT NOT NULL UNIQUE,
@@ -114,32 +109,27 @@ async function ensureDb(env, config) {
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`).run();
-  const existing = await db.prepare("SELECT id FROM users WHERE role = 'admin' LIMIT 1").first();
-  if (!existing && config.adminUser && config.adminPass) {
-    await db.prepare('INSERT INTO users (username,password_hash,role,token,link,subname,enabled) VALUES (?,?,?,?,?,?,1)')
-      .bind(config.adminUser, await hashPassword(config.adminPass), 'admin', randomUrlToken(24), '', config.subName).run();
-  }
   return db;
 }
 
 async function dbGetUserByUsername(db, username) {
-  if (hasTestUsers(db)) return normalizeUser(db._users.find(u => u.username === username));
-  return normalizeUser(await db.prepare('SELECT * FROM users WHERE username = ? LIMIT 1').bind(username).first());
+  if (hasTestUsers(db)) return normalizeUser(db._users.find(u => u.username === username && (u.role || 'user') === 'user'));
+  return normalizeUser(await db.prepare("SELECT * FROM users WHERE username = ? AND role = 'user' LIMIT 1").bind(username).first());
 }
 
 async function dbGetUserById(db, id) {
-  if (hasTestUsers(db)) return normalizeUser(db._users.find(u => Number(u.id) === Number(id)));
-  return normalizeUser(await db.prepare('SELECT * FROM users WHERE id = ? LIMIT 1').bind(id).first());
+  if (hasTestUsers(db)) return normalizeUser(db._users.find(u => Number(u.id) === Number(id) && (u.role || 'user') === 'user'));
+  return normalizeUser(await db.prepare("SELECT * FROM users WHERE id = ? AND role = 'user' LIMIT 1").bind(id).first());
 }
 
 async function dbGetUserByToken(db, token) {
-  if (hasTestUsers(db)) return normalizeUser(db._users.find(u => u.token === token && Number(u.enabled) === 1));
-  return normalizeUser(await db.prepare('SELECT * FROM users WHERE token = ? AND enabled = 1 LIMIT 1').bind(token).first());
+  if (hasTestUsers(db)) return normalizeUser(db._users.find(u => u.token === token && Number(u.enabled) === 1 && (u.role || 'user') === 'user'));
+  return normalizeUser(await db.prepare("SELECT * FROM users WHERE token = ? AND enabled = 1 AND role = 'user' LIMIT 1").bind(token).first());
 }
 
 async function dbListUsers(db) {
-  if (hasTestUsers(db)) return db._users.map(normalizeUser).sort((a, b) => a.id - b.id);
-  const result = await db.prepare('SELECT id, username, role, token, subname, enabled FROM users ORDER BY id ASC').all();
+  if (hasTestUsers(db)) return db._users.filter(u => (u.role || 'user') === 'user').map(normalizeUser).sort((a, b) => a.id - b.id);
+  const result = await db.prepare("SELECT id, username, role, token, subname, enabled FROM users WHERE role = 'user' ORDER BY id ASC").all();
   return (result.results || []).map(normalizeUser);
 }
 
@@ -148,7 +138,7 @@ async function dbCreateUser(db, data) {
     id: hasTestUsers(db) ? db._nextId++ : undefined,
     username: data.username,
     password_hash: await hashPassword(data.password || randomUrlToken()),
-    role: data.role === 'admin' ? 'admin' : 'user',
+    role: 'user',
     token: data.token || randomUrlToken(24),
     link: data.link || '',
     subname: data.subname || data.username || '我的订阅',
@@ -165,7 +155,7 @@ async function dbCreateUser(db, data) {
 
 async function dbUpdateUser(db, id, data) {
   const user = await dbGetUserById(db, id);
-  if (!user || user.role === 'admin') return false;
+  if (!user) return false;
   const patch = {
     username: data.username || user.username,
     password_hash: data.password ? await hashPassword(data.password) : user.password_hash,
@@ -179,19 +169,19 @@ async function dbUpdateUser(db, id, data) {
     db._users[idx] = { ...db._users[idx], ...patch };
     return true;
   }
-  await db.prepare('UPDATE users SET username=?, password_hash=?, token=?, link=?, subname=?, enabled=?, updated_at=CURRENT_TIMESTAMP WHERE id=? AND role != \'admin\'')
+  await db.prepare("UPDATE users SET username=?, password_hash=?, token=?, link=?, subname=?, enabled=?, updated_at=CURRENT_TIMESTAMP WHERE id=? AND role = 'user'")
     .bind(patch.username, patch.password_hash, patch.token, patch.link, patch.subname, patch.enabled, id).run();
   return true;
 }
 
 async function dbDeleteUser(db, id) {
   const user = await dbGetUserById(db, id);
-  if (!user || user.role === 'admin') return false;
+  if (!user) return false;
   if (hasTestUsers(db)) {
     db._users = db._users.filter(u => Number(u.id) !== Number(id));
     return true;
   }
-  await db.prepare('DELETE FROM users WHERE id=? AND role != \'admin\'').bind(id).run();
+  await db.prepare("DELETE FROM users WHERE id=? AND role = 'user'").bind(id).run();
   return true;
 }
 
@@ -268,6 +258,7 @@ async function getValidSession(request, config, db) {
   if (role !== 'admin' && role !== 'user') return null;
   if (Number(expiresAt) < Math.floor(Date.now() / 1000)) return null;
   if (!constantTimeEqual(signature, await hmacHex(payload, config.sessionSecret))) return null;
+  if (role === 'admin') return { expiresAt: Number(expiresAt), homeId, userId: 0, role, user: null, homePath: `/${homeId}/admin` };
   const user = db ? await dbGetUserById(db, userId) : null;
   if (db && (!user || !user.enabled)) return null;
   return { expiresAt: Number(expiresAt), homeId, userId: Number(userId), role, user, homePath: role === 'admin' ? `/${homeId}/admin` : `/${homeId}/home` };
@@ -279,8 +270,8 @@ async function handleLogin(request, config, db) {
   const username = String(form.get('username') || '');
   const password = String(form.get('password') || '');
   let user;
-  if (db) user = await dbGetUserByUsername(db, username);
-  else if (username === config.adminUser && password === config.adminPass) user = { id: 1, username, role: 'admin', enabled: 1, password_hash: 'plain:' + config.adminPass, token: config.token, link: config.link, subname: config.subName };
+  if (username === config.adminUser && password === config.adminPass) user = { id: 0, username, role: 'admin', enabled: 1, password_hash: 'plain:' + config.adminPass, token: '', link: '', subname: config.subName };
+  else if (db) user = await dbGetUserByUsername(db, username);
   if (!user || !user.enabled || !(await verifyPassword(password, user.password_hash))) {
     return new Response(renderLoginPage(config, '用户名或密码错误'), { status: 401, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
   }
