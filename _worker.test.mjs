@@ -32,6 +32,9 @@ test('GET /login renders the login page', async () => {
   assert.match(body, /<form[^>]+method="POST"[^>]+action="\/login"/);
   assert.match(body, /用户名/);
   assert.match(body, /密码/);
+  assert.match(body, /class="scene"/);
+  assert.match(body, /class="sign"/);
+  assert.match(body, /ISLAND GATE/);
 });
 
 test('POST /login rejects invalid credentials', async () => {
