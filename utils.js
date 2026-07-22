@@ -2,10 +2,14 @@
 // =========================================
 
 export function loadConfig(env) {
+  const token = env?.TOKEN || '';
   return {
-    token: env?.TOKEN || '',
+    token,
     link: env?.LINK || '',
     subName: env?.SUBNAME || '小岛航线',
+    adminUser: env?.ADMIN_USER || '',
+    adminPass: env?.ADMIN_PASS || '',
+    sessionSecret: env?.SESSION_SECRET || token,
   };
 }
 
