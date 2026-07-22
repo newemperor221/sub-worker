@@ -1,80 +1,113 @@
-# Sub Worker — 多用户私有订阅面板
+# Sub Worker — 私有订阅小岛
 
-运行在 **Cloudflare Workers / Pages** 的私有订阅聚合面板。当前版本支持：
+基于 Cloudflare Workers / Pages 的个人订阅聚合面板。
 
-- 一个环境变量管理员账号；
-- 多个普通用户；
-- 管理员新增 / 删除 / 查看 / 修改普通用户；
-- 普通用户只能登录自己的面板，不能查看或修改其它用户；
-- 每个普通用户都有自己的代理链接、订阅名称和专属 token；
-- 客户端通过用户自己的 token 拉取订阅。
+这个版本专门按“**根域名默认跳登录页、登录页固定在 `/login`、登录后跳转随机主页路径**”的使用方式定制：
+
+```text
+https://sub.example.com/              # 未登录时跳转 /login
+https://sub.example.com/login         # 登录页
+https://sub.example.com/随机字符/home  # 登录后的面板主页
+```
+
+主页不会放在 `/TOKEN` 下；`TOKEN` 只用于订阅 API，方便客户端导入。
 
 ---
 
-## 路由结构
+## 功能概览
 
-```text
-GET  /                         未登录跳转 /login；已登录跳转当前会话主页
-GET  /login                    登录页
-POST /login                    登录提交
-GET  /随机字符/home             普通用户面板
-GET  /随机字符/admin            管理员后台
-POST /随机字符/admin/users      管理员新增 / 修改 / 删除普通用户
-GET  /logout                   退出登录
-GET  /api/sub?token=...&type=clash  用户 Clash / Mihomo 订阅
-GET  /api/sub?token=...&type=b64    用户 Base64 订阅
-```
-
-登录成功后会进入随机路径，例如：
-
-```text
-普通用户：https://sub.example.com/Z0i9J3VjQ1uJkQOe6I_ZCA/home
-管理员：  https://sub.example.com/Z0i9J3VjQ1uJkQOe6I_ZCA/admin
-```
+- **网页登录面板**：访问 `/` 自动跳转 `/login`，登录后跳转到本次会话专属的 `/随机字符/home`。
+- **退出登录**：面板右上角提供“退出”按钮，清除浏览器登录 Cookie 后回到 `/`。
+- **订阅链接隐藏**：面板不直接展示完整订阅 URL，只提供复制与二维码。
+- **敏感信息隐藏**：面板不展示节点 IP、端口、UUID、Trojan 密码、Reality public key / shortId 等。
+- **Mihomo / Clash YAML**：生成内联节点配置，不依赖外部 SubConverter。
+- **Base64 订阅**：保留原始节点分享链接，适合移动端或通用客户端。
+- **VLESS 变体展示**：面板展示 VLESS / REALITY / TLS / TCP / XHTTP / WS / gRPC / Vision / SNI 等非敏感信息。
+- **旧链接兼容**：继续兼容 `/TOKEN?clash` 和 `/TOKEN?b64`。
 
 ---
 
-## 用户权限
+## 访问方式
 
-| 角色 | 能力 |
-|---|---|
-| 管理员 | 账号固定来自 `ADMIN_USER` / `ADMIN_PASS`；只负责管理普通用户；没有订阅链接和 token |
-| 普通用户 | 只能看自己的面板和自己的订阅链接；不能进入管理员后台 |
+假设域名是：
 
-管理员后台不会给普通用户开放。普通用户即使猜到 `/随机字符/admin` 也会返回 404。D1 数据库只保存普通用户，管理员不写入 `users` 表。
+```text
+https://sub.example.com
+```
+
+### 登录页
+
+```text
+https://sub.example.com/login
+```
+
+访问根路径时，如果没有登录，会自动跳转到 `/login`：
+
+```text
+https://sub.example.com/  →  https://sub.example.com/login
+```
+
+### 面板主页
+
+登录成功后会跳转到本次会话专属的随机主页路径：
+
+```text
+https://sub.example.com/随机字符/home
+```
+
+例如：
+
+```text
+https://sub.example.com/Z0i9J3VjQ1uJkQOe6I_ZCA/home
+```
+
+已登录时再次访问 `/`，会跳转回当前会话的随机主页路径。
+
+### 新订阅 API
+
+```text
+https://sub.example.com/api/sub?token=你的TOKEN&type=clash
+https://sub.example.com/api/sub?token=你的TOKEN&type=b64
+```
+
+### 兼容旧订阅地址
+
+```text
+https://sub.example.com/你的TOKEN?clash
+https://sub.example.com/你的TOKEN?b64
+```
+
+> 建议新导入客户端时使用 `/api/sub?...` 形式；旧地址只是为了不破坏已有客户端。
 
 ---
 
-## Cloudflare 配置
+## 环境变量
 
-### 必需绑定
+| 变量名 | 必填 | 用途 | 推荐值 |
+|---|---:|---|---|
+| `TOKEN` | ✅ | 订阅 API 访问令牌 | 32 位左右 URL 友好随机字符串 |
+| `LINK` | ✅ | 节点分享链接，一行一个 | `vless://...` 多行文本 |
+| `SUBNAME` | ❌ | 客户端订阅名称 / 面板副标题 | `我的订阅` |
+| `ADMIN_USER` | ✅ | 面板登录用户名 | 建议英文数字，如 `admin` |
+| `ADMIN_PASS` | ✅ | 面板登录密码 | 长随机密码 |
+| `SESSION_SECRET` | ✅ | 登录 Cookie 签名密钥 | `openssl rand -hex 32` |
 
-需要一个 D1 数据库绑定：
+### `TOKEN` 和 `SESSION_SECRET` 的区别
 
-```text
-Binding name: DB
+- `TOKEN`：会出现在订阅 URL 里，是给 Clash / Mihomo / Shadowrocket 等客户端访问订阅 API 用的。
+- `SESSION_SECRET`：不会出现在 URL 里，只用于 Worker 内部校验浏览器登录 Cookie，防止伪造登录状态。
+
+推荐不要把两者设成一样。
+
+### 推荐生成方式
+
+生成 `TOKEN`：
+
+```bash
+openssl rand -base64 24 | tr '+/' '-_' | tr -d '='
 ```
 
-可以使用仓库内的：
-
-```text
-schema.sql
-```
-
-初始化表结构。
-
-### 环境变量
-
-| 变量名 | 必填 | 说明 |
-|---|---:|---|
-| `ADMIN_USER` | ✅ | 管理员用户名，只来自环境变量，不写入 D1 |
-| `ADMIN_PASS` | ✅ | 管理员密码，只来自环境变量，不写入 D1 |
-| `SESSION_SECRET` | ✅ | Cookie 签名密钥，建议 `openssl rand -hex 32` |
-| `SUBNAME` | ❌ | 默认订阅名 / 登录页标题 |
-| `TOKEN` | ❌ | 无 D1 时的单用户兼容 token |
-| `LINK` | ❌ | 无 D1 时的单用户兼容节点链接 |
-
-推荐生成：
+生成 `SESSION_SECRET`：
 
 ```bash
 openssl rand -hex 32
@@ -82,115 +115,180 @@ openssl rand -hex 32
 
 ---
 
-## D1 表结构
+## `LINK` 填写示例
 
-核心表：
+每行一个节点链接：
 
-```sql
-CREATE TABLE users (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  username TEXT NOT NULL UNIQUE,
-  password_hash TEXT NOT NULL,
-  role TEXT NOT NULL DEFAULT 'user', -- 保留字段；普通用户固定为 user
-  token TEXT NOT NULL UNIQUE,
-  link TEXT NOT NULL DEFAULT '',
-  subname TEXT NOT NULL DEFAULT '我的订阅',
-  enabled INTEGER NOT NULL DEFAULT 1,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
+```text
+vless://uuid@example.com:443?encryption=none&security=reality&sni=www.apple.com&fp=chrome&pbk=PUBLIC_KEY&sid=SHORT_ID&type=xhttp&path=%2Fxhttp&mode=stream-up#香港-中转-新加坡
+vless://uuid@example.com:443?encryption=none&flow=xtls-rprx-vision&security=reality&sni=www.apple.com&fp=chrome&pbk=PUBLIC_KEY&sid=SHORT_ID&type=tcp#洛杉矶-直连
+trojan://password@example.com:443?sni=example.com#Trojan-Example
+hysteria2://password@example.com:443?sni=example.com#HY2-Example
+hy2://password@example.com:443?sni=example.com#HY2-Short
 ```
 
-Worker 启动时也会自动执行 `CREATE TABLE IF NOT EXISTS`，但仍建议用 `schema.sql` 明确初始化。管理员账号不在这张表里。
+注意：
+
+- 一行一个节点；
+- 节点名称建议包含地区关键词，便于自动分组；
+- XHTTP 建议显式写 `type=xhttp` 和 `mode=stream-up`；
+- XHTTP 不建议带 `flow=xtls-rprx-vision`；
+- REALITY 节点需要保留 `sni`、`fp`、`pbk`、`sid`。
 
 ---
 
-## 管理员后台
+## 部署方式
 
-管理员登录后进入：
+### 推荐：Cloudflare Pages + GitHub
+
+1. Fork / 导入 / 使用此仓库。
+2. 打开 Cloudflare Dashboard。
+3. 进入 **Workers & Pages**。
+4. 创建 Pages 项目并连接 GitHub 仓库。
+5. 构建命令留空。
+6. 部署完成后添加环境变量：
+   - `TOKEN`
+   - `LINK`
+   - `SUBNAME`
+   - `ADMIN_USER`
+   - `ADMIN_PASS`
+   - `SESSION_SECRET`
+7. 绑定自定义域名，例如 `sub.example.com`。
+8. 访问 `https://sub.example.com/`，确认会跳转到 `/login` 并可登录。
+
+### 普通 Worker 部署
+
+本项目是模块化结构，入口是 `_worker.js`，同时依赖：
 
 ```text
-/随机字符/admin
+utils.js
+convert.js
+yaml.js
+dashboard.js
 ```
 
-管理员不需要订阅链接，只管理普通用户字段：
-
-- 用户名；
-- 密码；
-- 订阅 token；
-- 代理链接 `link`；
-- 订阅名称 `subname`；
-- 启用 / 禁用。
-
-后台会限制：
-
-- 管理员账号不在用户列表里；
-- 后台新增时只能新增普通用户；
-- 普通用户不能访问后台；
-- 普通用户不能查看其它用户。
+如果使用普通 Worker，不要只复制 `_worker.js`；需要一起上传模块文件，或自行打包成单文件版本。
 
 ---
 
-## 每个用户的订阅地址
+## 登录与退出逻辑
 
-每个普通用户都有自己的专属 token，也就是这个普通用户的订阅/代理入口：
+### 登录
 
 ```text
-https://sub.example.com/api/sub?token=用户TOKEN&type=clash
-https://sub.example.com/api/sub?token=用户TOKEN&type=b64
+GET  /              未登录跳转 /login，已登录跳转当前会话主页
+GET  /login         显示登录页
+POST /login         校验 ADMIN_USER / ADMIN_PASS
+GET  /随机字符/home  已登录且路径匹配当前会话时显示面板
 ```
 
-Worker 会根据 token 找到对应普通用户，只使用该普通用户自己的 `link` 生成订阅。管理员没有 token，不能通过 `/api/sub` 拉订阅。
+登录成功后 Worker 会写入：
+
+```text
+sub_worker_session=...
+```
+
+Cookie 属性：
+
+```text
+HttpOnly
+Secure
+SameSite=Lax
+Max-Age=7天
+```
+
+### 退出
+
+面板右上角“退出”按钮访问：
+
+```text
+/logout
+```
+
+Worker 会清除 `sub_worker_session`，同时兼容清理旧版 `sw_session`，然后跳回 `/login`。刷新页面不会丢登录，只有退出、清 Cookie、换浏览器、过期或更换 `SESSION_SECRET` 才需要重新登录。
 
 ---
 
-## Cookie 与退出
+## 面板安全展示规则
 
-新会话 Cookie 名：
-
-```text
-sub_worker_session
-```
-
-退出时会同时清理：
+面板不会显示：
 
 ```text
-sub_worker_session
-sw_session  # 旧版本兼容清理
+完整订阅 URL
+节点 IP
+节点端口
+UUID
+Trojan password
+Reality public key
+Reality shortId
+WebSocket path
+gRPC serviceName
+XHTTP path
 ```
 
-并清理当前域名和父域名作用域，避免旧 Cookie 造成“退出不了”。
+面板会显示：
+
+```text
+节点名称
+地区图标
+协议类型
+VLESS / Trojan / Hysteria2
+REALITY / TLS
+TCP / XHTTP / WS / gRPC
+Vision
+XHTTP mode
+SNI 域名
+```
+
+这样适合自己查看、截图或投屏时避免暴露关键连接信息。
+
+---
+
+## 推荐客户端
+
+| 客户端 | 推荐订阅类型 |
+|---|---|
+| Clash Verge Rev | `type=clash` |
+| Mihomo Party | `type=clash` |
+| FlClash | `type=clash` |
+| Clash Meta for Android | `type=clash` |
+| OpenClash / Nikki | `type=clash` |
+| v2rayN | `type=b64` |
+| NekoBox | `type=b64` |
+| Hiddify | `type=b64` |
+| Shadowrocket | `type=b64`，视版本协议支持情况 |
 
 ---
 
 ## 本地测试
 
+本仓库带 Node 内置测试：
+
 ```bash
 npm test
 ```
 
-当前测试覆盖：
+测试覆盖：
 
-- 登录页；
-- 普通用户登录到 `/随机字符/home`；
-- 管理员登录到 `/随机字符/admin`；
-- 普通用户不能访问管理员后台；
-- 管理员账号来自 `ADMIN_USER` / `ADMIN_PASS`，不在 D1 用户表里；
-- 管理员可新增、修改、删除普通用户；
-- 订阅 API 按用户 token 返回对应用户链接；
-- 退出清理新旧 Cookie。
+- `/` 未登录跳转 `/login`；
+- `/login` 显示登录页；
+- `/login` 错误密码拒绝；
+- `/login` 正确密码写入 HttpOnly Cookie 并跳转 `/随机字符/home`；
+- 已登录访问 `/` 会跳转当前会话主页；
+- 只有匹配当前会话的 `/随机字符/home` 才显示面板和退出按钮；
+- `/logout` 清除 Cookie 并跳转 `/login`；
+- `/api/sub?token=...&type=b64` 可用；
+- 旧的 `/TOKEN?b64` 仍兼容。
 
 ---
 
 ## 注意事项
 
-- 不要把真实节点链接、token、密码提交到仓库；
-- 仓库建议保持私有；
-- 如果用户 token 泄露，只需要在后台改该用户 token；
-- 如果 `SESSION_SECRET` 泄露，需要更换它，所有用户会重新登录；
-- 修改 D1 binding 或环境变量后，等待 Cloudflare Pages 重新部署生效。
-- 新建用户时如果用户名或 token 重复，后台会显示错误提示，不会再抛 Cloudflare 1101。
-- 普通用户密码以轻量 salted SHA-256 格式保存；旧版 PBKDF2 / plain 测试格式仍可兼容校验。
+- 不要把真实 `TOKEN`、节点链接、UUID、密码提交到仓库。
+- 仓库建议保持私有。
+- 如果 `TOKEN` 泄露，需要更换 `TOKEN` 并重新导入客户端。
+- 如果 `SESSION_SECRET` 泄露，需要更换 `SESSION_SECRET`，所有浏览器会重新登录。
+- Cloudflare 环境变量修改后要重新部署 / 等待生效。
 
 ---
 
