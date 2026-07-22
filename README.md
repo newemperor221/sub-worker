@@ -1,107 +1,122 @@
-# Sub Worker — 私有订阅小岛
+# Sub Worker 私有订阅面板
 
-基于 Cloudflare Workers / Pages 的个人订阅聚合面板。
+这是一个部署在 **Cloudflare Pages / Workers** 上的私有订阅面板，用来把一组代理节点链接整理成 Clash / Mihomo YAML 或 Base64 订阅。
 
-这个版本专门按“**根域名默认跳登录页、登录页固定在 `/login`、登录后跳转随机主页路径**”的使用方式定制：
+当前版本是 **单管理员、单订阅源** 版本：
 
-```text
-https://sub.example.com/              # 未登录时跳转 /login
-https://sub.example.com/login         # 登录页
-https://sub.example.com/随机字符/home  # 登录后的面板主页
-```
-
-主页不会放在 `/TOKEN` 下；`TOKEN` 只用于订阅 API，方便客户端导入。
-
----
-
-## 功能概览
-
-- **网页登录面板**：访问 `/` 自动跳转 `/login`，登录后跳转到本次会话专属的 `/随机字符/home`。
-- **退出登录**：面板右上角提供“退出”按钮，清除浏览器登录 Cookie 后回到 `/`。
-- **订阅链接隐藏**：面板不直接展示完整订阅 URL，只提供复制与二维码。
-- **敏感信息隐藏**：面板不展示节点 IP、端口、UUID、Trojan 密码、Reality public key / shortId 等。
-- **Mihomo / Clash YAML**：生成内联节点配置，不依赖外部 SubConverter。
-- **Base64 订阅**：保留原始节点分享链接，适合移动端或通用客户端。
-- **VLESS 变体展示**：面板展示 VLESS / REALITY / TLS / TCP / XHTTP / WS / gRPC / Vision / SNI 等非敏感信息。
-- **旧链接兼容**：继续兼容 `/TOKEN?clash` 和 `/TOKEN?b64`。
+- 面板登录使用 `ADMIN_USER` / `ADMIN_PASS`；
+- 订阅接口使用 `TOKEN`；
+- 节点内容来自环境变量 `LINK`；
+- 不需要 D1 / KV / 数据库；
+- 主页不暴露 `TOKEN`；
+- 登录后进入随机路径 `/随机字符/home`。
 
 ---
 
-## 访问方式
+## 当前访问结构
 
-假设域名是：
+以当前域名为例：
 
 ```text
-https://sub.example.com
+https://sub-xwcf0.357561.xyz
 ```
 
 ### 登录页
 
 ```text
-https://sub.example.com/login
+https://sub-xwcf0.357561.xyz/login
 ```
 
-访问根路径时，如果没有登录，会自动跳转到 `/login`：
+未登录访问根路径：
 
 ```text
-https://sub.example.com/  →  https://sub.example.com/login
+https://sub-xwcf0.357561.xyz/
 ```
 
-### 面板主页
-
-登录成功后会跳转到本次会话专属的随机主页路径：
+会自动跳转到：
 
 ```text
-https://sub.example.com/随机字符/home
+https://sub-xwcf0.357561.xyz/login
+```
+
+### 登录后的面板主页
+
+登录成功后会跳转到随机主页路径：
+
+```text
+https://sub-xwcf0.357561.xyz/随机字符/home
 ```
 
 例如：
 
 ```text
-https://sub.example.com/Z0i9J3VjQ1uJkQOe6I_ZCA/home
+https://sub-xwcf0.357561.xyz/Z0i9J3VjQ1uJkQOe6I_ZCA/home
 ```
 
-已登录时再次访问 `/`，会跳转回当前会话的随机主页路径。
+这个随机路径和登录 Cookie 绑定。直接访问别人猜的 `/随机字符/home` 不会显示面板。
 
-### 新订阅 API
+### 退出登录
+
+面板右上角有退出按钮，访问：
 
 ```text
-https://sub.example.com/api/sub?token=你的TOKEN&type=clash
-https://sub.example.com/api/sub?token=你的TOKEN&type=b64
+/logout
 ```
 
-### 兼容旧订阅地址
+退出后会清理登录 Cookie，并跳回：
 
 ```text
-https://sub.example.com/你的TOKEN?clash
-https://sub.example.com/你的TOKEN?b64
+/login
 ```
 
-> 建议新导入客户端时使用 `/api/sub?...` 形式；旧地址只是为了不破坏已有客户端。
+---
+
+## 订阅接口
+
+### 推荐新接口
+
+```text
+https://sub-xwcf0.357561.xyz/api/sub?token=你的TOKEN&type=clash
+https://sub-xwcf0.357561.xyz/api/sub?token=你的TOKEN&type=b64
+```
+
+参数说明：
+
+| 参数 | 说明 |
+|---|---|
+| `token` | 订阅访问令牌，对应环境变量 `TOKEN` |
+| `type=clash` | 输出 Clash / Mihomo YAML |
+| `type=b64` | 输出 Base64 原始分享链接订阅 |
+
+### 旧接口兼容
+
+仍然兼容旧格式：
+
+```text
+https://sub-xwcf0.357561.xyz/你的TOKEN?clash
+https://sub-xwcf0.357561.xyz/你的TOKEN?b64
+```
+
+建议新客户端优先使用 `/api/sub?...`。
 
 ---
 
 ## 环境变量
 
-| 变量名 | 必填 | 用途 | 推荐值 |
-|---|---:|---|---|
-| `TOKEN` | ✅ | 订阅 API 访问令牌 | 32 位左右 URL 友好随机字符串 |
-| `LINK` | ✅ | 节点分享链接，一行一个 | `vless://...` 多行文本 |
-| `SUBNAME` | ❌ | 客户端订阅名称 / 面板副标题 | `我的订阅` |
-| `ADMIN_USER` | ✅ | 面板登录用户名 | 建议英文数字，如 `admin` |
-| `ADMIN_PASS` | ✅ | 面板登录密码 | 长随机密码 |
-| `SESSION_SECRET` | ✅ | 登录 Cookie 签名密钥 | `openssl rand -hex 32` |
+Cloudflare Pages / Workers 里需要配置：
 
-### `TOKEN` 和 `SESSION_SECRET` 的区别
+| 变量名 | 必填 | 说明 |
+|---|---:|---|
+| `TOKEN` | ✅ | 订阅接口访问令牌，会出现在客户端订阅 URL 中 |
+| `LINK` | ✅ | 节点分享链接，一行一个 |
+| `ADMIN_USER` | ✅ | 网页面板登录用户名 |
+| `ADMIN_PASS` | ✅ | 网页面板登录密码 |
+| `SESSION_SECRET` | ✅ | Cookie 签名密钥，只给 Worker 后端使用 |
+| `SUBNAME` | ❌ | 面板副标题 / 客户端订阅名称 |
 
-- `TOKEN`：会出现在订阅 URL 里，是给 Clash / Mihomo / Shadowrocket 等客户端访问订阅 API 用的。
-- `SESSION_SECRET`：不会出现在 URL 里，只用于 Worker 内部校验浏览器登录 Cookie，防止伪造登录状态。
+### 生成推荐值
 
-推荐不要把两者设成一样。
-
-### 推荐生成方式
-
-生成 `TOKEN`：
+生成 URL 友好的 `TOKEN`：
 
 ```bash
 openssl rand -base64 24 | tr '+/' '-_' | tr -d '='
@@ -113,11 +128,20 @@ openssl rand -base64 24 | tr '+/' '-_' | tr -d '='
 openssl rand -hex 32
 ```
 
+### `TOKEN` 和 `SESSION_SECRET` 区别
+
+| 变量 | 用途 | 是否会暴露在 URL |
+|---|---|---:|
+| `TOKEN` | 订阅 API 访问令牌 | 会 |
+| `SESSION_SECRET` | 登录 Cookie 签名密钥 | 不会 |
+
+不要把两者设置成一样。
+
 ---
 
-## `LINK` 填写示例
+## `LINK` 格式
 
-每行一个节点链接：
+`LINK` 是多行文本，每行一个节点分享链接，例如：
 
 ```text
 vless://uuid@example.com:443?encryption=none&security=reality&sni=www.apple.com&fp=chrome&pbk=PUBLIC_KEY&sid=SHORT_ID&type=xhttp&path=%2Fxhttp&mode=stream-up#香港-中转-新加坡
@@ -130,59 +154,53 @@ hy2://password@example.com:443?sni=example.com#HY2-Short
 注意：
 
 - 一行一个节点；
-- 节点名称建议包含地区关键词，便于自动分组；
-- XHTTP 建议显式写 `type=xhttp` 和 `mode=stream-up`；
-- XHTTP 不建议带 `flow=xtls-rprx-vision`；
-- REALITY 节点需要保留 `sni`、`fp`、`pbk`、`sid`。
+- 节点名称建议带地区关键词；
+- REALITY 节点需要保留 `sni`、`fp`、`pbk`、`sid`；
+- XHTTP 建议写清楚 `type=xhttp` 和 `mode=stream-up`；
+- XHTTP 不建议带 `flow=xtls-rprx-vision`。
 
 ---
 
-## 部署方式
+## 面板展示规则
 
-### 推荐：Cloudflare Pages + GitHub
+面板会尽量隐藏敏感信息。
 
-1. Fork / 导入 / 使用此仓库。
-2. 打开 Cloudflare Dashboard。
-3. 进入 **Workers & Pages**。
-4. 创建 Pages 项目并连接 GitHub 仓库。
-5. 构建命令留空。
-6. 部署完成后添加环境变量：
-   - `TOKEN`
-   - `LINK`
-   - `SUBNAME`
-   - `ADMIN_USER`
-   - `ADMIN_PASS`
-   - `SESSION_SECRET`
-7. 绑定自定义域名，例如 `sub.example.com`。
-8. 访问 `https://sub.example.com/`，确认会跳转到 `/login` 并可登录。
-
-### 普通 Worker 部署
-
-本项目是模块化结构，入口是 `_worker.js`，同时依赖：
+不会直接展示：
 
 ```text
-utils.js
-convert.js
-yaml.js
-dashboard.js
+完整订阅 URL
+节点 IP
+节点端口
+UUID
+Trojan password
+Reality public key
+Reality shortId
+WS path
+gRPC serviceName
+XHTTP path
 ```
 
-如果使用普通 Worker，不要只复制 `_worker.js`；需要一起上传模块文件，或自行打包成单文件版本。
+会展示：
+
+```text
+节点名称
+地区图标
+协议类型
+VLESS / Trojan / Hysteria2
+REALITY / TLS
+TCP / XHTTP / WS / gRPC
+Vision
+XHTTP mode
+SNI 域名
+```
+
+这样截图或投屏时不容易泄露核心连接参数。
 
 ---
 
-## 登录与退出逻辑
+## Cookie 与登录状态
 
-### 登录
-
-```text
-GET  /              未登录跳转 /login，已登录跳转当前会话主页
-GET  /login         显示登录页
-POST /login         校验 ADMIN_USER / ADMIN_PASS
-GET  /随机字符/home  已登录且路径匹配当前会话时显示面板
-```
-
-登录成功后 Worker 会写入：
+登录后 Worker 写入：
 
 ```text
 sub_worker_session=...
@@ -197,54 +215,74 @@ SameSite=Lax
 Max-Age=7天
 ```
 
-### 退出
+刷新页面不会丢登录。
 
-面板右上角“退出”按钮访问：
+会重新要求登录的情况：
+
+- 点击退出；
+- 浏览器清 Cookie；
+- 换浏览器 / 换设备；
+- Cookie 超过 7 天；
+- 修改 `SESSION_SECRET`。
+
+退出时会清理：
 
 ```text
-/logout
+sub_worker_session
+sw_session  # 旧版本兼容清理
 ```
-
-Worker 会清除 `sub_worker_session`，同时兼容清理旧版 `sw_session`，然后跳回 `/login`。刷新页面不会丢登录，只有退出、清 Cookie、换浏览器、过期或更换 `SESSION_SECRET` 才需要重新登录。
 
 ---
 
-## 面板安全展示规则
+## 部署方式
 
-面板不会显示：
+### Cloudflare Pages + GitHub
+
+1. 保持仓库私有。
+2. 打开 Cloudflare Dashboard。
+3. 进入 **Workers & Pages**。
+4. 创建 Pages 项目并连接此 GitHub 仓库。
+5. 构建命令留空。
+6. 配置环境变量：
+   - `TOKEN`
+   - `LINK`
+   - `ADMIN_USER`
+   - `ADMIN_PASS`
+   - `SESSION_SECRET`
+   - `SUBNAME`
+7. 绑定自定义域名。
+8. 访问 `/login` 测试登录。
+
+### 普通 Worker 部署
+
+项目是模块化结构，入口是：
 
 ```text
-完整订阅 URL
-节点 IP
-节点端口
-UUID
-Trojan password
-Reality public key
-Reality shortId
-WebSocket path
-gRPC serviceName
-XHTTP path
+_worker.js
 ```
 
-面板会显示：
+同时依赖：
 
 ```text
-节点名称
-地区图标
-协议类型
-VLESS / Trojan / Hysteria2
-REALITY / TLS
-TCP / XHTTP / WS / gRPC
-Vision
-XHTTP mode
-SNI 域名
+utils.js
+convert.js
+yaml.js
+dashboard.js
 ```
 
-这样适合自己查看、截图或投屏时避免暴露关键连接信息。
+如果不用 Pages，而是普通 Worker，需要一起上传这些模块，或自行打包成单文件。
 
 ---
 
-## 推荐客户端
+## 支持协议和客户端
+
+当前节点解析支持：
+
+- VLESS；
+- Trojan；
+- Hysteria2 / HY2。
+
+推荐客户端：
 
 | 客户端 | 推荐订阅类型 |
 |---|---|
@@ -262,33 +300,29 @@ SNI 域名
 
 ## 本地测试
 
-本仓库带 Node 内置测试：
-
 ```bash
 npm test
 ```
 
-测试覆盖：
+当前测试覆盖：
 
-- `/` 未登录跳转 `/login`；
+- `/` 未登录跳 `/login`；
 - `/login` 显示登录页；
-- `/login` 错误密码拒绝；
-- `/login` 正确密码写入 HttpOnly Cookie 并跳转 `/随机字符/home`；
-- 已登录访问 `/` 会跳转当前会话主页；
-- 只有匹配当前会话的 `/随机字符/home` 才显示面板和退出按钮；
-- `/logout` 清除 Cookie 并跳转 `/login`；
-- `/api/sub?token=...&type=b64` 可用；
-- 旧的 `/TOKEN?b64` 仍兼容。
+- 登录成功后跳 `/随机字符/home`；
+- 随机主页路径必须匹配当前会话；
+- `/logout` 清理 Cookie；
+- `/api/sub` 需要 `TOKEN`；
+- 旧 `/TOKEN?b64` 兼容。
 
 ---
 
 ## 注意事项
 
-- 不要把真实 `TOKEN`、节点链接、UUID、密码提交到仓库。
-- 仓库建议保持私有。
-- 如果 `TOKEN` 泄露，需要更换 `TOKEN` 并重新导入客户端。
-- 如果 `SESSION_SECRET` 泄露，需要更换 `SESSION_SECRET`，所有浏览器会重新登录。
-- Cloudflare 环境变量修改后要重新部署 / 等待生效。
+- 不要把真实 `TOKEN`、`SESSION_SECRET`、密码、节点链接提交到仓库；
+- `TOKEN` 泄露后，别人可以拉取订阅，需要立即更换；
+- `SESSION_SECRET` 泄露后，别人可能伪造网页登录状态，需要立即更换；
+- 仓库建议保持 private；
+- 当前版本不包含多用户系统，不需要 D1 / KV。
 
 ---
 
