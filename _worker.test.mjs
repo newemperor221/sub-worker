@@ -117,6 +117,8 @@ test('GET /logout clears the browser session and redirects to /login', async () 
   assert.match(cookie, /sw_session=;/);
   assert.match(cookie, /Max-Age=0/);
   assert.match(cookie, /HttpOnly/);
+  assert.match(res.headers.get('cache-control') || '', /no-store/);
+  assert.match(res.headers.get('clear-site-data') || '', /"cache"/);
 });
 
 test('subscription API is token protected and does not require browser session', async () => {
