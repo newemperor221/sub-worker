@@ -78,7 +78,8 @@ button, .route-card, .node-row { -webkit-tap-highlight-color: transparent; }
 .status-ticket:before, .status-ticket:after { content:""; position:absolute; width:11px; height:11px; background:var(--sky); border-radius:50%; top:50%; transform:translateY(-50%); }
 .status-ticket:before { left:-7px; } .status-ticket:after { right:-7px; }
 .status-ticket b { display:block; color:#639942; font-size:13px; letter-spacing:.06em; }
-.logout-btn { position:absolute; right:-7px; top:82px; display:inline-flex; align-items:center; gap:6px; min-height:34px; padding:7px 13px 6px; border:2px solid var(--brown); border-radius:999px; background:var(--white); color:var(--brown-deep); text-decoration:none; font-size:12px; font-weight:900; box-shadow:0 4px 0 rgba(120,83,47,.35); transform:rotate(-2deg); transition:transform .16s var(--ease), box-shadow .16s var(--ease), background .16s var(--ease); }
+.logout-btn { position:absolute; right:-7px; top:82px; z-index:10; display:flex; align-items:center; justify-content:center; gap:6px; width:92px; min-height:44px; padding:0 16px; border:2px solid var(--brown); border-radius:999px; background:var(--white); color:var(--brown-deep); text-decoration:none; font-size:13px; font-weight:900; line-height:1; box-shadow:0 4px 0 rgba(120,83,47,.35); transform:rotate(-2deg); transition:transform .16s var(--ease), box-shadow .16s var(--ease), background .16s var(--ease); pointer-events:auto; cursor:pointer; user-select:none; touch-action:manipulation; }
+.logout-btn:before { content:""; position:absolute; inset:-10px; border-radius:999px; }
 .logout-btn:hover { background:#fff0e7; transform:translateY(-1px) rotate(-2deg); box-shadow:0 5px 0 rgba(120,83,47,.35); }
 .logout-btn:active { transform:translateY(3px) rotate(-2deg); box-shadow:0 1px 0 rgba(120,83,47,.35); }
 .logout-btn:focus-visible { outline:3px solid var(--yellow); outline-offset:2px; }
@@ -181,7 +182,7 @@ button, .route-card, .node-row { -webkit-tap-highlight-color: transparent; }
   .shell { width:min(100% - 22px, 650px); padding-top:30px; padding-bottom:100px; }
   .corner-note { position:relative; top:auto; left:auto; margin:0 0 12px 8px; justify-content:center; }
   .status-ticket { position:relative; top:auto; right:auto; margin:0 2px 10px auto; width:max-content; transform:rotate(3deg); }
-  .logout-btn { position:relative; top:auto; right:auto; margin:0 2px 10px auto; width:max-content; }
+  .logout-btn { position:relative; top:auto; right:auto; margin:0 2px 10px auto; width:92px; min-height:44px; }
   .hero { padding-top:0; } .sign { min-width:0; width:100%; padding:22px 38px 18px; }
   .board { padding:22px 15px; border-radius:28px 25px 31px 24px; }
   .route-grid { grid-template-columns:1fr; gap:14px; }
