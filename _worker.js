@@ -54,23 +54,39 @@ async function signSessionPayload(payload, secret) {
   return bytesToHex(await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(payload)));
 }
 
-async function createSessionCookie(config) {
-  const expiresAt = Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS;
-  const payload = String(expiresAt);
-  const signature = await signSessionPayload(payload, config.sessionSecret);
-  const value = encodeURIComponent(`${payload}.${signature}`);
-  return `${SESSION_COOKIE}=${value}; Path=/; Max-Age=${SESSION_TTL_SECONDS}; HttpOnly; Secure; SameSite=Lax`;
+function randomUrlToken(byteLength = 16) {
+  const bytes = new Uint8Array(byteLength);
+  crypto.getRandomValues(bytes);
+  let binary = '';
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
 }
 
-async function hasValidSession(request, config) {
+async function createSessionCookie(config) {
+  const expiresAt = Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS;
+  const homeId = randomUrlToken();
+  const payload = `${expiresAt}:${homeId}`;
+  const signature = await signSessionPayload(payload, config.sessionSecret);
+  const value = encodeURIComponent(`${payload}.${signature}`);
+  return {
+    cookie: `${SESSION_COOKIE}=${value}; Path=/; Max-Age=${SESSION_TTL_SECONDS}; HttpOnly; Secure; SameSite=Lax`,
+    homePath: `/${homeId}/home`,
+  };
+}
+
+async function getValidSession(request, config) {
   const value = parseCookies(request.headers.get('Cookie'))[SESSION_COOKIE];
-  if (!value) return false;
-  const [expiresAt, signature] = value.split('.');
-  if (!expiresAt || !signature) return false;
-  if (!/^\d+$/.test(expiresAt)) return false;
-  if (Number(expiresAt) < Math.floor(Date.now() / 1000)) return false;
-  const expected = await signSessionPayload(expiresAt, config.sessionSecret);
-  return constantTimeEqual(signature, expected);
+  if (!value) return null;
+  const [payload, signature] = value.split('.');
+  if (!payload || !signature) return null;
+  const [expiresAt, homeId] = payload.split(':');
+  if (!expiresAt || !homeId) return null;
+  if (!/^\d+$/.test(expiresAt)) return null;
+  if (!/^[A-Za-z0-9_-]{22,}$/.test(homeId)) return null;
+  if (Number(expiresAt) < Math.floor(Date.now() / 1000)) return null;
+  const expected = await signSessionPayload(payload, config.sessionSecret);
+  if (!constantTimeEqual(signature, expected)) return null;
+  return { expiresAt: Number(expiresAt), homeId, homePath: `/${homeId}/home` };
 }
 
 function renderLoginPage(config, errorMessage = '') {
@@ -95,7 +111,7 @@ function renderLoginPage(config, errorMessage = '') {
       <div class="field"><label for="password">密码</label><input id="password" name="password" type="password" autocomplete="current-password" required></div>
       <button type="submit">登录</button>
     </form>
-    <div class="hint">登录成功后会回到当前域名根路径 /</div>
+    <div class="hint">登录成功后会跳转到随机主页路径</div>
   </main>
 </body>
 </html>`;
@@ -163,11 +179,12 @@ async function handleLogin(request, config) {
     });
   }
 
+  const session = await createSessionCookie(config);
   return new Response(null, {
     status: 303,
     headers: {
-      Location: '/',
-      'Set-Cookie': await createSessionCookie(config),
+      Location: session.homePath,
+      'Set-Cookie': session.cookie,
     },
   });
 }
@@ -198,16 +215,22 @@ async function handleRequest(request, env) {
     return new Response(null, {
       status: 303,
       headers: {
-        Location: '/',
+        Location: '/login',
         'Set-Cookie': `${SESSION_COOKIE}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax`,
       },
     });
   }
 
   if (path === '/') {
-    if (!(await hasValidSession(request, config))) {
-      return new Response(renderLoginPage(config), { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
-    }
+    const session = await getValidSession(request, config);
+    return new Response(null, {
+      status: 303,
+      headers: { Location: session ? session.homePath : '/login' },
+    });
+  }
+
+  const session = await getValidSession(request, config);
+  if (session && path === session.homePath) {
     const { proxies } = parseProxies(config);
     return new Response(renderDashboard(config, proxies, baseUrl), {
       headers: { 'Content-Type': 'text/html; charset=utf-8' },

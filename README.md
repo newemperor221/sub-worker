@@ -2,10 +2,12 @@
 
 基于 Cloudflare Workers / Pages 的个人订阅聚合面板。
 
-这个版本专门按“**根域名打开面板、用户名密码登录、登录后仍停留在根路径**”的使用方式定制：
+这个版本专门按“**根域名默认跳登录页、登录页固定在 `/login`、登录后跳转随机主页路径**”的使用方式定制：
 
 ```text
-https://sub.example.com/        # 登录页 / 登录后的面板主页
+https://sub.example.com/              # 未登录时跳转 /login
+https://sub.example.com/login         # 登录页
+https://sub.example.com/随机字符/home  # 登录后的面板主页
 ```
 
 主页不会放在 `/TOKEN` 下；`TOKEN` 只用于订阅 API，方便客户端导入。
@@ -14,7 +16,7 @@ https://sub.example.com/        # 登录页 / 登录后的面板主页
 
 ## 功能概览
 
-- **网页登录面板**：访问 `/` 显示登录页，登录后显示订阅小岛主页。
+- **网页登录面板**：访问 `/` 自动跳转 `/login`，登录后跳转到本次会话专属的 `/随机字符/home`。
 - **退出登录**：面板右上角提供“退出”按钮，清除浏览器登录 Cookie 后回到 `/`。
 - **订阅链接隐藏**：面板不直接展示完整订阅 URL，只提供复制与二维码。
 - **敏感信息隐藏**：面板不展示节点 IP、端口、UUID、Trojan 密码、Reality public key / shortId 等。
@@ -33,17 +35,33 @@ https://sub.example.com/        # 登录页 / 登录后的面板主页
 https://sub.example.com
 ```
 
-### 面板
+### 登录页
 
 ```text
-https://sub.example.com/
+https://sub.example.com/login
 ```
 
-未登录时显示登录页；登录成功后仍然回到：
+访问根路径时，如果没有登录，会自动跳转到 `/login`：
 
 ```text
-https://sub.example.com/
+https://sub.example.com/  →  https://sub.example.com/login
 ```
+
+### 面板主页
+
+登录成功后会跳转到本次会话专属的随机主页路径：
+
+```text
+https://sub.example.com/随机字符/home
+```
+
+例如：
+
+```text
+https://sub.example.com/Z0i9J3VjQ1uJkQOe6I_ZCA/home
+```
+
+已登录时再次访问 `/`，会跳转回当前会话的随机主页路径。
 
 ### 新订阅 API
 
@@ -136,7 +154,7 @@ hy2://password@example.com:443?sni=example.com#HY2-Short
    - `ADMIN_PASS`
    - `SESSION_SECRET`
 7. 绑定自定义域名，例如 `sub.example.com`。
-8. 访问 `https://sub.example.com/` 登录测试。
+8. 访问 `https://sub.example.com/`，确认会跳转到 `/login` 并可登录。
 
 ### 普通 Worker 部署
 
@@ -158,9 +176,10 @@ dashboard.js
 ### 登录
 
 ```text
-GET  /        未登录显示登录页
-POST /login   校验 ADMIN_USER / ADMIN_PASS
-GET  /        已登录显示面板
+GET  /              未登录跳转 /login，已登录跳转当前会话主页
+GET  /login         显示登录页
+POST /login         校验 ADMIN_USER / ADMIN_PASS
+GET  /随机字符/home  已登录且路径匹配当前会话时显示面板
 ```
 
 登录成功后 Worker 会写入：
@@ -186,7 +205,7 @@ Max-Age=7天
 /logout
 ```
 
-Worker 会清除 `sw_session`，然后跳回 `/`。刷新页面不会丢登录，只有退出、清 Cookie、换浏览器、过期或更换 `SESSION_SECRET` 才需要重新登录。
+Worker 会清除 `sw_session`，然后跳回 `/login`。刷新页面不会丢登录，只有退出、清 Cookie、换浏览器、过期或更换 `SESSION_SECRET` 才需要重新登录。
 
 ---
 
@@ -251,11 +270,13 @@ npm test
 
 测试覆盖：
 
-- `/` 未登录显示登录页；
+- `/` 未登录跳转 `/login`；
+- `/login` 显示登录页；
 - `/login` 错误密码拒绝；
-- `/login` 正确密码写入 HttpOnly Cookie 并跳回 `/`；
-- 登录后 `/` 显示面板和退出按钮；
-- `/logout` 清除 Cookie；
+- `/login` 正确密码写入 HttpOnly Cookie 并跳转 `/随机字符/home`；
+- 已登录访问 `/` 会跳转当前会话主页；
+- 只有匹配当前会话的 `/随机字符/home` 才显示面板和退出按钮；
+- `/logout` 清除 Cookie 并跳转 `/login`；
 - `/api/sub?token=...&type=b64` 可用；
 - 旧的 `/TOKEN?b64` 仍兼容。
 
