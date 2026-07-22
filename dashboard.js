@@ -140,6 +140,7 @@ button, .route-card, .node-row { -webkit-tap-highlight-color: transparent; }
 .node-row:hover { transform:translateX(4px) rotate(.1deg); background:#fffdf7; }
 .node-row:last-child { margin-bottom:0; }
 .node-mark { width:43px; height:43px; display:grid; place-items:center; border:2px solid var(--brown); border-radius:50% 46% 50% 43%; background:var(--node-color,#b8d881); font-size:19px; transform:rotate(-9deg); box-shadow:0 2px 0 rgba(107,74,45,.30); }
+.node-mark .flag-img { width:28px; height:21px; display:block; border:1px solid rgba(93,62,36,.42); border-radius:4px; background-size:cover; background-position:center; box-shadow:0 1px 0 rgba(255,255,255,.55),0 2px 3px rgba(75,51,31,.22); }
 .node-main { min-width:0; }
 .node-name { overflow:hidden; white-space:nowrap; text-overflow:ellipsis; color:var(--brown-deep); font-size:14px; font-weight:900; }
 .node-meta { margin-top:4px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; color:var(--brown-soft); font-size:11px; font-weight:800; }
@@ -298,24 +299,27 @@ function protocolColor(type) {
   if (t.indexOf("ss") >= 0) return "#f1cb72";
   return "#b8d881";
 }
+function flagImg(code, label) {
+  return "<span class=\"flag-img\" role=\"img\" aria-label=\"" + esc(label || code.toUpperCase()) + "\" title=\"" + esc(label || code.toUpperCase()) + "\" style=\"background-image:url('https://flagcdn.com/48x36/" + code + ".png')\"></span>";
+}
 function regionIcon(name, server) {
   var text = String((name || "") + " " + (server || "")).toLowerCase();
-  if (text.indexOf("🇬🇧") >= 0) return "🇬🇧";
-  if (text.indexOf("🇳🇬") >= 0) return "🇳🇬";
-  if (text.indexOf("🇺🇸") >= 0) return "🇺🇸";
-  if (text.indexOf("🇸🇬") >= 0) return "🇸🇬";
-  if (text.indexOf("🇭🇰") >= 0) return "🇭🇰";
-  if (text.indexOf("🇹🇼") >= 0) return "🇹🇼";
-  if (text.indexOf("🇯🇵") >= 0) return "🇯🇵";
+  if (text.indexOf("🇬🇧") >= 0) return flagImg("gb", "英国");
+  if (text.indexOf("🇳🇬") >= 0) return flagImg("ng", "尼日利亚");
+  if (text.indexOf("🇺🇸") >= 0) return flagImg("us", "美国");
+  if (text.indexOf("🇸🇬") >= 0) return flagImg("sg", "新加坡");
+  if (text.indexOf("🇭🇰") >= 0) return flagImg("hk", "香港");
+  if (text.indexOf("🇹🇼") >= 0) return flagImg("tw", "台湾");
+  if (text.indexOf("🇯🇵") >= 0) return flagImg("jp", "日本");
   // 先匹配更具体的新地区。比如“英国代理出口（反连香港）”同时包含
   // “英国”和“香港”，应显示英国旗，而不是被香港关键字抢先命中。
-  if (/\b(uk|gb|london|united\s*kingdom|great\s*britain)\b|英国|英國|倫敦|伦敦/.test(text)) return "🇬🇧";
-  if (/\b(ng|nigeria|lagos|abuja)\b|尼日利亚|尼日利亞|奈及利亚|奈及利亞/.test(text)) return "🇳🇬";
-  if (/\b(hk|hong\s*kong)\b|香港|港/.test(text)) return "🇭🇰";
-  if (/\b(tw|taiwan)\b|台湾|臺灣/.test(text)) return "🇹🇼";
-  if (/\b(sg|singapore)\b|新加坡|狮城/.test(text)) return "🇸🇬";
-  if (/\b(jp|japan|tokyo|osaka)\b|日本|东京|東京|大阪|软银|iij/.test(text)) return "🇯🇵";
-  if (/\b(us|usa|united\s*states|los\s*angeles|new\s*york|seattle|san\s*jose|dallas|atlanta)\b|美国|美國|洛杉矶|洛杉磯|硅谷|纽约|紐約|西雅图|西雅圖|圣何塞|聖何塞|达拉斯|達拉斯|堪萨斯|堪薩斯/.test(text)) return "🇺🇸";
+  if (/\b(uk|gb|london|united\s*kingdom|great\s*britain)\b|英国|英國|倫敦|伦敦/.test(text)) return flagImg("gb", "英国");
+  if (/\b(ng|nigeria|lagos|abuja)\b|尼日利亚|尼日利亞|奈及利亚|奈及利亞/.test(text)) return flagImg("ng", "尼日利亚");
+  if (/\b(hk|hong\s*kong)\b|香港|港/.test(text)) return flagImg("hk", "香港");
+  if (/\b(tw|taiwan)\b|台湾|臺灣/.test(text)) return flagImg("tw", "台湾");
+  if (/\b(sg|singapore)\b|新加坡|狮城/.test(text)) return flagImg("sg", "新加坡");
+  if (/\b(jp|japan|tokyo|osaka)\b|日本|东京|東京|大阪|软银|iij/.test(text)) return flagImg("jp", "日本");
+  if (/\b(us|usa|united\s*states|los\s*angeles|new\s*york|seattle|san\s*jose|dallas|atlanta)\b|美国|美國|洛杉矶|洛杉磯|硅谷|纽约|紐約|西雅图|西雅圖|圣何塞|聖何塞|达拉斯|達拉斯|堪萨斯|堪薩斯/.test(text)) return flagImg("us", "美国");
   return "";
 }
 function nodeIcon(name, server, type) {
