@@ -252,7 +252,7 @@ button, .route-card, .node-row { -webkit-tap-highlight-color: transparent; }
       <div class="ribbon">✦ 岛屿小报 ✦</div>
       <div class="summary-strip">
         <div class="summary-card"><div class="big">{{COUNT}}</div><div class="small">登记节点</div></div>
-        <div class="summary-card"><div class="big">03</div><div class="small">导出形式</div></div>
+        <div class="summary-card"><div class="big">02</div><div class="small">导出形式</div></div>
         <div class="summary-card"><div class="big">24H</div><div class="small">随时取用</div></div>
       </div>
     </section>
@@ -298,7 +298,20 @@ function protocolColor(type) {
   if (t.indexOf("ss") >= 0) return "#f1cb72";
   return "#b8d881";
 }
-function nodeIcon(type) {
+function regionIcon(name, server) {
+  var text = String((name || "") + " " + (server || "")).toLowerCase();
+  if (/\b(hk|hong\s*kong)\b|香港|港/.test(text)) return "🇭🇰";
+  if (/\b(tw|taiwan)\b|台湾|臺灣/.test(text)) return "🇹🇼";
+  if (/\b(sg|singapore)\b|新加坡|狮城/.test(text)) return "🇸🇬";
+  if (/\b(uk|gb|london|united\s*kingdom|great\s*britain)\b|英国|倫敦|伦敦/.test(text)) return "🇬🇧";
+  if (/\b(ng|nigeria|lagos|abuja)\b|尼日利亚|奈及利亚/.test(text)) return "🇳🇬";
+  if (/\b(jp|japan|tokyo|osaka)\b|日本|东京|東京|大阪|软银|iij/.test(text)) return "🇯🇵";
+  if (/\b(us|usa|united\s*states|los\s*angeles|new\s*york|seattle|san\s*jose|dallas|atlanta)\b|美国|美國|洛杉矶|洛杉磯|硅谷|纽约|紐約|西雅图|西雅圖|圣何塞|聖何塞|达拉斯|達拉斯|堪萨斯|堪薩斯/.test(text)) return "🇺🇸";
+  return "";
+}
+function nodeIcon(name, server, type) {
+  var flag = regionIcon(name, server);
+  if (flag) return flag;
   var t = String(type || "").toLowerCase();
   if (t.indexOf("vless") >= 0) return "🍃";
   if (t.indexOf("trojan") >= 0) return "🐚";
@@ -320,7 +333,7 @@ function renderNodes() {
     var server = esc(n && n.server || "—");
     var port = esc(n && n.port != null ? n.port : "—");
     var color = protocolColor(n && n.type || "");
-    var icon = nodeIcon(n && n.type || "");
+    var icon = nodeIcon(n && n.name || "", n && n.server || "", n && n.type || "");
     return "<div class=\\"node-row\\">" +
       "<div class=\\"node-mark\\" style=\\"--node-color:" + color + "\\">" + icon + "</div>" +
       "<div class=\\"node-main\\"><div class=\\"node-name\\">" + name + "</div><div class=\\"node-meta\\">" + server + "</div></div>" +
