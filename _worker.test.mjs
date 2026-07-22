@@ -7,11 +7,10 @@ const USER2_LINK = 'trojan://password@example.net:443?sni=example.net#UserTwo';
 
 function makeDb() {
   return {
-    _nextId: 4,
+    _nextId: 3,
     _users: [
-      { id: 1, username: 'admin', password_hash: 'plain:pass123', role: 'admin', token: 'admintoken', link: '', subname: '管理后台', enabled: 1 },
-      { id: 2, username: 'alice', password_hash: 'plain:alicepass', role: 'user', token: 'alicetoken', link: LINK, subname: 'Alice订阅', enabled: 1 },
-      { id: 3, username: 'bob', password_hash: 'plain:bobpass', role: 'user', token: 'bobtoken', link: USER2_LINK, subname: 'Bob订阅', enabled: 1 },
+      { id: 1, username: 'alice', password_hash: 'plain:alicepass', role: 'user', token: 'alicetoken', link: LINK, subname: 'Alice订阅', enabled: 1 },
+      { id: 2, username: 'bob', password_hash: 'plain:bobpass', role: 'user', token: 'bobtoken', link: USER2_LINK, subname: 'Bob订阅', enabled: 1 },
     ],
   };
 }
@@ -97,7 +96,7 @@ test('ordinary user cannot access admin page or another random home path', async
   assert.equal((await fetchPath('/wrong-random-home-id/home', { headers: { cookie } }, env)).status, 404);
 });
 
-test('admin can list users but ordinary user list does not expose admin operations', async () => {
+test('admin dashboard manages ordinary D1 users only and does not show admin subscription token', async () => {
   const env = makeEnv();
   const { cookie, homePath } = await loginAs('admin', 'pass123', env);
   const res = await fetchPath(homePath, { headers: { cookie } }, env);
@@ -106,10 +105,10 @@ test('admin can list users but ordinary user list does not expose admin operatio
   assert.match(body, /管理员后台/);
   assert.match(body, /alice/);
   assert.match(body, /bob/);
-  assert.match(body, /管理员不可操作/);
+  assert.doesNotMatch(body, /admintoken|ADMIN_USER|管理员不可操作/);
 });
 
-test('admin can create, update, and delete ordinary users but cannot delete admin', async () => {
+test('admin can create, update, and delete ordinary users only', async () => {
   const env = makeEnv();
   const { cookie, homePath } = await loginAs('admin', 'pass123', env);
   const homeId = homePath.split('/')[1];
@@ -128,10 +127,17 @@ test('admin can create, update, and delete ordinary users but cannot delete admi
   res = await fetchPath(adminUsersPath, { headers: { cookie }, method: 'POST', body: new URLSearchParams({ action: 'delete', id: String(charlie.id) }) }, env);
   assert.equal(res.status, 303);
   assert.equal(env.DB._users.some(u => u.id === charlie.id), false);
+  assert.equal(env.DB._users.some(u => u.role === 'admin'), false);
+});
 
-  res = await fetchPath(adminUsersPath, { headers: { cookie }, method: 'POST', body: new URLSearchParams({ action: 'delete', id: '1' }) }, env);
+test('ADMIN_USER/ADMIN_PASS are env-only and admin has no subscription token', async () => {
+  const env = makeEnv();
+  assert.equal(env.DB._users.some(u => u.username === 'admin' || u.role === 'admin'), false);
+
+  const { res } = await loginAs('admin', 'pass123', env);
   assert.equal(res.status, 303);
-  assert.ok(env.DB._users.some(u => u.id === 1 && u.role === 'admin'));
+  assert.match(res.headers.get('location') || '', /^\/[A-Za-z0-9_-]{22,}\/admin$/);
+  assert.equal((await fetchPath('/api/sub?token=admintoken&type=b64', {}, env)).status, 404);
 });
 
 test('subscription API is per-user token protected and returns matching user link', async () => {

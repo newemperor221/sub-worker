@@ -2,7 +2,7 @@ CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   username TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
-  role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('admin', 'user')),
+  role TEXT NOT NULL DEFAULT 'user' CHECK (role = 'user'),
   token TEXT NOT NULL UNIQUE,
   link TEXT NOT NULL DEFAULT '',
   subname TEXT NOT NULL DEFAULT '我的订阅',
