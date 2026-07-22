@@ -185,7 +185,7 @@ GET  /随机字符/home  已登录且路径匹配当前会话时显示面板
 登录成功后 Worker 会写入：
 
 ```text
-sw_session=...
+sub_worker_session=...
 ```
 
 Cookie 属性：
@@ -205,7 +205,7 @@ Max-Age=7天
 /logout
 ```
 
-Worker 会清除 `sw_session`，然后跳回 `/login`。刷新页面不会丢登录，只有退出、清 Cookie、换浏览器、过期或更换 `SESSION_SECRET` 才需要重新登录。
+Worker 会清除 `sub_worker_session`，同时兼容清理旧版 `sw_session`，然后跳回 `/login`。刷新页面不会丢登录，只有退出、清 Cookie、换浏览器、过期或更换 `SESSION_SECRET` 才需要重新登录。
 
 ---
 

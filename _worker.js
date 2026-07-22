@@ -7,7 +7,7 @@ import { convertVlessToClashProxy, convertTrojanToClashProxy, convertHysteria2To
 import { generateClashYaml } from './yaml.js';
 import { renderDashboard } from './dashboard.js';
 
-const SESSION_COOKIE = 'sw_session';
+const SESSION_COOKIE = 'sub_worker_session';
 const SESSION_TTL_SECONDS = 7 * 24 * 60 * 60;
 
 function escapeHtml(value) {
@@ -213,9 +213,11 @@ function buildClearSessionHeaders(url) {
     'Clear-Site-Data': '"cache"',
   }));
   const cookieAttrs = 'Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax';
-  headers.append('Set-Cookie', `${SESSION_COOKIE}=; ${cookieAttrs}`);
-  for (const domain of parentCookieDomains(url.hostname)) {
-    headers.append('Set-Cookie', `${SESSION_COOKIE}=; Domain=${domain}; ${cookieAttrs}`);
+  for (const name of [SESSION_COOKIE, 'sw_session']) {
+    headers.append('Set-Cookie', `${name}=; ${cookieAttrs}`);
+    for (const domain of parentCookieDomains(url.hostname)) {
+      headers.append('Set-Cookie', `${name}=; Domain=${domain}; ${cookieAttrs}`);
+    }
   }
   return headers;
 }
