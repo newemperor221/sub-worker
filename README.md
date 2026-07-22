@@ -1,8 +1,8 @@
 # Sub Worker — 订阅聚合与转换
 
-Cloudflare Workers / Pages 订阅聚合与转换服务。读取环境变量里的节点链接，输出 **Mihomo/Clash YAML**、**Base64 原始链接订阅** 和 **sing-box JSON 完整配置**。
+Cloudflare Workers / Pages 订阅聚合与转换服务。读取环境变量里的节点链接，输出 **Mihomo/Clash YAML** 和 **Base64 原始链接订阅**。
 
-本项目目标是让下面四类协议在三个订阅出口中都可用：
+本项目目标是让下面四类协议在两个订阅出口中都可用：
 
 - **Hysteria2 / HY2**
 - **Trojan**
@@ -31,26 +31,25 @@ mysecret
 https://sub.example.com/mysecret          # 管理面板
 https://sub.example.com/mysecret?clash    # Mihomo / Clash YAML 节点订阅
 https://sub.example.com/mysecret?b64      # Base64 原始链接订阅
-https://sub.example.com/mysecret?sb       # sing-box JSON 完整配置
 ```
 
 ---
 
 ## 协议支持矩阵
 
-| 协议 / 输出 | `?clash` | `?b64` | `?sb` |
-|---|---:|---:|---:|
-| Hysteria2 / HY2 | ✅ | ✅ | ✅ |
-| Trojan | ✅ | ✅ | ✅ |
-| VLESS + REALITY + Vision | ✅ | ✅ | ✅ |
-| VLESS + REALITY + XHTTP | ✅ | ✅ | ✅ |
-| VLESS + REALITY + XHTTP `mode=stream-up` | ✅ | ✅ | ✅ |
+| 协议 / 输出 | `?clash` | `?b64` |
+|---|---:|---:|
+| Hysteria2 / HY2 | ✅ | ✅ |
+| Trojan | ✅ | ✅ |
+| VLESS + REALITY + Vision | ✅ | ✅ |
+| VLESS + REALITY + XHTTP | ✅ | ✅ |
+| VLESS + REALITY + XHTTP `mode=stream-up` | ✅ | ✅ |
 
 说明：
 
 - `?clash` 会把 XHTTP 节点转换为 Mihomo 的 `network: xhttp` + `xhttp-opts`。
 - `?b64` 会原样保留 `vless://` / `trojan://` / `hysteria2://` 链接。
-- `?sb` 会把节点转换为 sing-box 完整配置；XHTTP 节点会保留 `mode`、`path`、`host` 等 transport 参数。
+- `?sb` 已移除；访问 `?sb` 会回到管理面板，不再输出 sing-box 配置。
 
 ---
 
@@ -58,7 +57,6 @@ https://sub.example.com/mysecret?sb       # sing-box JSON 完整配置
 
 - 🔗 **Mihomo / Clash YAML**：适合 Clash Verge、Mihomo Party、FlClash、Clash Meta for Android、OpenClash / Nikki 等 Mihomo 内核客户端。
 - 📄 **Base64 原始链接订阅**：适合 v2rayN、NekoBox、Hiddify、Shadowrocket 等支持原始分享链接的客户端。
-- 🧩 **sing-box JSON 完整配置**：生成一个可直接导入的 sing-box profile，内置 DNS、分流、策略组、remote rule-set。
 - 🎨 **管理面板**：浏览器访问 Token 路径时显示节点统计、订阅入口和复制按钮。
 - 📛 **订阅名称自定义**：通过 `SUBNAME` 环境变量控制客户端显示名称。
 
@@ -74,7 +72,6 @@ https://sub.example.com/mysecret?sb       # sing-box JSON 完整配置
 utils.js
 convert.js
 yaml.js
-singbox.js
 dashboard.js
 ```
 
@@ -144,7 +141,9 @@ hy2://password@example.com:443?sni=example.com#HY2-short
 - `proxy-groups` 策略组；
 - fake-ip DNS；
 - GEOSITE / GEOIP 分流；
-- AI、Telegram、Google、GitHub、社交媒体、流媒体、Apple、Microsoft、Games 等分流规则。
+- AI、Telegram、Google、GitHub、社交媒体、流媒体、Apple、Microsoft、Games 等分流规则；
+- `Spotify`、`ChatGPT/OpenAI`、`Google/YouTube/Gemini` 默认走 **🇺🇸 美国应用**；
+- `X/Twitter`、`Netflix` 默认走 **🇸🇬 新加坡应用**。
 
 VLESS + REALITY + XHTTP 会转换为：
 
@@ -188,53 +187,6 @@ XHTTP 节点不会输出 `flow`。
 - Hiddify
 - Shadowrocket（视版本支持情况）
 - 其它支持 Xray / Trojan / Hysteria2 分享链接的客户端
-
----
-
-### `?sb` — sing-box JSON 完整配置
-
-返回完整 sing-box JSON profile，包含：
-
-- mixed inbound；
-- selector / urltest；
-- remote rule-set；
-- DNS 分流；
-- routing 规则；
-- Hysteria2 / Trojan / VLESS 节点 outbounds。
-
-VLESS + REALITY + XHTTP 会保留 transport 参数，例如：
-
-```json
-{
-  "type": "vless",
-  "tag": "HK-XHTTP",
-  "server": "example.com",
-  "server_port": 443,
-  "uuid": "uuid",
-  "network": "xhttp",
-  "packet_encoding": "xudp",
-  "tls": {
-    "enabled": true,
-    "server_name": "tv.apple.com",
-    "utls": {
-      "enabled": true,
-      "fingerprint": "chrome"
-    },
-    "reality": {
-      "enabled": true,
-      "public_key": "PUBLIC_KEY",
-      "short_id": "SHORT_ID"
-    }
-  },
-  "transport": {
-    "type": "http",
-    "path": "/xhttp",
-    "mode": "stream-up"
-  }
-}
-```
-
-注意：`?sb` 输出的是完整 sing-box 配置，不是普通节点列表。部分 GUI 导入后会显示为一个完整 profile，而不是多个独立节点。
 
 ---
 
@@ -314,7 +266,6 @@ flow=xtls-rprx-vision
 |---|---|
 | Mihomo / Clash Verge / Mihomo Party / FlClash | `?clash` |
 | v2rayN / NekoBox / Shadowrocket / Hiddify 原始链接导入 | `?b64` |
-| sing-box 原生或 sing-box GUI 完整配置导入 | `?sb` |
 
 ---
 
@@ -330,11 +281,9 @@ flow=xtls-rprx-vision
 vless://uuid@example.com:443?encryption=none&security=reality&sni=tv.apple.com&fp=chrome&pbk=PUBLIC_KEY&sid=SHORT_ID&type=xhttp&path=%2Fxhttp&mode=stream-up#HK-XHTTP
 ```
 
-### 2. `?sb` 是节点订阅吗？
+### 2. `?sb` 去哪里了？
 
-不是。`?sb` 是完整 sing-box 配置。很多 GUI 导入后会变成一个完整 profile，而不是像 Clash YAML 那样显示为普通多节点订阅。
-
-如果你想要“导入后显示多个可选节点”，优先用：
+`?sb` 已清理掉。当前只保留：
 
 ```text
 ?clash
@@ -353,7 +302,6 @@ mode=stream-up
 
 - Mihomo/Clash 系：`?clash`
 - 原始链接客户端：`?b64`
-- sing-box 完整配置：`?sb`
 
 ---
 
@@ -361,9 +309,9 @@ mode=stream-up
 
 修改协议转换逻辑后，至少检查：
 
-- Hysteria2 / HY2 在 `?clash`、`?b64`、`?sb` 都可输出；
-- Trojan 在 `?clash`、`?b64`、`?sb` 都可输出；
-- VLESS REALITY Vision 在 `?clash`、`?b64`、`?sb` 都保留 `flow=xtls-rprx-vision`；
-- VLESS REALITY XHTTP 在 `?clash`、`?b64`、`?sb` 都保留 `type=xhttp` / `path` / `mode`；
+- Hysteria2 / HY2 在 `?clash`、`?b64` 都可输出；
+- Trojan 在 `?clash`、`?b64` 都可输出；
+- VLESS REALITY Vision 在 `?clash`、`?b64` 都保留 `flow=xtls-rprx-vision`；
+- VLESS REALITY XHTTP 在 `?clash`、`?b64` 都保留 `type=xhttp` / `path` / `mode`；
 - XHTTP 输出不包含 `flow=xtls-rprx-vision`；
 - README 的协议矩阵和实际代码保持一致。

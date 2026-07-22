@@ -40,6 +40,10 @@ function buildRegionGroups(proxies) {
   ].filter(group => group.members.length > 0);
 }
 
+function findRegionGroup(regionGroups, name) {
+  return regionGroups.find(group => group.name === name);
+}
+
 function appendProxy(lines, p) {
   lines.push(`  - name: ${quote(p.name)}`);
   lines.push(`    type: ${p.type}`);
@@ -129,7 +133,11 @@ export function generateClashYaml(inputProxies, subName) {
 
   const proxyChoices = uniq(['Auto', ...regionNames, ...(miscMembers.length ? ['🌍 其它地区'] : []), 'DIRECT']);
   const commonChoices = uniq(['Proxy', 'Auto', ...regionNames, ...(miscMembers.length ? ['🌍 其它地区'] : []), 'DIRECT']);
-  const aiChoices = uniq(['Proxy', 'Auto', '🇸🇬 新加坡节点', '🇯🇵 日本节点', '🇺🇸 美国节点', '🇭🇰 香港节点', 'DIRECT'].filter(name => name === 'Proxy' || name === 'Auto' || name === 'DIRECT' || regionNames.includes(name)));
+  const usGroup = findRegionGroup(regionGroups, '🇺🇸 美国节点');
+  const sgGroup = findRegionGroup(regionGroups, '🇸🇬 新加坡节点');
+  const usAppChoices = uniq([...(usGroup ? ['🇺🇸 美国节点'] : []), ...(usGroup?.members || []), 'Proxy', 'Auto', 'DIRECT']);
+  const sgAppChoices = uniq([...(sgGroup ? ['🇸🇬 新加坡节点'] : []), ...(sgGroup?.members || []), 'Proxy', 'Auto', 'DIRECT']);
+  const aiChoices = usAppChoices;
   const overseasChoices = uniq(['Proxy', 'Auto', '🇭🇰 香港节点', '🇹🇼 台湾节点', '🇸🇬 新加坡节点', '🇯🇵 日本节点', '🇺🇸 美国节点', ...(miscMembers.length ? ['🌍 其它地区'] : []), 'DIRECT'].filter(name => name === 'Proxy' || name === 'Auto' || name === 'DIRECT' || name === '🌍 其它地区' || regionNames.includes(name)));
   const directPreferredChoices = uniq(['DIRECT', 'Proxy', 'Auto', ...regionNames, ...(miscMembers.length ? ['🌍 其它地区'] : [])]);
 
@@ -223,10 +231,22 @@ export function generateClashYaml(inputProxies, subName) {
     '    "geosite:private,cn,apple-cn,microsoft@cn,steam@cn,category-games@cn,bilibili":',
     '      - https://1.1.1.1/dns-query',
     '      - https://8.8.8.8/dns-query',
-    '    "geosite:openai,anthropic,google-gemini,google,youtube,github,telegram,twitter,facebook,netflix,disney,primevideo,hbo,spotify,tiktok,bahamut":',
+    '    "geosite:openai,google-gemini,google,youtube,spotify":',
+    '      - https://1.1.1.1/dns-query#🇺🇸 美国应用',
+    '      - https://8.8.8.8/dns-query#🇺🇸 美国应用',
+    '    "+.chatgpt.com,+.openai.com,+.oaistatic.com,+.oaiusercontent.com,+.spotify.com,+.scdn.co":',
+    '      - https://1.1.1.1/dns-query#🇺🇸 美国应用',
+    '      - https://8.8.8.8/dns-query#🇺🇸 美国应用',
+    '    "geosite:twitter,netflix":',
+    '      - https://1.1.1.1/dns-query#🇸🇬 新加坡应用',
+    '      - https://8.8.8.8/dns-query#🇸🇬 新加坡应用',
+    '    "+.x.com,+.twimg.com,+.nflxvideo.net,+.netflix.com,+.netflix.net":',
+    '      - https://1.1.1.1/dns-query#🇸🇬 新加坡应用',
+    '      - https://8.8.8.8/dns-query#🇸🇬 新加坡应用',
+    '    "geosite:anthropic,github,telegram,facebook,disney,primevideo,hbo,tiktok,bahamut":',
     '      - https://1.1.1.1/dns-query#Proxy',
     '      - https://8.8.8.8/dns-query#Proxy',
-    '    "+.chatgpt.com,+.oaistatic.com,+.oaiusercontent.com,+.claude.ai":',
+    '    "+.claude.ai":',
     '      - https://1.1.1.1/dns-query#Proxy',
     '      - https://8.8.8.8/dns-query#Proxy',
     '  nameserver:',
@@ -263,6 +283,8 @@ export function generateClashYaml(inputProxies, subName) {
   lines.push('proxy-groups:');
   appendSelectGroup(lines, 'Proxy', proxyChoices);
   appendUrlTestGroup(lines, 'Auto', allNames);
+  appendSelectGroup(lines, '🇺🇸 美国应用', usAppChoices);
+  appendSelectGroup(lines, '🇸🇬 新加坡应用', sgAppChoices);
   appendSelectGroup(lines, '🎬 流媒体', commonChoices);
   appendSelectGroup(lines, '🤖 AI', aiChoices);
   appendSelectGroup(lines, '📨 Telegram', overseasChoices);
@@ -286,24 +308,29 @@ export function generateClashYaml(inputProxies, subName) {
   lines.push('  - DOMAIN-SUFFIX,lan,DIRECT');
   lines.push('  - DOMAIN-SUFFIX,arpa,DIRECT');
   lines.push('  - GEOSITE,openai,🤖 AI');
-  lines.push('  - GEOSITE,anthropic,🤖 AI');
   lines.push('  - GEOSITE,google-gemini,🤖 AI');
-  lines.push('  - DOMAIN-SUFFIX,chatgpt.com,🤖 AI');
-  lines.push('  - DOMAIN-SUFFIX,oaistatic.com,🤖 AI');
-  lines.push('  - DOMAIN-SUFFIX,oaiusercontent.com,🤖 AI');
+  lines.push('  - DOMAIN-SUFFIX,chatgpt.com,🇺🇸 美国应用');
+  lines.push('  - DOMAIN-SUFFIX,openai.com,🇺🇸 美国应用');
+  lines.push('  - DOMAIN-SUFFIX,oaistatic.com,🇺🇸 美国应用');
+  lines.push('  - DOMAIN-SUFFIX,oaiusercontent.com,🇺🇸 美国应用');
+  lines.push('  - GEOSITE,anthropic,🤖 AI');
   lines.push('  - DOMAIN-SUFFIX,claude.ai,🤖 AI');
   lines.push('  - GEOSITE,telegram,📨 Telegram');
   lines.push('  - GEOSITE,github,🐙 GitHub');
-  lines.push('  - GEOSITE,google,🔎 Google');
-  lines.push('  - GEOSITE,youtube,🔎 Google');
-  lines.push('  - GEOSITE,twitter,🐦 社交媒体');
+  lines.push('  - GEOSITE,google,🇺🇸 美国应用');
+  lines.push('  - GEOSITE,youtube,🇺🇸 美国应用');
+  lines.push('  - GEOSITE,twitter,🇸🇬 新加坡应用');
+  lines.push('  - DOMAIN-SUFFIX,x.com,🇸🇬 新加坡应用');
+  lines.push('  - DOMAIN-SUFFIX,twimg.com,🇸🇬 新加坡应用');
   lines.push('  - GEOSITE,facebook,🐦 社交媒体');
   lines.push('  - GEOSITE,tiktok,🐦 社交媒体');
-  lines.push('  - GEOSITE,netflix,🎬 流媒体');
+  lines.push('  - GEOSITE,netflix,🇸🇬 新加坡应用');
+  lines.push('  - DOMAIN-SUFFIX,nflxvideo.net,🇸🇬 新加坡应用');
   lines.push('  - GEOSITE,disney,🎬 流媒体');
   lines.push('  - GEOSITE,primevideo,🎬 流媒体');
   lines.push('  - GEOSITE,hbo,🎬 流媒体');
-  lines.push('  - GEOSITE,spotify,🎬 流媒体');
+  lines.push('  - GEOSITE,spotify,🇺🇸 美国应用');
+  lines.push('  - DOMAIN-SUFFIX,scdn.co,🇺🇸 美国应用');
   lines.push('  - GEOSITE,bahamut,🎬 流媒体');
   lines.push('  - GEOSITE,bilibili,DIRECT');
   lines.push('  - GEOSITE,apple-cn,DIRECT');

@@ -5,7 +5,6 @@
 import { loadConfig, encodeBase64 } from './utils.js';
 import { convertVlessToClashProxy, convertTrojanToClashProxy, convertHysteria2ToClashProxy } from './convert.js';
 import { generateClashYaml } from './yaml.js';
-import { generateSingboxConfig } from './singbox.js';
 import { renderDashboard } from './dashboard.js';
 
 // ==================== 路由处理 ====================
@@ -44,19 +43,6 @@ async function handleRequest(request, env) {
     return new Response(yaml, {
       headers: {
         'Content-Type': 'text/plain; charset=utf-8',
-        'content-disposition': subscriptionContentDisposition,
-        'profile-title': config.subName,
-        'profile-update-interval': '6',
-      },
-    });
-  }
-
-  // ====== sing-box JSON ======
-  if (params.has('sb')) {
-    const json = generateSingboxConfig(proxies, config.subName);
-    return new Response(json, {
-      headers: {
-        'Content-Type': 'application/json; charset=utf-8',
         'content-disposition': subscriptionContentDisposition,
         'profile-title': config.subName,
         'profile-update-interval': '6',
