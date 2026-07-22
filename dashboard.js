@@ -350,11 +350,16 @@ function nodeIcon(name, server, type) {
   return "⛵";
 }
 function displayName(name) {
-  return String(name || "未命名节点")
+  var clean = String(name || "未命名节点")
     .replace(/[🇦-🇿]{2}/gu, "")
     .replace(/^\s*[-|｜·•:：_]+\s*/, "")
     .replace(/\s{2,}/g, " ")
-    .trim() || "未命名节点";
+    .trim();
+  var relay = clean.match(/^(.+?)[-—–_\s]*(中转|中轉|前置|反连|反連)[-—–_\s]*(.+)$/);
+  if (relay && relay[1] && relay[3]) {
+    clean = relay[3].trim() + "出口（" + relay[1].trim() + relay[2] + "）";
+  }
+  return clean || "未命名节点";
 }
 function detailPill(text) {
   return '<span class="detail-pill">' + esc(text) + '</span>';
@@ -365,13 +370,7 @@ function vlessDetails(n) {
   else if (n && n.tls) parts.push("TLS");
   var network = String(n && n.network || "tcp").toUpperCase();
   parts.push(network);
-  if (n && n.flow) parts.push("Vision");
-  if (n && n["xhttp-opts"] && n["xhttp-opts"].mode) parts.push(String(n["xhttp-opts"].mode));
-  if (n && n["grpc-opts"]) parts.push("gRPC");
-  if (n && n["ws-opts"]) parts.push("WS");
-  var sni = n && (n.sni || n.servername);
-  if (sni) parts.push("SNI " + sni);
-  return parts.map(detailPill).join("");
+  return parts.slice(0, 3).map(detailPill).join("");
 }
 function nodeDetails(n) {
   var type = String(n && n.type || "").toLowerCase();
@@ -446,23 +445,14 @@ renderNodes();
   html = html.replace(/\{\{CLASH_URL\}\}/g, links.clash);
 
   html = html.replace(/\{\{B64_URL\}\}/g, links.b64);
-  const safeHost = (value) => {
-    const v = String(value || '');
-    if (!v) return undefined;
-    if (/^(\d{1,3}\.){3}\d{1,3}$/.test(v)) return undefined;
-    if (v.includes(':')) return undefined;
-    return v;
-  };
   const panelProxies = proxies.map((p) => ({
     name: p.name,
     type: p.type,
     network: p.network,
     tls: p.tls,
-    sni: safeHost(p.sni),
-    servername: safeHost(p.servername),
     flow: p.flow,
     'reality-opts': p['reality-opts'] ? {} : undefined,
-    'xhttp-opts': p['xhttp-opts'] ? { mode: p['xhttp-opts'].mode } : undefined,
+    'xhttp-opts': p['xhttp-opts'] ? {} : undefined,
     'grpc-opts': p['grpc-opts'] ? {} : undefined,
     'ws-opts': p['ws-opts'] ? {} : undefined,
   }));
