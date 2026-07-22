@@ -93,6 +93,7 @@ test('GET /random/home with a valid matching session renders dashboard', async (
   assert.match(body, /\/api\/sub\?token=subtoken&type=b64/);
   assert.match(body, /href="\/logout"/);
   assert.match(body, /退出/);
+  assert.match(res.headers.get('cache-control') || '', /no-store/);
   assert.doesNotMatch(body, /sub\.example\.com\/subtoken\?/);
 });
 
@@ -117,6 +118,8 @@ test('GET /logout clears the browser session and redirects to /login', async () 
   assert.match(cookie, /sw_session=;/);
   assert.match(cookie, /Max-Age=0/);
   assert.match(cookie, /HttpOnly/);
+  assert.match(cookie, /Domain=sub\.example\.com/);
+  assert.match(cookie, /Domain=example\.com/);
   assert.match(res.headers.get('cache-control') || '', /no-store/);
   assert.match(res.headers.get('clear-site-data') || '', /"cache"/);
 });
