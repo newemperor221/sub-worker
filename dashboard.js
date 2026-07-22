@@ -78,6 +78,10 @@ button, .route-card, .node-row { -webkit-tap-highlight-color: transparent; }
 .status-ticket:before, .status-ticket:after { content:""; position:absolute; width:11px; height:11px; background:var(--sky); border-radius:50%; top:50%; transform:translateY(-50%); }
 .status-ticket:before { left:-7px; } .status-ticket:after { right:-7px; }
 .status-ticket b { display:block; color:#639942; font-size:13px; letter-spacing:.06em; }
+.logout-btn { position:absolute; right:-7px; top:82px; display:inline-flex; align-items:center; gap:6px; min-height:34px; padding:7px 13px 6px; border:2px solid var(--brown); border-radius:999px; background:var(--white); color:var(--brown-deep); text-decoration:none; font-size:12px; font-weight:900; box-shadow:0 4px 0 rgba(120,83,47,.35); transform:rotate(-2deg); transition:transform .16s var(--ease), box-shadow .16s var(--ease), background .16s var(--ease); }
+.logout-btn:hover { background:#fff0e7; transform:translateY(-1px) rotate(-2deg); box-shadow:0 5px 0 rgba(120,83,47,.35); }
+.logout-btn:active { transform:translateY(3px) rotate(-2deg); box-shadow:0 1px 0 rgba(120,83,47,.35); }
+.logout-btn:focus-visible { outline:3px solid var(--yellow); outline-offset:2px; }
 
 .hero { position: relative; z-index: 1; text-align: center; padding: 22px 12px 15px; }
 .sign-wrap { display:inline-block; position:relative; padding: 10px 22px 16px; }
@@ -177,6 +181,7 @@ button, .route-card, .node-row { -webkit-tap-highlight-color: transparent; }
   .shell { width:min(100% - 22px, 650px); padding-top:30px; padding-bottom:100px; }
   .corner-note { position:relative; top:auto; left:auto; margin:0 0 12px 8px; justify-content:center; }
   .status-ticket { position:relative; top:auto; right:auto; margin:0 2px 10px auto; width:max-content; transform:rotate(3deg); }
+  .logout-btn { position:relative; top:auto; right:auto; margin:0 2px 10px auto; width:max-content; }
   .hero { padding-top:0; } .sign { min-width:0; width:100%; padding:22px 38px 18px; }
   .board { padding:22px 15px; border-radius:28px 25px 31px 24px; }
   .route-grid { grid-template-columns:1fr; gap:14px; }
@@ -214,6 +219,7 @@ button, .route-card, .node-row { -webkit-tap-highlight-color: transparent; }
 <main class="shell">
   <div class="corner-note"><span class="mini-leaf"></span><span>ISLAND NET</span></div>
   <div class="status-ticket"><b>● CONNECTED</b>订阅小岛已开放</div>
+  <a class="logout-btn" href="/logout" title="退出登录">🚪 退出</a>
 
   <header class="hero">
     <div class="sign-wrap">
