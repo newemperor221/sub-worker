@@ -35,6 +35,8 @@ function buildRegionGroups(proxies) {
     { name: '🇭🇰 香港节点', members: matchNames(proxies, /\bHK\b|香港|港|hong\s*kong/i) },
     { name: '🇹🇼 台湾节点', members: matchNames(proxies, /\bTW\b|台湾|臺灣|taiwan/i) },
     { name: '🇸🇬 新加坡节点', members: matchNames(proxies, /\bSG\b|新加坡|狮城|singapore/i) },
+    { name: '🇬🇧 英国节点', members: matchNames(proxies, /\bUK\b|\bGB\b|英国|伦敦|london|united\s*kingdom|great\s*britain/i) },
+    { name: '🇳🇬 尼日利亚节点', members: matchNames(proxies, /\bNG\b|尼日利亚|奈及利亚|nigeria|lagos|abuja/i) },
     { name: '🇯🇵 日本节点', members: matchNames(proxies, /\bJP\b|日本|东京|大阪|软银|iij|japan/i) },
     { name: '🇺🇸 美国节点', members: matchNames(proxies, /\bUS\b|美国|洛杉矶|硅谷|纽约|西雅图|圣何塞|达拉斯|堪萨斯|atlanta|los\s*angeles|united\s*states/i) },
   ].filter(group => group.members.length > 0);
