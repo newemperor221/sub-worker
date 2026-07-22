@@ -198,6 +198,15 @@ function noStoreHeaders(extra = {}) {
   };
 }
 
+function parentCookieDomains(hostname) {
+  const parts = hostname.split('.').filter(Boolean);
+  const domains = [hostname];
+  for (let i = 1; i < parts.length - 1; i++) {
+    domains.push(parts.slice(i).join('.'));
+  }
+  return [...new Set(domains)];
+}
+
 function buildClearSessionHeaders(url) {
   const headers = new Headers(noStoreHeaders({
     Location: '/login',
@@ -205,7 +214,9 @@ function buildClearSessionHeaders(url) {
   }));
   const cookieAttrs = 'Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax';
   headers.append('Set-Cookie', `${SESSION_COOKIE}=; ${cookieAttrs}`);
-  headers.append('Set-Cookie', `${SESSION_COOKIE}=; Domain=${url.hostname}; ${cookieAttrs}`);
+  for (const domain of parentCookieDomains(url.hostname)) {
+    headers.append('Set-Cookie', `${SESSION_COOKIE}=; Domain=${domain}; ${cookieAttrs}`);
+  }
   return headers;
 }
 
@@ -250,7 +261,7 @@ async function handleRequest(request, env) {
   if (session && path === session.homePath) {
     const { proxies } = parseProxies(config);
     return new Response(renderDashboard(config, proxies, baseUrl), {
-      headers: { 'Content-Type': 'text/html; charset=utf-8' },
+      headers: noStoreHeaders({ 'Content-Type': 'text/html; charset=utf-8' }),
     });
   }
 
