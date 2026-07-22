@@ -1,72 +1,271 @@
-# Sub Worker — 订阅聚合与转换
+# Sub Worker — 私有订阅聚合与 Mihomo 分流面板
 
-Cloudflare Workers / Pages 订阅聚合与转换服务。读取环境变量里的节点链接，输出 **Mihomo/Clash YAML** 和 **Base64 原始链接订阅**。
+一个运行在 **Cloudflare Workers / Pages** 上的轻量订阅聚合服务。
 
-本项目目标是让下面四类协议在两个订阅出口中都可用：
+它把环境变量里的多个代理节点统一整理成：
 
-- **Hysteria2 / HY2**
-- **Trojan**
-- **VLESS + REALITY + Vision**
-- **VLESS + REALITY + XHTTP**，包含 `mode=packet-up` / `mode=stream-up` / `mode=stream-one` / `mode=auto`
+- **Mihomo / Clash YAML 订阅**
+- **Base64 原始分享链接订阅**
+- **私有管理面板**
+
+项目重点不是做一个公开订阅站，而是做一个干净、安全、方便自己用的私有订阅面板。
 
 ---
 
-## 输出入口
+## 功能特点
 
-假设域名是：
+### 两种订阅出口
+
+| 入口 | 用途 |
+|---|---|
+| `?clash` | Mihomo / Clash.Meta YAML，带 DNS、策略组和分流规则 |
+| `?b64` | Base64 原始节点链接订阅，保留原始分享链接参数 |
+
+已清理旧入口：
+
+```text
+?sb
+```
+
+当前不再输出 sing-box 配置。
+
+---
+
+### 私有管理面板
+
+浏览器访问 Token 路径时会显示管理面板。
+
+面板特性：
+
+- 不直接显示订阅链接；
+- 不显示节点 IP；
+- 不显示节点端口；
+- 节点名称会隐藏无法渲染的国旗 emoji；
+- 左侧使用内联 SVG 国旗图标，不依赖系统 emoji 字体，也不依赖外部图片；
+- VLESS 节点会显示更详细的协议变体信息。
+
+示例显示：
+
+```text
+香港-中转-伦敦
+连接地址与端口已隐藏
+VLESS
+REALITY
+XHTTP
+stream-up
+SNI www.apple.com
+```
+
+---
+
+### VLESS 变体识别
+
+VLESS 不是单一形态，本项目会在面板和 Clash 输出中尽量区分不同变体。
+
+支持展示 / 转换：
+
+- `VLESS + REALITY + TCP / Vision`
+- `VLESS + REALITY + XHTTP`
+- `VLESS + TLS`
+- `VLESS + WS`
+- `VLESS + gRPC`
+
+XHTTP 支持保留：
+
+```text
+type=xhttp
+path
+host
+mode=packet-up / stream-up / stream-one / auto
+```
+
+Reality 支持保留：
+
+```text
+sni
+fp
+pbk
+sid
+```
+
+> 面板不会显示 Reality public key、shortId、节点 IP、端口等敏感信息。
+
+---
+
+## 分流策略
+
+`?clash` 输出的是完整 Mihomo / Clash YAML，包含：
+
+- `proxies`
+- `proxy-groups`
+- fake-ip DNS
+- GEOSITE / GEOIP 规则
+- 常见服务分流
+- 地区节点组
+- 应用指定地区组
+
+### 地区节点组
+
+会根据节点名称自动归类：
+
+```text
+🇭🇰 香港节点
+🇹🇼 台湾节点
+🇸🇬 新加坡节点
+🇯🇵 日本节点
+🇺🇸 美国节点
+🇬🇧 英国节点
+🇳🇬 尼日利亚节点
+🌍 其它地区
+```
+
+英国匹配关键词：
+
+```text
+UK / GB / 英国 / 英國 / 伦敦 / 倫敦 / london / united kingdom / great britain
+```
+
+尼日利亚匹配关键词：
+
+```text
+NG / 尼日利亚 / 尼日利亞 / 奈及利亚 / 奈及利亞 / nigeria / lagos / abuja
+```
+
+---
+
+### 应用指定地区
+
+当前内置策略：
+
+| 应用 / 网站 | 默认策略组 |
+|---|---|
+| Spotify | 🇺🇸 美国应用 |
+| ChatGPT / OpenAI | 🇺🇸 美国应用 |
+| Google / YouTube / Gemini | 🇺🇸 美国应用 |
+| X / Twitter | 🇸🇬 新加坡应用 |
+| Netflix | 🇸🇬 新加坡应用 |
+
+相关规则会放在更宽泛的流媒体 / 社交媒体规则之前，避免被提前吞掉。
+
+DNS `nameserver-policy` 也同步走对应策略组，避免 DNS 和路由方向不一致。
+
+---
+
+## 支持协议
+
+| 协议 | `?clash` | `?b64` |
+|---|---:|---:|
+| VLESS + REALITY + Vision | ✅ | ✅ |
+| VLESS + REALITY + XHTTP | ✅ | ✅ |
+| Trojan | ✅ | ✅ |
+| Hysteria2 / HY2 | ✅ | ✅ |
+
+说明：
+
+- `?clash` 会把节点转换成 Mihomo / Clash.Meta 可导入 YAML；
+- `?b64` 会尽量保持原始分享链接不变；
+- XHTTP 节点不会在 Clash 输出中继承 Vision `flow`；
+- Vision 节点会保留 `flow=xtls-rprx-vision`。
+
+---
+
+## 订阅地址格式
+
+假设你的域名是：
 
 ```text
 https://sub.example.com
 ```
 
-`TOKEN` 是：
+环境变量 `TOKEN` 是：
 
 ```text
-mysecret
+my-secret-token
 ```
 
-则订阅地址为：
+则入口为：
 
 ```text
-https://sub.example.com/mysecret          # 管理面板
-https://sub.example.com/mysecret?clash    # Mihomo / Clash YAML 节点订阅
-https://sub.example.com/mysecret?b64      # Base64 原始链接订阅
+https://sub.example.com/my-secret-token          # 私有面板
+https://sub.example.com/my-secret-token?clash    # Mihomo / Clash YAML
+https://sub.example.com/my-secret-token?b64      # Base64 原始链接订阅
 ```
+
+> README 中只写示例地址，不应提交真实 Token、真实节点 IP、UUID、密码或订阅链接。
 
 ---
 
-## 协议支持矩阵
+## 环境变量
 
-| 协议 / 输出 | `?clash` | `?b64` |
-|---|---:|---:|
-| Hysteria2 / HY2 | ✅ | ✅ |
-| Trojan | ✅ | ✅ |
-| VLESS + REALITY + Vision | ✅ | ✅ |
-| VLESS + REALITY + XHTTP | ✅ | ✅ |
-| VLESS + REALITY + XHTTP `mode=stream-up` | ✅ | ✅ |
+| 变量名 | 必填 | 说明 |
+|---|---:|---|
+| `TOKEN` | ✅ | 访问令牌，也是订阅路径第一段 |
+| `LINK` | ✅ | 节点链接，一行一个 |
+| `SUBNAME` | ❌ | 订阅显示名称 |
 
-说明：
+### `LINK` 示例
 
-- `?clash` 会把 XHTTP 节点转换为 Mihomo 的 `network: xhttp` + `xhttp-opts`。
-- `?b64` 会原样保留 `vless://` / `trojan://` / `hysteria2://` 链接。
-- `?sb` 已移除；访问 `?sb` 会回到管理面板，不再输出 sing-box 配置。
+```text
+# VLESS + REALITY + XHTTP stream-up
+vless://uuid@example.com:443?encryption=none&security=reality&sni=www.apple.com&fp=chrome&pbk=PUBLIC_KEY&sid=SHORT_ID&type=xhttp&path=%2Fxhttp&mode=stream-up#香港-中转-新加坡
 
----
+# VLESS + REALITY + Vision
+vless://uuid@example.com:443?encryption=none&flow=xtls-rprx-vision&security=reality&sni=www.apple.com&fp=chrome&pbk=PUBLIC_KEY&sid=SHORT_ID&type=tcp#洛杉矶-直连
 
-## 功能概览
+# Trojan
+trojan://password@example.com:443?sni=example.com#Trojan-Example
 
-- 🔗 **Mihomo / Clash YAML**：适合 Clash Verge、Mihomo Party、FlClash、Clash Meta for Android、OpenClash / Nikki 等 Mihomo 内核客户端。
-- 📄 **Base64 原始链接订阅**：适合 v2rayN、NekoBox、Hiddify、Shadowrocket 等支持原始分享链接的客户端。
-- 🎨 **管理面板**：浏览器访问 Token 路径时显示节点统计、订阅入口和复制按钮。
-- 📛 **订阅名称自定义**：通过 `SUBNAME` 环境变量控制客户端显示名称。
+# Hysteria2 / HY2
+hysteria2://password@example.com:443?sni=example.com#HY2-Example
+hy2://password@example.com:443?sni=example.com#HY2-Short
+```
+
+注意：
+
+- 一行一个节点；
+- 节点名称建议包含地区关键词，方便自动分组；
+- XHTTP 建议显式写 `type=xhttp` 和 `mode=stream-up`；
+- XHTTP 不建议带 `flow=xtls-rprx-vision`；
+- REALITY 节点需要保留 `sni`、`fp`、`pbk`、`sid`。
 
 ---
 
 ## 部署方式
 
-### 方式一：Cloudflare Pages + GitHub 导入（推荐）
+### Cloudflare Pages + GitHub 导入
 
-本仓库是模块化结构，`_worker.js` 会 import：
+推荐使用 GitHub 仓库部署，因为项目是模块化结构。
+
+主要文件：
+
+```text
+_worker.js
+utils.js
+convert.js
+yaml.js
+dashboard.js
+```
+
+步骤：
+
+1. Fork 或导入本仓库；
+2. 打开 Cloudflare Dashboard；
+3. 进入 **Workers & Pages**；
+4. 创建 Pages 项目并连接 GitHub 仓库；
+5. 构建命令留空；
+6. 部署完成后添加环境变量：
+   - `TOKEN`
+   - `LINK`
+   - `SUBNAME`
+7. 绑定自定义域名。
+
+---
+
+### 普通 Worker 部署
+
+如果使用普通 Worker，需要确保模块文件一起上传。
+
+不要只复制 `_worker.js`，因为它依赖：
 
 ```text
 utils.js
@@ -75,243 +274,130 @@ yaml.js
 dashboard.js
 ```
 
-因此推荐使用 GitHub 仓库方式部署，避免复制单文件时漏掉模块。
-
-步骤：
-
-1. Fork 本仓库，或推送到自己的 GitHub 仓库。
-2. 打开 [Cloudflare Dashboard](https://dash.cloudflare.com)。
-3. 进入 **Workers & Pages**。
-4. 选择 **Pages** → **Connect to Git**。
-5. 选择你的仓库。
-6. 构建命令留空或保持默认。
-7. 部署完成后，在 Pages 项目里添加环境变量。
-8. 可选：Pages → **自定义域** → 添加自己的订阅域名。
-
-### 方式二：Worker 手动部署
-
-如果你使用普通 Worker 手动部署，需要确保所有模块文件都一起上传。不要只复制 `_worker.js`，因为它依赖其它模块文件。
-
-如果 Cloudflare 面板只支持单文件粘贴，需要先自行打包成单文件版本。
+如果 Cloudflare 控制台只允许单文件粘贴，需要先自行打包成单文件版本。
 
 ---
 
-## 环境变量
+## 面板安全设计
 
-| 变量名 | 必填 | 说明 | 示例 |
-|---|---:|---|---|
-| `TOKEN` | ✅ | 访问令牌，也是订阅路径第一段 | `mysecret` |
-| `LINK` | ✅ | 节点链接，一行一条 | `vless://...` |
-| `SUBNAME` | ❌ | 客户端里显示的订阅名称 | `MyNodes` |
+面板默认只做“可用性展示”，不做敏感信息展示。
 
-### `LINK` 示例
+不会显示：
 
 ```text
-# VLESS + REALITY + XHTTP stream-up
-vless://uuid@example.com:443?encryption=none&security=reality&sni=tv.apple.com&fp=chrome&pbk=PUBLIC_KEY&sid=SHORT_ID&type=xhttp&path=%2Fxhttp&mode=stream-up#HK-XHTTP
-
-# VLESS + REALITY + Vision
-vless://uuid@example.com:443?encryption=none&flow=xtls-rprx-vision&security=reality&sni=www.amazon.com&fp=chrome&pbk=PUBLIC_KEY&sid=SHORT_ID&type=tcp#HK-Vision
-
-# Trojan
-trojan://password@example.com:443?sni=example.com#Trojan
-
-# Hysteria2 / HY2
-hysteria2://password@example.com:443?sni=example.com#HY2
-hy2://password@example.com:443?sni=example.com#HY2-short
+订阅完整 URL
+节点 IP
+节点端口
+UUID
+Trojan password
+Reality public key
+Reality shortId
+WebSocket path
+gRPC serviceName
+XHTTP path
 ```
 
-注意：
-
-- 一行一个节点。
-- XHTTP 节点不要带 `flow=xtls-rprx-vision`。
-- Vision 节点需要保留 `flow=xtls-rprx-vision`。
-- REALITY 节点需要保留 `sni`、`fp`、`pbk`、`sid`。
-- XHTTP 节点建议显式写出 `type=xhttp&path=...&mode=...`。
-
----
-
-## 输出格式说明
-
-### `?clash` — Mihomo / Clash YAML
-
-返回完整 Mihomo / Clash YAML，包含：
-
-- `proxies` 节点列表；
-- `proxy-groups` 策略组；
-- fake-ip DNS；
-- GEOSITE / GEOIP 分流；
-- AI、Telegram、Google、GitHub、社交媒体、流媒体、Apple、Microsoft、Games 等分流规则；
-- `Spotify`、`ChatGPT/OpenAI`、`Google/YouTube/Gemini` 默认走 **🇺🇸 美国应用**；
-- `X/Twitter`、`Netflix` 默认走 **🇸🇬 新加坡应用**。
-
-VLESS + REALITY + XHTTP 会转换为：
-
-```yaml
-- name: "HK-XHTTP"
-  type: vless
-  server: "example.com"
-  port: 443
-  uuid: "uuid"
-  network: "xhttp"
-  tls: true
-  servername: "tv.apple.com"
-  sni: "tv.apple.com"
-  client-fingerprint: "chrome"
-  xhttp-opts:
-    mode: "stream-up"
-    path: "/xhttp"
-  reality-opts:
-    public-key: "PUBLIC_KEY"
-    short-id: "SHORT_ID"
-```
-
-Vision 节点会保留：
-
-```yaml
-flow: "xtls-rprx-vision"
-```
-
-XHTTP 节点不会输出 `flow`。
-
----
-
-### `?b64` — Base64 原始链接订阅
-
-返回 Base64 编码后的原始链接列表。这个输出最大限度保留原始链接参数，适合支持原始分享链接的客户端。
-
-适合：
-
-- v2rayN
-- NekoBox
-- Hiddify
-- Shadowrocket（视版本支持情况）
-- 其它支持 Xray / Trojan / Hysteria2 分享链接的客户端
-
----
-
-## 协议转换细节
-
-### Hysteria2 / HY2
-
-支持：
-
-- `hysteria2://`
-- `hy2://`
-- `sni` / `peer`
-- `insecure` / `allowInsecure`
-- `alpn`
-- `obfs`
-- `obfs-password` / `obfsParam`
-- `upmbps` / `up`
-- `downmbps` / `down`
-
-### Trojan
-
-支持：
-
-- `trojan://password@host:port`
-- `sni`
-- 基础 TLS 字段
-
-### VLESS + REALITY + Vision
-
-支持：
-
-- `type=tcp`
-- `security=reality`
-- `flow=xtls-rprx-vision`
-- `sni`
-- `fp`
-- `pbk`
-- `sid`
-- `alpn`
-
-### VLESS + REALITY + XHTTP
-
-支持：
-
-- `type=xhttp`
-- `security=reality`
-- `sni`
-- `fp`
-- `pbk`
-- `sid`
-- `path`
-- `host`
-- `mode`
-
-常见 `mode`：
+会显示：
 
 ```text
-auto
-packet-up
-stream-up
-stream-one
+节点名称
+地区图标
+协议类型
+VLESS / Trojan / Hysteria2
+REALITY / TLS
+TCP / XHTTP / WS / gRPC
+Vision
+XHTTP mode
+SNI 域名
 ```
-
-XHTTP 节点不应保留 Vision 的：
-
-```text
-flow=xtls-rprx-vision
-```
-
-转换器在输出 Clash/Mihomo 时会自动避免给 XHTTP 节点写入 `flow`。
 
 ---
 
-## 推荐客户端使用方式
+## 推荐客户端
 
-| 客户端类型 | 推荐入口 |
+| 客户端 | 推荐入口 |
 |---|---|
-| Mihomo / Clash Verge / Mihomo Party / FlClash | `?clash` |
-| v2rayN / NekoBox / Shadowrocket / Hiddify 原始链接导入 | `?b64` |
+| Clash Verge Rev | `?clash` |
+| Mihomo Party | `?clash` |
+| FlClash | `?clash` |
+| Clash Meta for Android | `?clash` |
+| OpenClash / Nikki | `?clash` |
+| v2rayN | `?b64` |
+| NekoBox | `?b64` |
+| Hiddify | `?b64` |
+| Shadowrocket | `?b64`，视版本协议支持情况 |
 
 ---
 
 ## 常见问题
 
-### 1. XHTTP 为什么不能带 Vision flow？
+### 为什么面板里的国旗不用 emoji？
 
-`flow=xtls-rprx-vision` 是 VLESS + REALITY + TCP/raw Vision 的字段。XHTTP 是另一种 transport，不应该继续带 Vision flow。
-
-正确 XHTTP 链接示例：
+部分系统或 WebView 会把国旗 emoji 显示成：
 
 ```text
-vless://uuid@example.com:443?encryption=none&security=reality&sni=tv.apple.com&fp=chrome&pbk=PUBLIC_KEY&sid=SHORT_ID&type=xhttp&path=%2Fxhttp&mode=stream-up#HK-XHTTP
+GB
+SG
+NG
 ```
 
-### 2. `?sb` 去哪里了？
+所以面板左侧图标使用内联 SVG 国旗，不依赖系统 emoji 字体，也不依赖外链图片。
 
-`?sb` 已清理掉。当前只保留：
+节点名称里的国旗 emoji 会被自动隐藏，避免重复和乱码。
+
+---
+
+### 为什么面板不显示 IP 和端口？
+
+因为这是私有订阅面板，公开截图或浏览器展示时不应该泄露节点连接信息。
+
+复制订阅、扫码导入仍然可用，只是不在页面上明文显示。
+
+---
+
+### 为什么 VLESS 要显示更多信息？
+
+VLESS 有多种常见变体：
+
+```text
+VLESS + REALITY + Vision
+VLESS + REALITY + XHTTP
+VLESS + TLS + WS
+VLESS + TLS + gRPC
+```
+
+只显示 `vless` 无法判断节点形态，所以面板会显示网络层、安全层和关键模式。
+
+---
+
+### `?sb` 为什么没有了？
+
+`?sb` 已经清理。当前项目只保留：
 
 ```text
 ?clash
 ?b64
 ```
 
-### 3. XHTTP 的 `mode` 不写会怎样？
-
-转换器会尽量保留原链接里的 `mode`。如果你希望固定使用 `stream-up`，请在链接里显式写：
-
-```text
-mode=stream-up
-```
-
-### 4. 哪个订阅入口最通用？
-
-- Mihomo/Clash 系：`?clash`
-- 原始链接客户端：`?b64`
-
 ---
 
 ## 开发检查清单
 
-修改协议转换逻辑后，至少检查：
+修改代码后建议检查：
 
-- Hysteria2 / HY2 在 `?clash`、`?b64` 都可输出；
-- Trojan 在 `?clash`、`?b64` 都可输出；
-- VLESS REALITY Vision 在 `?clash`、`?b64` 都保留 `flow=xtls-rprx-vision`；
-- VLESS REALITY XHTTP 在 `?clash`、`?b64` 都保留 `type=xhttp` / `path` / `mode`；
-- XHTTP 输出不包含 `flow=xtls-rprx-vision`；
-- README 的协议矩阵和实际代码保持一致。
+- `?clash` 能生成 YAML；
+- `?b64` 能生成 Base64；
+- 面板不显示订阅链接；
+- 面板不显示节点 IP 和端口；
+- VLESS XHTTP 保留 `network: xhttp` 和 `xhttp-opts.mode`；
+- VLESS Vision 保留 `flow=xtls-rprx-vision`；
+- XHTTP 不输出 Vision `flow`；
+- Spotify / ChatGPT / Google 走美国应用组；
+- X / Netflix 走新加坡应用组；
+- 节点名称中的国旗 emoji 不再显示，左侧 SVG 图标正常。
+
+---
+
+## License
+
+Private / personal-use subscription worker.
