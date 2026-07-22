@@ -1,229 +1,110 @@
-# Sub Worker — 私有订阅聚合与 Mihomo 分流面板
+# Sub Worker — 私有订阅小岛
 
-一个运行在 **Cloudflare Workers / Pages** 上的轻量订阅聚合服务。
+基于 Cloudflare Workers / Pages 的个人订阅聚合面板。
 
-它把环境变量里的多个代理节点统一整理成：
+这个版本专门按“**根域名打开面板、用户名密码登录、登录后仍停留在根路径**”的使用方式定制：
 
-- **Mihomo / Clash YAML 订阅**
-- **Base64 原始分享链接订阅**
-- **私有管理面板**
+```text
+https://sub.example.com/        # 登录页 / 登录后的面板主页
+```
 
-项目重点不是做一个公开订阅站，而是做一个干净、安全、方便自己用的私有订阅面板。
+主页不会放在 `/TOKEN` 下；`TOKEN` 只用于订阅 API，方便客户端导入。
 
 ---
 
-## 功能特点
+## 功能概览
 
-### 两种订阅出口
-
-| 入口 | 用途 |
-|---|---|
-| `?clash` | Mihomo / Clash.Meta YAML，带 DNS、策略组和分流规则 |
-| `?b64` | Base64 原始节点链接订阅，保留原始分享链接参数 |
-
-### 私有管理面板
-
-浏览器访问根路径 `/` 时会显示登录页；输入 `ADMIN_USER` / `ADMIN_PASS` 后跳回根路径并显示管理面板。
-
-面板地址固定为：
-
-```text
-https://sub.example.com/
-```
-
-不会把主页放在 `/TOKEN` 路径下。
-
-面板特性：
-
-- 不直接显示订阅链接；
-- 不显示节点 IP；
-- 不显示节点端口；
-- 节点名称会隐藏无法渲染的国旗 emoji；
-- 左侧使用内联 SVG 国旗图标，不依赖系统 emoji 字体，也不依赖外部图片；
-- VLESS 节点会显示更详细的协议变体信息。
-
-示例显示：
-
-```text
-香港-中转-伦敦
-连接地址与端口已隐藏
-VLESS
-REALITY
-XHTTP
-stream-up
-SNI www.apple.com
-```
+- **网页登录面板**：访问 `/` 显示登录页，登录后显示订阅小岛主页。
+- **退出登录**：面板右上角提供“退出”按钮，清除浏览器登录 Cookie 后回到 `/`。
+- **订阅链接隐藏**：面板不直接展示完整订阅 URL，只提供复制与二维码。
+- **敏感信息隐藏**：面板不展示节点 IP、端口、UUID、Trojan 密码、Reality public key / shortId 等。
+- **Mihomo / Clash YAML**：生成内联节点配置，不依赖外部 SubConverter。
+- **Base64 订阅**：保留原始节点分享链接，适合移动端或通用客户端。
+- **VLESS 变体展示**：面板展示 VLESS / REALITY / TLS / TCP / XHTTP / WS / gRPC / Vision / SNI 等非敏感信息。
+- **旧链接兼容**：继续兼容 `/TOKEN?clash` 和 `/TOKEN?b64`。
 
 ---
 
-### VLESS 变体识别
+## 访问方式
 
-VLESS 不是单一形态，本项目会在面板和 Clash 输出中尽量区分不同变体。
-
-支持展示 / 转换：
-
-- `VLESS + REALITY + TCP / Vision`
-- `VLESS + REALITY + XHTTP`
-- `VLESS + TLS`
-- `VLESS + WS`
-- `VLESS + gRPC`
-
-XHTTP 支持保留：
-
-```text
-type=xhttp
-path
-host
-mode=packet-up / stream-up / stream-one / auto
-```
-
-Reality 支持保留：
-
-```text
-sni
-fp
-pbk
-sid
-```
-
-> 面板不会显示 Reality public key、shortId、节点 IP、端口等敏感信息。
-
----
-
-## 分流策略
-
-`?clash` 输出的是完整 Mihomo / Clash YAML，包含：
-
-- `proxies`
-- `proxy-groups`
-- fake-ip DNS
-- GEOSITE / GEOIP 规则
-- 常见服务分流
-- 地区节点组
-- 应用指定地区组
-
-### 地区节点组
-
-会根据节点名称自动归类：
-
-```text
-🇭🇰 香港节点
-🇹🇼 台湾节点
-🇸🇬 新加坡节点
-🇯🇵 日本节点
-🇺🇸 美国节点
-🇬🇧 英国节点
-🇳🇬 尼日利亚节点
-🌍 其它地区
-```
-
-英国匹配关键词：
-
-```text
-UK / GB / 英国 / 英國 / 伦敦 / 倫敦 / london / united kingdom / great britain
-```
-
-尼日利亚匹配关键词：
-
-```text
-NG / 尼日利亚 / 尼日利亞 / 奈及利亚 / 奈及利亞 / nigeria / lagos / abuja
-```
-
----
-
-### 应用指定地区
-
-当前内置策略：
-
-| 应用 / 网站 | 默认策略组 |
-|---|---|
-| Spotify | 🇺🇸 美国应用 |
-| ChatGPT / OpenAI | 🇺🇸 美国应用 |
-| Google / YouTube / Gemini | 🇺🇸 美国应用 |
-| X / Twitter | 🇸🇬 新加坡应用 |
-| Netflix | 🇸🇬 新加坡应用 |
-
-相关规则会放在更宽泛的流媒体 / 社交媒体规则之前，避免被提前吞掉。
-
-DNS `nameserver-policy` 也同步走对应策略组，避免 DNS 和路由方向不一致。
-
----
-
-## 支持协议
-
-| 协议 | `?clash` | `?b64` |
-|---|---:|---:|
-| VLESS + REALITY + Vision | ✅ | ✅ |
-| VLESS + REALITY + XHTTP | ✅ | ✅ |
-| Trojan | ✅ | ✅ |
-| Hysteria2 / HY2 | ✅ | ✅ |
-
-说明：
-
-- `?clash` 会把节点转换成 Mihomo / Clash.Meta 可导入 YAML；
-- `?b64` 会尽量保持原始分享链接不变；
-- XHTTP 节点不会在 Clash 输出中继承 Vision `flow`；
-- Vision 节点会保留 `flow=xtls-rprx-vision`。
-
----
-
-## 订阅地址格式
-
-假设你的域名是：
+假设域名是：
 
 ```text
 https://sub.example.com
 ```
 
-环境变量 `TOKEN` 是：
+### 面板
 
 ```text
-my-secret-token
+https://sub.example.com/
 ```
 
-则入口为：
+未登录时显示登录页；登录成功后仍然回到：
 
 ```text
-https://sub.example.com/                                      # 登录页 / 登录后的私有面板
-https://sub.example.com/api/sub?token=my-secret-token&type=clash  # Mihomo / Clash YAML
-https://sub.example.com/api/sub?token=my-secret-token&type=b64    # Base64 原始链接订阅
+https://sub.example.com/
 ```
 
-兼容旧订阅地址：
+### 新订阅 API
 
 ```text
-https://sub.example.com/my-secret-token?clash
-https://sub.example.com/my-secret-token?b64
+https://sub.example.com/api/sub?token=你的TOKEN&type=clash
+https://sub.example.com/api/sub?token=你的TOKEN&type=b64
 ```
 
-> README 中只写示例地址，不应提交真实 Token、真实节点 IP、UUID、密码或订阅链接。
+### 兼容旧订阅地址
+
+```text
+https://sub.example.com/你的TOKEN?clash
+https://sub.example.com/你的TOKEN?b64
+```
+
+> 建议新导入客户端时使用 `/api/sub?...` 形式；旧地址只是为了不破坏已有客户端。
 
 ---
 
 ## 环境变量
 
-| 变量名 | 必填 | 说明 |
-|---|---:|---|
-| `TOKEN` | ✅ | 订阅接口访问令牌 |
-| `LINK` | ✅ | 节点链接，一行一个 |
-| `SUBNAME` | ❌ | 订阅显示名称 |
-| `ADMIN_USER` | ✅ | 面板登录用户名 |
-| `ADMIN_PASS` | ✅ | 面板登录密码 |
-| `SESSION_SECRET` | ✅ | Cookie 签名密钥，建议用随机长字符串，例如 `openssl rand -hex 32` |
+| 变量名 | 必填 | 用途 | 推荐值 |
+|---|---:|---|---|
+| `TOKEN` | ✅ | 订阅 API 访问令牌 | 32 位左右 URL 友好随机字符串 |
+| `LINK` | ✅ | 节点分享链接，一行一个 | `vless://...` 多行文本 |
+| `SUBNAME` | ❌ | 客户端订阅名称 / 面板副标题 | `我的订阅` |
+| `ADMIN_USER` | ✅ | 面板登录用户名 | 建议英文数字，如 `admin` |
+| `ADMIN_PASS` | ✅ | 面板登录密码 | 长随机密码 |
+| `SESSION_SECRET` | ✅ | 登录 Cookie 签名密钥 | `openssl rand -hex 32` |
 
-### `LINK` 示例
+### `TOKEN` 和 `SESSION_SECRET` 的区别
+
+- `TOKEN`：会出现在订阅 URL 里，是给 Clash / Mihomo / Shadowrocket 等客户端访问订阅 API 用的。
+- `SESSION_SECRET`：不会出现在 URL 里，只用于 Worker 内部校验浏览器登录 Cookie，防止伪造登录状态。
+
+推荐不要把两者设成一样。
+
+### 推荐生成方式
+
+生成 `TOKEN`：
+
+```bash
+openssl rand -base64 24 | tr '+/' '-_' | tr -d '='
+```
+
+生成 `SESSION_SECRET`：
+
+```bash
+openssl rand -hex 32
+```
+
+---
+
+## `LINK` 填写示例
+
+每行一个节点链接：
 
 ```text
-# VLESS + REALITY + XHTTP stream-up
 vless://uuid@example.com:443?encryption=none&security=reality&sni=www.apple.com&fp=chrome&pbk=PUBLIC_KEY&sid=SHORT_ID&type=xhttp&path=%2Fxhttp&mode=stream-up#香港-中转-新加坡
-
-# VLESS + REALITY + Vision
 vless://uuid@example.com:443?encryption=none&flow=xtls-rprx-vision&security=reality&sni=www.apple.com&fp=chrome&pbk=PUBLIC_KEY&sid=SHORT_ID&type=tcp#洛杉矶-直连
-
-# Trojan
 trojan://password@example.com:443?sni=example.com#Trojan-Example
-
-# Hysteria2 / HY2
 hysteria2://password@example.com:443?sni=example.com#HY2-Example
 hy2://password@example.com:443?sni=example.com#HY2-Short
 ```
@@ -231,7 +112,7 @@ hy2://password@example.com:443?sni=example.com#HY2-Short
 注意：
 
 - 一行一个节点；
-- 节点名称建议包含地区关键词，方便自动分组；
+- 节点名称建议包含地区关键词，便于自动分组；
 - XHTTP 建议显式写 `type=xhttp` 和 `mode=stream-up`；
 - XHTTP 不建议带 `flow=xtls-rprx-vision`；
 - REALITY 节点需要保留 `sni`、`fp`、`pbk`、`sid`。
@@ -240,27 +121,13 @@ hy2://password@example.com:443?sni=example.com#HY2-Short
 
 ## 部署方式
 
-### Cloudflare Pages + GitHub 导入
+### 推荐：Cloudflare Pages + GitHub
 
-推荐使用 GitHub 仓库部署，因为项目是模块化结构。
-
-主要文件：
-
-```text
-_worker.js
-utils.js
-convert.js
-yaml.js
-dashboard.js
-```
-
-步骤：
-
-1. Fork 或导入本仓库；
-2. 打开 Cloudflare Dashboard；
-3. 进入 **Workers & Pages**；
-4. 创建 Pages 项目并连接 GitHub 仓库；
-5. 构建命令留空；
+1. Fork / 导入 / 使用此仓库。
+2. 打开 Cloudflare Dashboard。
+3. 进入 **Workers & Pages**。
+4. 创建 Pages 项目并连接 GitHub 仓库。
+5. 构建命令留空。
 6. 部署完成后添加环境变量：
    - `TOKEN`
    - `LINK`
@@ -268,15 +135,12 @@ dashboard.js
    - `ADMIN_USER`
    - `ADMIN_PASS`
    - `SESSION_SECRET`
-7. 绑定自定义域名。
-
----
+7. 绑定自定义域名，例如 `sub.example.com`。
+8. 访问 `https://sub.example.com/` 登录测试。
 
 ### 普通 Worker 部署
 
-如果使用普通 Worker，需要确保模块文件一起上传。
-
-不要只复制 `_worker.js`，因为它依赖：
+本项目是模块化结构，入口是 `_worker.js`，同时依赖：
 
 ```text
 utils.js
@@ -285,18 +149,53 @@ yaml.js
 dashboard.js
 ```
 
-如果 Cloudflare 控制台只允许单文件粘贴，需要先自行打包成单文件版本。
+如果使用普通 Worker，不要只复制 `_worker.js`；需要一起上传模块文件，或自行打包成单文件版本。
 
 ---
 
-## 面板安全设计
+## 登录与退出逻辑
 
-面板默认只做“可用性展示”，不做敏感信息展示。
-
-不会显示：
+### 登录
 
 ```text
-订阅完整 URL
+GET  /        未登录显示登录页
+POST /login   校验 ADMIN_USER / ADMIN_PASS
+GET  /        已登录显示面板
+```
+
+登录成功后 Worker 会写入：
+
+```text
+sw_session=...
+```
+
+Cookie 属性：
+
+```text
+HttpOnly
+Secure
+SameSite=Lax
+Max-Age=7天
+```
+
+### 退出
+
+面板右上角“退出”按钮访问：
+
+```text
+/logout
+```
+
+Worker 会清除 `sw_session`，然后跳回 `/`。刷新页面不会丢登录，只有退出、清 Cookie、换浏览器、过期或更换 `SESSION_SECRET` 才需要重新登录。
+
+---
+
+## 面板安全展示规则
+
+面板不会显示：
+
+```text
+完整订阅 URL
 节点 IP
 节点端口
 UUID
@@ -308,7 +207,7 @@ gRPC serviceName
 XHTTP path
 ```
 
-会显示：
+面板会显示：
 
 ```text
 节点名称
@@ -322,79 +221,53 @@ XHTTP mode
 SNI 域名
 ```
 
+这样适合自己查看、截图或投屏时避免暴露关键连接信息。
+
 ---
 
 ## 推荐客户端
 
-| 客户端 | 推荐入口 |
+| 客户端 | 推荐订阅类型 |
 |---|---|
-| Clash Verge Rev | `?clash` |
-| Mihomo Party | `?clash` |
-| FlClash | `?clash` |
-| Clash Meta for Android | `?clash` |
-| OpenClash / Nikki | `?clash` |
-| v2rayN | `?b64` |
-| NekoBox | `?b64` |
-| Hiddify | `?b64` |
-| Shadowrocket | `?b64`，视版本协议支持情况 |
+| Clash Verge Rev | `type=clash` |
+| Mihomo Party | `type=clash` |
+| FlClash | `type=clash` |
+| Clash Meta for Android | `type=clash` |
+| OpenClash / Nikki | `type=clash` |
+| v2rayN | `type=b64` |
+| NekoBox | `type=b64` |
+| Hiddify | `type=b64` |
+| Shadowrocket | `type=b64`，视版本协议支持情况 |
 
 ---
 
-## 常见问题
+## 本地测试
 
-### 为什么面板里的国旗不用 emoji？
+本仓库带 Node 内置测试：
 
-部分系统或 WebView 会把国旗 emoji 显示成：
-
-```text
-GB
-SG
-NG
+```bash
+npm test
 ```
 
-所以面板左侧图标使用内联 SVG 国旗，不依赖系统 emoji 字体，也不依赖外链图片。
+测试覆盖：
 
-节点名称里的国旗 emoji 会被自动隐藏，避免重复和乱码。
-
----
-
-### 为什么面板不显示 IP 和端口？
-
-因为这是私有订阅面板，公开截图或浏览器展示时不应该泄露节点连接信息。
-
-复制订阅、扫码导入仍然可用，只是不在页面上明文显示。
+- `/` 未登录显示登录页；
+- `/login` 错误密码拒绝；
+- `/login` 正确密码写入 HttpOnly Cookie 并跳回 `/`；
+- 登录后 `/` 显示面板和退出按钮；
+- `/logout` 清除 Cookie；
+- `/api/sub?token=...&type=b64` 可用；
+- 旧的 `/TOKEN?b64` 仍兼容。
 
 ---
 
-### 为什么 VLESS 要显示更多信息？
+## 注意事项
 
-VLESS 有多种常见变体：
-
-```text
-VLESS + REALITY + Vision
-VLESS + REALITY + XHTTP
-VLESS + TLS + WS
-VLESS + TLS + gRPC
-```
-
-只显示 `vless` 无法判断节点形态，所以面板会显示网络层、安全层和关键模式。
-
----
-
-## 开发检查清单
-
-修改代码后建议检查：
-
-- `?clash` 能生成 YAML；
-- `?b64` 能生成 Base64；
-- 面板不显示订阅链接；
-- 面板不显示节点 IP 和端口；
-- VLESS XHTTP 保留 `network: xhttp` 和 `xhttp-opts.mode`；
-- VLESS Vision 保留 `flow=xtls-rprx-vision`；
-- XHTTP 不输出 Vision `flow`；
-- Spotify / ChatGPT / Google 走美国应用组；
-- X / Netflix 走新加坡应用组；
-- 节点名称中的国旗 emoji 不再显示，左侧 SVG 图标正常。
+- 不要把真实 `TOKEN`、节点链接、UUID、密码提交到仓库。
+- 仓库建议保持私有。
+- 如果 `TOKEN` 泄露，需要更换 `TOKEN` 并重新导入客户端。
+- 如果 `SESSION_SECRET` 泄露，需要更换 `SESSION_SECRET`，所有浏览器会重新登录。
+- Cloudflare 环境变量修改后要重新部署 / 等待生效。
 
 ---
 

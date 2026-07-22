@@ -68,7 +68,20 @@ test('GET / with a valid session renders dashboard at the root path', async () =
   assert.match(body, /订阅小岛/);
   assert.match(body, /\/api\/sub\?token=subtoken&type=clash/);
   assert.match(body, /\/api\/sub\?token=subtoken&type=b64/);
+  assert.match(body, /href="\/logout"/);
+  assert.match(body, /退出/);
   assert.doesNotMatch(body, /sub\.example\.com\/subtoken\?/);
+});
+
+test('GET /logout clears the browser session and redirects to root login page', async () => {
+  const res = await fetchPath('/logout');
+  const cookie = res.headers.get('set-cookie') || '';
+
+  assert.equal(res.status, 303);
+  assert.equal(res.headers.get('location'), '/');
+  assert.match(cookie, /sw_session=;/);
+  assert.match(cookie, /Max-Age=0/);
+  assert.match(cookie, /HttpOnly/);
 });
 
 test('subscription API is token protected and does not require browser session', async () => {
