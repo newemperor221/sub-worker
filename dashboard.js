@@ -1,5 +1,5 @@
-// Dashboard HTML renderer — Excalidraw whiteboard theme
-// ====================================================
+// Dashboard HTML renderer — Paper Playground hand-drawn theme
+// ===========================================================
 
 export function renderDashboard(config, proxies, baseUrl) {
   const links = {
@@ -12,420 +12,127 @@ export function renderDashboard(config, proxies, baseUrl) {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="theme-color" content="#f8f4e8">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect x='16' y='20' width='68' height='58' rx='10' fill='%23fff3bf' stroke='%231e1e1e' stroke-width='5'/%3E%3Cpath d='M30 40h39M30 55h26' stroke='%231e1e1e' stroke-width='5' stroke-linecap='round'/%3E%3C/svg%3E">
-<title>订阅白板</title>
+<meta name="theme-color" content="#fffdf7">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect x='16' y='20' width='68' height='58' rx='10' fill='%23ffec99' stroke='%2325262b' stroke-width='5'/%3E%3Cpath d='M30 40h39M30 55h26' stroke='%2325262b' stroke-width='5' stroke-linecap='round'/%3E%3C/svg%3E">
+<title>纸边订阅白板</title>
+<script src="https://cdn.jsdelivr.net/npm/roughjs@4.6.6/bundled/rough.min.js" defer></script>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&family=Ma+Shan+Zheng&display=swap');
-
-* { margin: 0; padding: 0; box-sizing: border-box; }
-:root {
-  --bg: #f8f4e8;
-  --paper: #fffdf5;
-  --ink: #030064;
-  --ink-black: #1e1e1e;
-  --muted: #6b6b8a;
-  --blue: #a5d8ff;
-  --green: #b2f2bb;
-  --yellow: #fff3bf;
-  --orange: #ffd8a8;
-  --purple: #d0bfff;
-  --red: #ffc9c9;
-  --teal: #c3fae8;
-  --shadow: rgba(30, 30, 30, .10);
-  --card-border: #f0efff;
-  --ease: cubic-bezier(.22,.7,.2,1);
-}
-html { min-height: 100%; background: var(--bg); }
-body {
-  min-height: 100vh;
-  overflow-x: hidden;
-  color: var(--ink);
-  font-family: Kalam, 'Ma Shan Zheng', cursive;
-  font-weight: 700;
-  background:
-    radial-gradient(circle, rgba(3,0,100,.12) 1px, transparent 1.5px) 0 0 / 28px 28px,
-    linear-gradient(180deg, #fbf7ed 0%, #f5efdf 100%);
-}
-button { font: inherit; }
-button, .route-card, .node-row { -webkit-tap-highlight-color: transparent; }
-
-.whiteboard {
-  width: min(100% - 28px, 1120px);
-  margin: 26px auto 74px;
-  position: relative;
-  padding: clamp(18px, 3vw, 34px);
-  background: rgba(255,253,245,.78);
-  border: 3px solid var(--ink-black);
-  border-radius: 20px 28px 22px 30px;
-  box-shadow: 7px 9px 0 rgba(30,30,30,.10), 0 20px 50px rgba(30,30,30,.08);
-}
-.whiteboard:before {
-  content: "";
-  position: absolute;
-  inset: 7px -7px -7px 7px;
-  border: 2px solid rgba(30,30,30,.34);
-  border-radius: 26px 20px 30px 22px;
-  pointer-events: none;
-}
-.rough-svg { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; overflow:visible; }
-.rough-svg path, .rough-svg ellipse { fill:none; stroke:var(--ink-black); stroke-width:2.8; stroke-linecap:round; stroke-linejoin:round; }
-.rough-svg .soft { stroke-width:1.8; opacity:.48; }
-.rough-svg .marker { stroke:var(--yellow); stroke-width:13; opacity:.78; mix-blend-mode:multiply; }
-.rough-note { position:relative; display:inline-block; }
-.rough-note .rough-svg { inset:-12px -16px; width:calc(100% + 32px); height:calc(100% + 24px); }
-.tape { position:absolute; width:86px; height:24px; background:rgba(255,243,191,.82); border:1px solid rgba(30,30,30,.18); box-shadow:0 2px 5px rgba(30,30,30,.09); z-index:2; }
-.tape.t1 { left:70px; top:-12px; transform:rotate(-7deg); }
-.tape.t2 { right:105px; top:-10px; transform:rotate(6deg); }
-.tape.t3 { left:50%; bottom:-12px; transform:translateX(-50%) rotate(2deg); }
-
-.topbar { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:24px; position:relative; z-index:1; }
-.brand { display:flex; align-items:center; gap:12px; transform:rotate(-1.2deg); }
-.brand-mark { width:48px; height:40px; display:grid; place-items:center; border:3px solid var(--ink-black); border-radius:52% 48% 44% 56%; background:var(--yellow); font-size:24px; line-height:1; }
-.brand-text { line-height:1; }
-.brand-text small { display:block; color:var(--muted); font-size:15px; letter-spacing:.08em; }
-.brand-text b { display:block; margin-top:4px; font-size:24px; }
-.logout-btn { min-width:86px; min-height:44px; display:inline-flex; align-items:center; justify-content:center; padding:7px 16px; color:var(--ink); background:#fff; border:2px solid var(--ink-black); border-radius:999px; text-decoration:none; font-size:18px; box-shadow:none; transform:rotate(1.2deg); transition:transform .16s var(--ease), background .16s var(--ease); }
-.logout-btn:hover { background:var(--red); transform:translateY(-2px) rotate(1.2deg); box-shadow:none; }
-.logout-btn:active { transform:translateY(2px) rotate(1.2deg); box-shadow:none; }
-.logout-btn:focus-visible { outline:4px solid var(--blue); outline-offset:3px; }
-
-.hero { position:relative; z-index:1; min-height:230px; display:grid; grid-template-columns:minmax(0,1.1fr) minmax(270px,.9fr); gap:24px; align-items:center; }
-.hero-copy { position:relative; padding:28px 26px 30px; border:1px solid var(--card-border); border-radius:16px; background:#fff; box-shadow:none; transform:rotate(-.25deg); overflow:visible; }
-.hero-copy:after { content:""; position:absolute; right:30px; bottom:-20px; width:120px; height:48px; border-bottom:3px solid var(--ink-black); border-right:3px solid var(--ink-black); border-radius:0 0 35px 0; transform:rotate(-4deg); }
-.kicker { display:inline-block; padding:3px 10px; border:2px solid var(--ink-black); border-radius:999px; background:var(--yellow); color:var(--muted); font-size:16px; letter-spacing:.08em; }
-h1 { margin-top:14px; font-size:clamp(48px, 8vw, 76px); line-height:.95; letter-spacing:.02em; color:var(--ink); }
-.mark { background: linear-gradient(transparent 52%, rgba(255,243,191,.96) 52%, rgba(255,243,191,.96) 86%, transparent 86%); padding:0 .06em; }
-.hero-copy p { margin-top:15px; max-width:650px; color:var(--muted); font-family:Kalam, 'Ma Shan Zheng', cursive; font-size:17px; line-height:1.72; font-weight:700; }
-.hero-copy .rough-svg.board-outline { inset:-7px -8px -9px -6px; width:calc(100% + 14px); height:calc(100% + 16px); }
-.hero-stats { display:grid; grid-template-columns:repeat(3, 1fr); gap:12px; }
-.stat { min-height:105px; display:flex; flex-direction:column; justify-content:center; align-items:center; border:1px solid var(--card-border); border-radius:16px; box-shadow:none; background:var(--paper); position:relative; }
-.stat:nth-child(1) { background:var(--green); transform:rotate(1.5deg); }
-.stat:nth-child(2) { background:var(--yellow); transform:rotate(-1.8deg); }
-.stat:nth-child(3) { background:var(--orange); transform:rotate(1deg); }
-.stat b { font-size:34px; line-height:1; position:relative; z-index:1; }
-.stat:first-child b:after { content:""; position:absolute; left:-12px; right:-12px; top:-7px; bottom:-7px; border:3px solid var(--ink-black); border-radius:52% 48% 45% 55%; transform:rotate(-8deg); z-index:-1; }
-.stat span { margin-top:7px; color:#4d4d4d; font-family:Kalam, 'Ma Shan Zheng', cursive; font-size:12px; }
-
-.section { position:relative; z-index:1; margin-top:34px; }
-.section-title { display:inline-flex; align-items:center; gap:9px; margin:0 0 17px 12px; padding:6px 14px; border:2.5px solid var(--ink-black); border-radius:14px 18px 12px 20px; background:linear-gradient(transparent 45%, var(--purple) 45% 88%, transparent 88%); box-shadow:none; transform:rotate(-1deg); font-size:22px; }
-.section-title .dot { width:10px; height:10px; border:2px solid var(--ink-black); border-radius:50%; background:var(--paper); }
-.route-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px; }
-.route-card { position:relative; min-height:218px; padding:22px; text-align:left; cursor:pointer; border:1px solid var(--card-border); border-radius:16px; box-shadow:none; transition:transform .18s var(--ease), background .18s var(--ease); overflow:visible; }
-.route-card .rough-svg.card-outline { inset:-5px -6px -7px -5px; width:calc(100% + 12px); height:calc(100% + 12px); }
-.route-card.clash { background:var(--yellow); transform:rotate(-.7deg); }
-.route-card.b64 { background:var(--teal); transform:rotate(.8deg); }
-.route-card:hover { transform:translateY(-4px) rotate(0deg) scale(1.01); box-shadow:none; background:#e7e7e7; }
-.route-card:focus-visible { outline:4px solid var(--orange); outline-offset:4px; }
-.route-tag { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; }
-.route-tag span { color:var(--muted); font-size:15px; letter-spacing:.12em; }
-.route-tag b { font-size:38px; line-height:.85; }
-.route-head { margin-top:18px; display:flex; align-items:center; gap:14px; }
-.route-icon { width:58px; height:58px; display:grid; place-items:center; border:2.5px solid var(--ink-black); border-radius:15px; background:rgba(255,255,255,.58); font-size:30px; }
-.route-card h2 { font-size:31px; line-height:1; position:relative; display:inline-block; }
-.clash h2:after { content:""; position:absolute; left:-2px; right:-4px; bottom:-8px; border-bottom:4px solid var(--ink-black); border-radius:50%; transform:rotate(-1deg); }
-.b64 h2:after { content:""; position:absolute; left:-10px; right:-10px; top:-8px; bottom:-9px; border:3px solid var(--ink-black); border-radius:48% 52% 45% 55%; transform:rotate(3deg); }
-.route-card h2 .rough-svg { inset:-14px -18px -16px -16px; width:calc(100% + 34px); height:calc(100% + 30px); }
-.route-card .hint { margin-top:5px; color:#555; font-family:Kalam, 'Ma Shan Zheng', cursive; font-size:13px; }
-.route-line { position:relative; margin:18px 0 15px; padding:10px 12px; border:2px dashed var(--ink-black); border-radius:14px 17px 13px 16px; background:rgba(255,255,255,.45); color:#555; font-family:Kalam, 'Ma Shan Zheng', cursive; font-size:12px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
-.route-line:before { content:"PRIVATE"; position:absolute; right:10px; top:-9px; padding:0 5px; background:inherit; color:var(--muted); font-family:Kalam, 'Ma Shan Zheng', cursive; font-size:11px; font-weight:700; }
-.route-actions { display:flex; gap:10px; }
-.action-btn { min-height:40px; display:inline-flex; align-items:center; justify-content:center; gap:7px; padding:8px 16px; border:2px solid var(--ink-black); border-radius:0; background:#fff; color:var(--ink); cursor:pointer; font-size:17px; text-transform:uppercase; box-shadow:none; transition:transform .16s var(--ease), background .16s var(--ease); }
-.action-btn.primary { flex:1; background:#fff; }
-.action-btn:hover { transform:translateY(-2px); box-shadow:none; background:var(--blue); }
-.action-btn:active { transform:translateY(2px); box-shadow:none; }
-.action-btn:focus-visible { outline:4px solid var(--blue); outline-offset:3px; }
-
-.node-board { position:relative; padding:20px; border:1px solid var(--card-border); border-radius:16px; background:rgba(255,255,255,.62); box-shadow:none; }
-.node-board:before { content:""; position:absolute; inset:10px; pointer-events:none; opacity:.20; background:repeating-linear-gradient(0deg, transparent 0 27px, #1e1e1e 28px 29px); }
-.node-top { position:relative; display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin-bottom:14px; }
-.node-title { display:flex; align-items:center; gap:10px; font-size:24px; }
-.node-title .pin { width:38px; height:38px; display:grid; place-items:center; border:2.5px solid var(--ink-black); border-radius:50% 46% 50% 44%; background:var(--red); transform:rotate(-7deg); }
-.node-sub { color:var(--muted); font-family:Kalam, 'Ma Shan Zheng', cursive; font-size:12px; text-align:right; }
-.node-list { position:relative; display:grid; grid-template-columns:repeat(auto-fit,minmax(245px,1fr)); gap:14px; align-items:start; }
-.node-row { display:grid; grid-template-columns:auto minmax(0,1fr); align-items:center; gap:13px; min-height:116px; padding:13px 14px 14px 12px; border:1px solid var(--card-border); border-radius:16px; background:var(--note-color,var(--paper)); box-shadow:none; transition:transform .18s var(--ease), background .18s var(--ease); position:relative; overflow:visible; }
-.node-row:nth-child(3n+1) { transform:rotate(-.45deg); }
-.node-row:nth-child(3n+2) { transform:rotate(.35deg); }
-.node-row:nth-child(3n) { transform:rotate(-.15deg); }
-.node-row:hover { transform:translateY(-4px) rotate(0deg); background:#e7e7e7; }
-.node-mark { width:48px; height:48px; display:grid; place-items:center; border:2px solid var(--ink-black); color:var(--ink); border-radius:50% 46% 50% 43%; background:var(--node-color,#a5d8ff); font-size:21px; }
-.node-mark .flag-svg { width:31px; height:22px; display:block; border:1px solid rgba(30,30,30,.45); border-radius:4px; background:#fff; overflow:hidden; }
-.node-mark .flag-svg svg { width:100%; height:100%; display:block; }
-.node-main { min-width:0; }
-.node-name { overflow:hidden; white-space:nowrap; text-overflow:ellipsis; color:var(--ink); font-size:18px; }
-.node-meta { margin-top:2px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; color:var(--muted); font-family:Kalam, 'Ma Shan Zheng', cursive; font-size:11px; }
-.node-detail { margin-top:7px; display:flex; flex-wrap:wrap; gap:6px; }
-.detail-pill { padding:3px 8px; border:2px solid var(--ink-black); border-radius:999px; background:var(--blue); color:var(--ink); font-size:12px; line-height:1; }
-.node-badges { grid-column:1 / -1; display:flex; justify-content:flex-start; align-items:center; flex-wrap:wrap; gap:6px; }
-.proto { padding:4px 9px; border:2px solid var(--ink-black); border-radius:999px; background:var(--green); color:var(--ink); font-size:12px; letter-spacing:.04em; }
-.empty { padding:30px 16px; border:3px dashed var(--ink-black); border-radius:18px; color:var(--muted); text-align:center; background:rgba(255,255,255,.5); font-family:Kalam, 'Ma Shan Zheng', cursive; }
-
-.arrow { position:absolute; pointer-events:none; color:var(--ink); opacity:.82; }
-.arrow.a1 { right:30px; top:238px; width:210px; height:96px; transform:rotate(3deg); }
-.arrow.a2 { left:34px; bottom:38px; width:160px; height:74px; transform:rotate(-5deg); }
-
-.modal { display:none; position:fixed; inset:0; z-index:20; align-items:center; justify-content:center; padding:20px; background:rgba(30,30,30,.28); backdrop-filter:blur(4px); }
-.modal.on { display:flex; }
-.modal-card { width:min(410px,100%); position:relative; padding:38px 24px 24px; text-align:center; border:1px solid var(--card-border); border-radius:16px; background:var(--paper); box-shadow:4px 5px 0 var(--shadow); animation:pop .22s var(--ease); }
-.modal-card .tape { left:50%; top:-13px; transform:translateX(-50%) rotate(-4deg); }
-.modal-card h3 { font-size:29px; }
-.modal-card p { margin:6px 0 16px; color:var(--muted); font-family:Kalam, 'Ma Shan Zheng', cursive; font-size:12px; }
-.qr-frame { width:224px; height:224px; margin:0 auto 16px; padding:12px; display:grid; place-items:center; border:2.5px solid var(--ink-black); border-radius:20px 18px 23px 17px; background:#fff; box-shadow:4px 5px 0 var(--shadow); }
-.qr-frame img { width:100%; height:100%; display:block; border-radius:6px; }
-.modal-link { max-height:45px; overflow:auto; padding:9px 11px; border:2px dashed var(--ink-black); border-radius:12px; background:rgba(165,216,255,.24); color:var(--muted); font-family:Kalam, 'Ma Shan Zheng', cursive; font-size:11px; line-height:1.45; word-break:break-all; text-align:left; }
-.modal-actions { display:flex; gap:10px; margin-top:16px; }
-.modal-actions .action-btn { flex:1; }
-#toast { position:fixed; left:50%; bottom:28px; z-index:30; padding:10px 17px; border:2.5px solid var(--ink-black); border-radius:999px; background:var(--green); box-shadow:5px 6px 0 var(--shadow); color:var(--ink); font-size:18px; opacity:0; transform:translate(-50%,110px) rotate(-1deg); transition:opacity .22s var(--ease),transform .22s var(--ease); pointer-events:none; }
-#toast.on { opacity:1; transform:translate(-50%,0) rotate(-1deg); }
-@keyframes pop { from { opacity:0; transform:translateY(9px) scale(.96); } to { opacity:1; transform:none; } }
-@media (max-width: 820px) {
-  .whiteboard { width:min(100% - 18px, 760px); margin-top:18px; padding:18px; }
-  .topbar { flex-wrap:wrap; }
-  .logout-btn { margin-left:auto; }
-  .hero { grid-template-columns:1fr; }
-  .hero-copy { padding:22px 18px; }
-  .hero-stats { grid-template-columns:repeat(3,1fr); }
-  .route-grid { grid-template-columns:1fr; }
-  .arrow { display:none; }
-}
-@media (max-width: 520px) {
-  h1 { font-size:44px; }
-  .brand-text b { font-size:21px; }
-  .hero-stats { gap:8px; }
-  .stat { min-height:82px; }
-  .stat b { font-size:26px; }
-  .section-title { font-size:20px; margin-left:0; }
-  .route-card { padding:18px 14px; }
-  .route-card h2 { font-size:27px; }
-  .node-board { padding:14px; }
-  .node-row { grid-template-columns:auto minmax(0,1fr); }
-  .node-badges { grid-column:1 / -1; justify-content:flex-start; }
-  .node-top { align-items:flex-start; } .node-sub { display:none; }
-}
+*{margin:0;padding:0;box-sizing:border-box}
+:root{color-scheme:light;font-synthesis:none;text-rendering:optimizeLegibility;--paper:#fffdf7;--paper-secondary:#f6f1e7;--ink:#25262b;--ink-muted:#68645e;--blue:#a5d8ff;--blue-strong:#5f7fe7;--yellow:#ffec99;--red:#ffc9c9;--red-strong:#d9485f;--purple:#d0bfff;--green:#b2f2bb;--teal:#c3fae8;--orange:#ffd8a8;--content-width:1120px;--section-gap:clamp(4.5rem,8vw,7rem);--header-height:74px;--title-font:"Segoe Print","LXGW WenKai","Kaiti SC",STKaiti,"Ma Shan Zheng",cursive;--body-font:"LXGW WenKai","Kaiti SC","Microsoft YaHei",system-ui,sans-serif}
+html{min-height:100%;scroll-behavior:smooth;scroll-padding-top:calc(var(--header-height) + 28px);background:var(--paper);overflow-x:clip}
+body{min-width:320px;min-height:100vh;overflow-x:clip;color:var(--ink);background:var(--paper);font-family:var(--body-font);line-height:1.7}
+body:before{position:fixed;inset:0;z-index:-1;background-image:radial-gradient(circle at center,rgba(37,38,43,.085) .7px,transparent .8px);background-size:22px 22px;content:"";pointer-events:none;opacity:.42}
+button,a{font:inherit;color:inherit}button{border:0;background:transparent;cursor:pointer}a{text-decoration:none}svg{display:block}.skip-link{position:fixed;top:10px;left:12px;z-index:100;padding:.55rem .85rem;color:var(--paper);background:var(--ink);transform:translateY(-160%)}.skip-link:focus{transform:translateY(0)}
+.rough-outline{position:absolute;inset:0;z-index:0;width:100%;height:100%;overflow:visible;pointer-events:none}.rough-fallback{position:absolute;inset:5px;border:1.8px solid var(--ink);border-radius:24px 19px 27px 18px;pointer-events:none}.section-shell{width:min(calc(100% - 40px),var(--content-width));margin-inline:auto}
+.site-header{position:sticky;top:0;z-index:50;background:rgba(255,253,247,.96);backdrop-filter:blur(8px)}.site-header:after{position:absolute;right:0;bottom:-3px;left:0;height:5px;border-top:1px solid rgba(37,38,43,.22);content:"";transform:rotate(-.06deg)}.nav-shell{display:flex;width:min(calc(100% - 40px),var(--content-width));min-height:var(--header-height);margin-inline:auto;align-items:center;justify-content:space-between;gap:1rem}.site-logo{display:inline-flex;min-height:44px;align-items:center;gap:.55rem;font-family:var(--title-font);font-size:1.03rem;font-weight:800;letter-spacing:-.02em}.site-logo__mark{display:grid;width:29px;height:29px;place-items:center;color:var(--red-strong);font-size:1.28rem;transition:transform 220ms ease}.site-logo:hover .site-logo__mark{transform:rotate(15deg)}.nav-links{display:flex;align-items:center;gap:clamp(1.1rem,3vw,2.4rem)}.nav-links a{position:relative;display:inline-grid;min-height:44px;place-items:center;color:var(--ink-muted);font-size:.94rem;font-weight:700;letter-spacing:.02em}.nav-links a:hover{color:var(--ink)}.logout-link{font-family:var(--title-font);color:var(--red-strong)!important}
+.hero{display:grid;min-height:calc(100svh - var(--header-height));padding-block:clamp(4rem,8vw,6.4rem) clamp(4.5rem,8vw,6.5rem);grid-template-columns:minmax(0,1.02fr) minmax(340px,.98fr);gap:clamp(2rem,5vw,5rem);align-items:center}.hero__copy{position:relative;z-index:2}.eyebrow{display:flex;margin-bottom:1.3rem;align-items:center;gap:.55rem;color:var(--ink-muted);font-family:var(--title-font);font-size:.82rem;font-weight:700;letter-spacing:.11em;text-transform:uppercase}.eyebrow span{color:var(--red-strong);font-size:1.12rem}.hero h1{max-width:760px;margin-bottom:1.75rem;font-family:var(--title-font);font-size:clamp(3rem,6vw,5.35rem);font-weight:800;line-height:1.12;letter-spacing:-.065em}.hero h1 .line{display:inline-block}.hero h1 .blue{color:var(--blue-strong);transform:rotate(-1deg)}.hero__intro{max-width:35rem;margin-bottom:2.1rem;color:var(--ink-muted);font-size:clamp(1.05rem,1.5vw,1.2rem);line-height:1.9}.hero__actions{display:flex;flex-wrap:wrap;gap:.75rem 1rem;align-items:center}.hero__nudge{position:absolute;right:4%;bottom:-5.2rem;display:flex;color:var(--ink-muted);font-family:var(--title-font);font-size:.78rem;line-height:1.2;transform:rotate(-5deg)}.hero-sketch{position:relative;min-height:430px;transform:rotate(.6deg)}.hero-sketch svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}.hero-sketch__label{position:absolute;top:20.5%;right:10%;z-index:2;padding:.2rem .55rem;color:var(--ink-muted);background:var(--yellow);font-family:var(--title-font);font-size:.72rem;font-weight:700;transform:rotate(2deg)}
+.sketch-button{position:relative;display:inline-flex;min-height:52px;align-items:stretch;transition:transform 180ms ease,filter 180ms ease}.sketch-button__control{position:relative;z-index:1;display:inline-flex;min-width:154px;min-height:52px;padding:.76rem 1.2rem;align-items:center;justify-content:center;gap:.7rem;color:var(--ink);background:transparent;font-size:.96rem;font-weight:800;line-height:1.2}.sketch-button:hover{transform:translateY(-2px)}.sketch-button:active{transform:translate(1px,2px)}.sketch-button--text .sketch-button__control{min-width:0;padding-inline:.55rem}.sketch-button--text .sketch-button__control:after{position:absolute;right:.35rem;bottom:7px;left:.35rem;height:7px;border-bottom:2px solid var(--blue-strong);content:"";transform:rotate(-1.2deg)}.button-arrow{width:35px;height:20px;transition:transform 180ms ease}.sketch-button:hover .button-arrow{transform:translateX(4px)}
+.section{padding-block:var(--section-gap)}.section-heading{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(260px,.65fr);gap:clamp(2rem,8vw,7rem);align-items:end}.section-kicker{margin-bottom:1rem;color:var(--ink-muted);font-family:var(--title-font);font-size:.82rem;font-weight:700;letter-spacing:.11em;text-transform:uppercase}.section-kicker:before{display:inline-block;width:22px;height:2px;margin-right:.55rem;vertical-align:middle;background:var(--red-strong);content:"";transform:rotate(-4deg)}.section-heading h2{margin-bottom:0;font-family:var(--title-font);font-size:clamp(2rem,4.6vw,3.8rem);font-weight:700;line-height:1.22;letter-spacing:-.045em}.section-heading h2 span{color:var(--blue-strong)}.section-heading>p{max-width:33rem;margin-bottom:.35rem;color:var(--ink-muted);font-size:1rem;line-height:1.85}.section-divider{width:100%;height:20px;margin-block:2rem clamp(2.3rem,5vw,4rem);overflow:visible}
+.route-grid,.node-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:clamp(1rem,2.2vw,1.75rem)}.node-grid{grid-template-columns:repeat(auto-fit,minmax(255px,1fr))}.paper-card{position:relative;display:flex;min-height:260px;padding:clamp(1.35rem,3vw,1.8rem);flex-direction:column;transition:transform 200ms ease,background-color 200ms ease}.paper-card>:not(.rough-outline):not(.rough-fallback){position:relative;z-index:1}.paper-card:hover{background:rgba(255,236,153,.14);transform:translateY(-6px)}.paper-card:nth-child(2n){margin-top:1.05rem}.paper-card:nth-child(3n){margin-top:-.45rem}.paper-card__top{display:flex;min-height:70px;margin-bottom:1.25rem;align-items:flex-start;justify-content:space-between}.paper-card__icon{display:grid;width:66px;height:66px;place-items:center;transition:transform 200ms ease}.paper-card:hover .paper-card__icon{transform:rotate(-5deg)}.icon-badge{display:grid;width:58px;height:58px;place-items:center;color:var(--ink);background:var(--icon-paper,var(--yellow));border-radius:50%;font-family:var(--title-font);font-size:1.45rem;font-weight:800}.paper-card__index{color:var(--ink-muted);font-family:var(--title-font);font-size:.8rem;font-weight:800;letter-spacing:.12em}.paper-card h3{margin-bottom:.85rem;font-family:var(--title-font);font-size:clamp(1.3rem,2vw,1.65rem);line-height:1.35}.paper-card>p{margin-bottom:1.5rem;color:var(--ink-muted);font-size:.95rem;line-height:1.82}.paper-card__footer{display:flex;margin-top:auto;gap:1rem;align-items:flex-end;justify-content:space-between}.tag-list{display:flex;margin:0;padding:0;flex-wrap:wrap;gap:.45rem;list-style:none}.tag-list li{padding:.16rem .52rem;color:var(--ink-muted);background:var(--paper-secondary);font-size:.72rem;line-height:1.6;transform:rotate(-.4deg)}.tag-list li:nth-child(2n){transform:rotate(.6deg)}.route-card:nth-child(1) .icon-badge{--icon-paper:var(--yellow)}.route-card:nth-child(2) .icon-badge{--icon-paper:var(--teal)}.node-card{min-height:300px}.node-card .paper-card__top{margin-bottom:.95rem}.node-card__name{overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}.node-meta{color:var(--ink-muted);font-size:.82rem}.empty{position:relative;grid-column:1/-1;min-height:180px;padding:2rem;font-family:var(--title-font);font-weight:800;text-align:center}.work-note{width:max-content;max-width:calc(100% - 20px);margin:clamp(3rem,6vw,5rem) auto 0;font-family:var(--title-font);font-weight:700;transform:rotate(-.8deg)}
+.modal{display:none;position:fixed;inset:0;z-index:80;align-items:center;justify-content:center;padding:20px;background:rgba(37,38,43,.22);backdrop-filter:blur(4px)}.modal.on{display:flex}.modal-card{position:relative;width:min(410px,100%);padding:2.5rem 1.6rem 1.6rem;background:var(--paper);text-align:center}.modal-card>:not(.rough-outline):not(.rough-fallback){position:relative;z-index:1}.modal-card h3{margin-bottom:.35rem;font-family:var(--title-font);font-size:1.7rem}.modal-card p{margin-bottom:1rem;color:var(--ink-muted);font-size:.9rem}.qr-frame{width:224px;height:224px;margin:0 auto 1rem;padding:12px;background:#fff}.qr-frame img{width:100%;height:100%;display:block}.modal-link{max-height:45px;overflow:auto;margin-bottom:1rem;padding:.6rem .7rem;border:1px dashed rgba(37,38,43,.35);background:var(--paper-secondary);color:var(--ink-muted);font-size:.72rem;line-height:1.45;word-break:break-all;text-align:left}.modal-actions{display:flex;gap:.7rem}.modal-actions .sketch-button,.modal-actions .sketch-button__control{flex:1;min-width:0}#toast{position:fixed;left:50%;bottom:28px;z-index:90;padding:.65rem 1rem;color:var(--ink);background:var(--green);font-family:var(--title-font);font-weight:800;opacity:0;transform:translate(-50%,110px) rotate(-1deg);transition:opacity 220ms ease,transform 220ms ease;pointer-events:none}#toast.on{opacity:1;transform:translate(-50%,0) rotate(-1deg)}
+@media(max-width:1024px){.hero{grid-template-columns:minmax(0,1fr) minmax(330px,.82fr);gap:1.5rem}.route-grid{grid-template-columns:1fr}.paper-card:nth-child(2n),.paper-card:nth-child(3n){margin-top:0}}
+@media(max-width:780px){:root{--header-height:66px}.section-shell,.nav-shell{width:min(calc(100% - 28px),var(--content-width))}.nav-links{gap:.9rem}.hero{min-height:auto;padding-block:4.2rem 5.5rem;grid-template-columns:1fr}.hero-sketch{width:min(100%,540px);min-height:360px;margin-inline:auto}.section-heading{grid-template-columns:1fr;gap:1.4rem}.node-grid{grid-template-columns:1fr}.paper-card{min-height:270px}.paper-card__footer{align-items:flex-start;flex-direction:column}}
+@media(max-width:480px){.section-shell,.nav-shell{width:min(calc(100% - 24px),var(--content-width))}.site-logo{font-size:.94rem}.nav-links a:not(.logout-link){display:none}.hero{padding-top:3.6rem}.hero h1{font-size:clamp(2.45rem,12vw,3.35rem);line-height:1.18}.hero__actions{align-items:stretch;flex-direction:column}.sketch-button,.sketch-button__control{width:100%}.hero-sketch{min-height:280px}.modal-actions{flex-direction:column}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
 </style>
 </head>
 <body>
-<main class="whiteboard">
-  <span class="tape t1"></span><span class="tape t2"></span><span class="tape t3"></span>
-  <svg class="arrow a1" viewBox="0 0 220 100" aria-hidden="true"><path d="M12 72C55 14 125 8 190 45" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><path d="M190 45l-24 2 13-21" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
-  <svg class="arrow a2" viewBox="0 0 170 80" aria-hidden="true"><path d="M12 36c42 32 82 31 135 2" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><path d="M147 38l-20-1 9 17" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
-
-  <div class="topbar">
-    <div class="brand"><div class="brand-mark">✎</div><div class="brand-text"><small>EXCALIDRAW SUB</small><b>订阅白板</b></div></div>
-    <a class="logout-btn" href="/logout" title="退出登录">退出</a>
-  </div>
-
-  <header class="hero">
-    <section class="hero-copy">
-      <svg class="rough-svg board-outline" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path d="M2 8 C18 2 70 4 96 7 C101 22 98 76 94 96 C69 101 24 99 4 94 C0 70 1 29 2 8Z"/><path class="soft" d="M4 6 C31 0 73 3 97 9 C99 32 100 70 93 94 C61 98 31 102 6 92 C3 62 -1 33 4 6Z"/></svg>
-      <span class="kicker">hand drawn dashboard</span>
-      <h1><span class="mark">订阅</span>白板</h1>
-      <p>{{SUB_NAME}} · 像 Neal.fun 的小工具卡片、RoughNotation 的手绘标注、Excalidraw Blog 的浅色白板。订阅地址默认隐藏，只保留复制和二维码。</p>
-    </section>
-    <section class="hero-stats" aria-label="订阅统计">
-      <div class="stat"><b>{{COUNT}}</b><span>节点</span></div>
-      <div class="stat"><b>02</b><span>导出</span></div>
-      <div class="stat"><b>QR</b><span>扫码</span></div>
-    </section>
-  </header>
-
-  <section class="section">
-    <h2 class="section-title"><span class="dot"></span>导出路线</h2>
+<a class="skip-link" href="#main-content">跳到主要内容</a>
+<header class="site-header">
+  <nav class="nav-shell" aria-label="主导航">
+    <a class="site-logo" href="#home"><span class="site-logo__mark">✎</span><span>纸边订阅白板</span></a>
+    <div class="nav-links">
+      <a href="#routes">导出</a>
+      <a href="#nodes">节点</a>
+      <a class="logout-link" href="/logout">退出</a>
+    </div>
+  </nav>
+</header>
+<main id="main-content">
+  <section id="home" class="hero section-shell" aria-labelledby="hero-title">
+    <div class="hero__copy">
+      <p class="eyebrow"><span aria-hidden="true">✦</span> Creative subscription · 手绘交互</p>
+      <h1 id="hero-title"><span class="line">把订阅</span><br><span class="line blue">画成白板</span></h1>
+      <p class="hero__intro">{{SUB_NAME}} · 节点、导出和二维码都被整理成纸边小卡片。链接默认隐藏，只留下可复制、可扫码、可导入的轻量入口。</p>
+      <div class="hero__actions">
+        <span class="sketch-button sketch-button--primary" data-rough-fill="var(--yellow)"><span class="rough-fallback"></span><svg class="rough-outline"></svg><button class="sketch-button__control" type="button" onclick="document.getElementById('routes').scrollIntoView()"><span>翻翻导出卡</span><svg class="button-arrow" viewBox="0 0 44 24"><path d="M3 13 C13 6 26 18 39 11 M31 5 L40 11 L30 19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></span>
+        <span class="sketch-button sketch-button--text"><button class="sketch-button__control" type="button" onclick="document.getElementById('nodes').scrollIntoView()"><span>看节点草稿</span><svg class="button-arrow" viewBox="0 0 44 24"><path d="M3 13 C13 6 26 18 39 11 M31 5 L40 11 L30 19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></span>
+      </div>
+      <div class="hero__nudge" aria-hidden="true">从这里开始</div>
+    </div>
+    <div class="hero-sketch" aria-hidden="true">
+      <span class="hero-sketch__label">可点击的草稿</span>
+      <svg viewBox="0 0 520 430" preserveAspectRatio="xMidYMid meet">
+        <rect x="48" y="55" width="405" height="290" rx="12" fill="#fffdf7" stroke="#25262b" stroke-width="2"/>
+        <path d="M52 101H449" stroke="#25262b" stroke-width="2"/>
+        <circle cx="78" cy="79" r="11" fill="#ffc9c9" stroke="#25262b" stroke-width="2"/><circle cx="101" cy="79" r="11" fill="#ffec99" stroke="#25262b" stroke-width="2"/><circle cx="124" cy="79" r="11" fill="#b2f2bb" stroke="#25262b" stroke-width="2"/>
+        <rect x="82" y="138" width="145" height="155" rx="10" fill="#e7f5ff" stroke="#5f7fe7" stroke-width="2"/>
+        <path d="M257 151H404M257 180H386M257 209H417M257 255H347" stroke="#25262b" stroke-width="2" stroke-linecap="round"/>
+        <circle cx="153" cy="206" r="69" fill="none" stroke="#d9485f" stroke-width="3"/>
+        <path d="M124 210 L145 231 L184 181" fill="none" stroke="#3a8f5b" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M70 373 C160 351 235 391 329 364 C376 351 431 365 474 348 M453 334 L477 348 L458 367" fill="none" stroke="#5f7fe7" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M394 18 L402 41 L425 49 L403 56 L395 79 L388 56 L365 49 L387 41 Z" fill="#ffec99" stroke="#25262b" stroke-width="2"/>
+      </svg>
+    </div>
+  </section>
+  <section id="routes" class="section section-shell" aria-labelledby="routes-title">
+    <div class="section-heading">
+      <div><p class="section-kicker">导出路线</p><h2 id="routes-title">两张入口卡，<br><span>一键拿走</span></h2></div>
+      <p>像作品卡一样放置订阅出口。点整张卡即可复制，QR 按钮负责扫码导入。</p>
+    </div>
+    <svg class="section-divider" viewBox="0 0 100 10" preserveAspectRatio="none"><path d="M1 6 C18 1 32 9 50 5 C68 1 83 8 99 4" fill="none" stroke="#d9485f" stroke-width="1.5" stroke-linecap="round"/></svg>
     <div class="route-grid">
-      <article class="route-card clash" role="button" tabindex="0" onclick="cp('clash')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();cp('clash')}">
-        <svg class="rough-svg card-outline" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path d="M3 8 C23 2 72 4 96 6 C99 31 98 72 94 95 C67 99 27 98 5 93 C1 70 0 29 3 8Z"/><path class="soft" d="M5 6 C29 1 75 2 95 9 C98 25 100 76 92 94 C70 101 23 97 7 92 C2 62 2 31 5 6Z"/></svg>
-        <div class="route-tag"><span>ROUTE</span><b>01</b></div>
-        <div class="route-head"><div class="route-icon">C</div><div><h2>Clash / Meta</h2><p class="hint">桌面与规则客户端</p></div></div>
-        <div class="route-line" id="u-clash">订阅链接已隐藏，点击复制或扫码使用</div>
-        <div class="route-actions">
-          <button class="action-btn primary" type="button" onclick="event.stopPropagation();cp('clash')">复制路线</button>
-          <button class="action-btn" type="button" onclick="event.stopPropagation();qrKey('clash','Clash / Meta')" aria-label="打开 Clash 二维码">QR</button>
-        </div>
+      <article class="paper-card route-card" role="button" tabindex="0" onclick="cp('clash')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();cp('clash')}" data-rough-fill="var(--paper)">
+        <span class="rough-fallback"></span><svg class="rough-outline"></svg>
+        <div class="paper-card__top"><div class="paper-card__icon"><span class="icon-badge">C</span></div><span class="paper-card__index">ROUTE 01</span></div>
+        <h3>Clash / Meta</h3><p>桌面与规则客户端。订阅链接已隐藏，点击复制或扫码使用。</p>
+        <div class="paper-card__footer"><ul class="tag-list"><li>Mihomo</li><li>YAML</li><li>规则客户端</li></ul><button type="button" onclick="event.stopPropagation();qrKey('clash','Clash / Meta')">QR →</button></div>
       </article>
-      <article class="route-card b64" role="button" tabindex="0" onclick="cp('b64')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();cp('b64')}">
-        <svg class="rough-svg card-outline" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path d="M4 7 C28 2 69 3 95 8 C99 27 99 75 93 94 C65 100 28 99 6 92 C1 68 2 27 4 7Z"/><path class="soft" d="M2 9 C20 1 80 4 97 7 C101 34 97 69 95 96 C75 99 24 101 4 91 C1 59 -1 36 2 9Z"/></svg>
-        <div class="route-tag"><span>ROUTE</span><b>02</b></div>
-        <div class="route-head"><div class="route-icon">B</div><div><h2>Base64</h2><p class="hint">通用 / 移动端客户端</p></div></div>
-        <div class="route-line" id="u-b64">订阅链接已隐藏，点击复制或扫码使用</div>
-        <div class="route-actions">
-          <button class="action-btn primary" type="button" onclick="event.stopPropagation();cp('b64')">复制路线</button>
-          <button class="action-btn" type="button" onclick="event.stopPropagation();qrKey('b64','Base64')" aria-label="打开 Base64 二维码">QR</button>
-        </div>
+      <article class="paper-card route-card" role="button" tabindex="0" onclick="cp('b64')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();cp('b64')}" data-rough-fill="var(--paper)">
+        <span class="rough-fallback"></span><svg class="rough-outline"></svg>
+        <div class="paper-card__top"><div class="paper-card__icon"><span class="icon-badge">B</span></div><span class="paper-card__index">ROUTE 02</span></div>
+        <h3>Base64</h3><p>通用 / 移动端客户端。保留传统订阅格式，适合 Shadowrocket / v2rayNG。</p>
+        <div class="paper-card__footer"><ul class="tag-list"><li>Base64</li><li>Mobile</li><li>通用</li></ul><button type="button" onclick="event.stopPropagation();qrKey('b64','Base64')">QR →</button></div>
       </article>
     </div>
   </section>
-
-  <section class="section">
-    <h2 class="section-title"><span class="dot"></span>节点草图</h2>
-    <div class="node-board">
-      <div class="node-top">
-        <div class="node-title"><span class="pin">⌖</span><span>节点航线簿</span></div>
-        <div class="node-sub">只展示协议、REALITY/TLS、传输层；地址端口隐藏</div>
-      </div>
-      <div class="node-list" id="nodeList"><div class="empty">正在绘制节点草图……</div></div>
+  <section id="nodes" class="section section-shell" aria-labelledby="nodes-title">
+    <div class="section-heading">
+      <div><p class="section-kicker">节点草稿</p><h2 id="nodes-title">{{COUNT}} 个节点，<br><span>贴在纸上</span></h2></div>
+      <p>地址和端口不展示，只留下协议、传输层、REALITY/TLS 和必要标签，像小项目卡一样快速扫一眼。</p>
     </div>
+    <svg class="section-divider" viewBox="0 0 100 10" preserveAspectRatio="none"><path d="M1 5 C16 8 26 1 42 5 C62 10 78 0 99 6" fill="none" stroke="#5f7fe7" stroke-width="1.5" stroke-linecap="round"/></svg>
+    <div class="node-grid" id="nodeList"><div class="empty"><span class="rough-fallback"></span><svg class="rough-outline"></svg>正在整理节点草稿……</div></div>
+    <p class="work-note">小节点，也值得被认真放好。</p>
   </section>
 </main>
-
 <div class="modal" id="qrModal" role="dialog" aria-modal="true" aria-labelledby="qrTitle">
-  <div class="modal-card">
-    <span class="tape"></span>
-    <h3 id="qrTitle">路线二维码</h3>
-    <p>打开客户端扫一扫，就能导入这条路线。</p>
-    <div class="qr-frame"><img id="qrImg" src="" alt="二维码"></div>
-    <div class="modal-link" id="qrLink">订阅链接已隐藏，可直接扫码或复制。</div>
-    <div class="modal-actions">
-      <button class="action-btn primary" type="button" onclick="copyModalLink()">复制链接</button>
-      <button class="action-btn" type="button" onclick="cq()">关闭</button>
-    </div>
-  </div>
+  <div class="modal-card" data-rough-fill="var(--paper)"><span class="rough-fallback"></span><svg class="rough-outline"></svg><h3 id="qrTitle">路线二维码</h3><p>打开客户端扫一扫，就能导入这条路线。</p><div class="qr-frame"><img id="qrImg" src="" alt="二维码"></div><div class="modal-link" id="qrLink">订阅链接已隐藏，可直接扫码或复制。</div><div class="modal-actions"><span class="sketch-button sketch-button--primary" data-rough-fill="var(--yellow)"><span class="rough-fallback"></span><svg class="rough-outline"></svg><button class="sketch-button__control" type="button" onclick="copyModalLink()">复制链接</button></span><span class="sketch-button sketch-button--secondary" data-rough-fill="var(--paper)"><span class="rough-fallback"></span><svg class="rough-outline"></svg><button class="sketch-button__control" type="button" onclick="cq()">关闭</button></span></div></div>
 </div>
 <div id="toast" role="status" aria-live="polite">已复制到剪贴板</div>
-
 <script>
 var proxies = [];
 var routeLinks = __ROUTE_LINKS__;
-function esc(v) {
-  return String(v == null ? "" : v).replace(/[&<>"']/g, function(c) {
-    return {"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'\"':"&quot;"}[c];
-  });
-}
-function protocolColor(type) {
-  var t = String(type || "").toLowerCase();
-  if (t.indexOf("vless") >= 0) return "#b2f2bb";
-  if (t.indexOf("trojan") >= 0) return "#ffd8a8";
-  if (t.indexOf("hysteria") >= 0 || t.indexOf("hy2") >= 0) return "#a5d8ff";
-  if (t.indexOf("tuic") >= 0) return "#d0bfff";
-  if (t.indexOf("ss") >= 0) return "#fff3bf";
-  return "#c3fae8";
-}
-function flagIcon(code, label) {
-  var flags = {
-    gb: '<svg viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg"><rect width="60" height="40" fill="#012169"/><path d="M0 0l60 40M60 0L0 40" stroke="#fff" stroke-width="8"/><path d="M0 0l60 40M60 0L0 40" stroke="#C8102E" stroke-width="4"/><path d="M30 0v40M0 20h60" stroke="#fff" stroke-width="13"/><path d="M30 0v40M0 20h60" stroke="#C8102E" stroke-width="8"/></svg>',
-    ng: '<svg viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg"><rect width="20" height="40" fill="#008751"/><rect x="20" width="20" height="40" fill="#fff"/><rect x="40" width="20" height="40" fill="#008751"/></svg>',
-    sg: '<svg viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg"><rect width="60" height="20" fill="#EF3340"/><rect y="20" width="60" height="20" fill="#fff"/><circle cx="16" cy="10" r="7" fill="#fff"/><circle cx="19" cy="10" r="6" fill="#EF3340"/><g fill="#fff"><circle cx="27" cy="5" r="1.4"/><circle cx="31" cy="8" r="1.4"/><circle cx="29.5" cy="13" r="1.4"/><circle cx="24.5" cy="13" r="1.4"/><circle cx="23" cy="8" r="1.4"/></g></svg>',
-    us: '<svg viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg"><rect width="60" height="40" fill="#fff"/><g fill="#B22234"><rect y="0" width="60" height="3.08"/><rect y="6.15" width="60" height="3.08"/><rect y="12.31" width="60" height="3.08"/><rect y="18.46" width="60" height="3.08"/><rect y="24.62" width="60" height="3.08"/><rect y="30.77" width="60" height="3.08"/><rect y="36.92" width="60" height="3.08"/></g><rect width="24" height="21.54" fill="#3C3B6E"/></svg>',
-    hk: '<svg viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg"><rect width="60" height="40" fill="#DE2910"/><g fill="#fff" transform="translate(30 20)"><ellipse rx="3" ry="8" transform="rotate(0) translate(0 -8)"/><ellipse rx="3" ry="8" transform="rotate(72) translate(0 -8)"/><ellipse rx="3" ry="8" transform="rotate(144) translate(0 -8)"/><ellipse rx="3" ry="8" transform="rotate(216) translate(0 -8)"/><ellipse rx="3" ry="8" transform="rotate(288) translate(0 -8)"/></g></svg>',
-    tw: '<svg viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg"><rect width="60" height="40" fill="#FE0000"/><rect width="30" height="20" fill="#000095"/><circle cx="15" cy="10" r="6" fill="#fff"/></svg>',
-    jp: '<svg viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg"><rect width="60" height="40" fill="#fff"/><circle cx="30" cy="20" r="11" fill="#BC002D"/></svg>'
-  };
-  return '<span class="flag-svg" role="img" aria-label="' + esc(label || code.toUpperCase()) + '" title="' + esc(label || code.toUpperCase()) + '">' + (flags[code] || '') + '</span>';
-}
-function regionIcon(name, server) {
-  var text = String((name || "") + " " + (server || "")).toLowerCase();
-  if (text.indexOf("🇬🇧") >= 0) return flagIcon("gb", "英国");
-  if (text.indexOf("🇳🇬") >= 0) return flagIcon("ng", "尼日利亚");
-  if (text.indexOf("🇺🇸") >= 0) return flagIcon("us", "美国");
-  if (text.indexOf("🇸🇬") >= 0) return flagIcon("sg", "新加坡");
-  if (text.indexOf("🇭🇰") >= 0) return flagIcon("hk", "香港");
-  if (text.indexOf("🇹🇼") >= 0) return flagIcon("tw", "台湾");
-  if (text.indexOf("🇯🇵") >= 0) return flagIcon("jp", "日本");
-  if (/\b(uk|gb|london|united[ -]*kingdom|great[ -]*britain)\b|英国|英國|倫敦|伦敦/.test(text)) return flagIcon("gb", "英国");
-  if (/\b(ng|nigeria|lagos|abuja)\b|尼日利亚|尼日利亞|奈及利亚|奈及利亞/.test(text)) return flagIcon("ng", "尼日利亚");
-  if (/\b(hk|hong[ -]*kong)\b|香港|港/.test(text)) return flagIcon("hk", "香港");
-  if (/\b(tw|taiwan)\b|台湾|臺灣/.test(text)) return flagIcon("tw", "台湾");
-  if (/\b(sg|singapore)\b|新加坡|狮城/.test(text)) return flagIcon("sg", "新加坡");
-  if (/\b(jp|japan|tokyo|osaka)\b|日本|东京|東京|大阪|软银|iij/.test(text)) return flagIcon("jp", "日本");
-  if (/\b(us|usa|united[ -]*states|los[ -]*angeles|new[ -]*york|seattle|san[ -]*jose|dallas|atlanta)\b|美国|美國|洛杉矶|洛杉磯|硅谷|纽约|紐約|西雅图|西雅圖|圣何塞|聖何塞|达拉斯|達拉斯|堪萨斯|堪薩斯/.test(text)) return flagIcon("us", "美国");
-  return "";
-}
-function nodeIcon(name, server, type) {
-  var flag = regionIcon(name, server);
-  if (flag) return flag;
-  var t = String(type || "").toLowerCase();
-  if (t.indexOf("vless") >= 0) return "V";
-  if (t.indexOf("trojan") >= 0) return "T";
-  if (t.indexOf("hysteria") >= 0 || t.indexOf("hy2") >= 0) return "H";
-  if (t.indexOf("tuic") >= 0) return "U";
-  if (t.indexOf("ss") >= 0) return "S";
-  return "N";
-}
-function displayName(name) {
-  var clean = String(name || "未命名节点")
-    .replace(/[🇦-🇿]{2}/gu, "")
-    .replace(/^\s*[-|｜·•:：_]+\s*/, "")
-    .replace(/\s{2,}/g, " ")
-    .trim();
-  var relay = clean.match(/^(.+?)[-—–_\s]*(中转|中轉|前置|反连|反連)[-—–_\s]*(.+)$/);
-  if (relay && relay[1] && relay[3]) {
-    clean = relay[3].trim() + "出口（" + relay[1].trim() + relay[2] + "）";
-  }
-  return clean || "未命名节点";
-}
-function detailPill(text) { return '<span class="detail-pill">' + esc(text) + '</span>'; }
-function vlessDetails(n) {
-  var parts = ["VLESS"];
-  if (n && n["reality-opts"]) parts.push("REALITY");
-  else if (n && n.tls) parts.push("TLS");
-  var network = String(n && n.network || "tcp").toUpperCase();
-  parts.push(network);
-  if (n && n.flow) parts.push(String(n.flow).replace(/^xtls-rprx-/, ""));
-  return parts.slice(0, 4).map(detailPill).join("");
-}
-function nodeDetails(n) {
-  var type = String(n && n.type || "").toLowerCase();
-  if (type === "vless") return vlessDetails(n);
-  if (type === "trojan") return detailPill("Trojan") + (n && n.sni ? detailPill("SNI " + n.sni) : "");
-  if (type === "hysteria2") return detailPill("Hysteria2") + (n && n.sni ? detailPill("SNI " + n.sni) : "");
-  return detailPill(type || "Proxy");
-}
-function renderNodes() {
-  var el = document.getElementById("nodeList");
-  if (!el) return;
-  if (!Array.isArray(proxies) || !proxies.length) {
-    el.innerHTML = '<div class="empty">这张白板暂时还是空的。</div>';
-    return;
-  }
-  el.innerHTML = proxies.map(function(n) {
-    var name = esc(displayName(n && n.name));
-    var type = esc(n && n.type || "Unknown");
-    var color = protocolColor(n && n.type || "");
-    var icon = nodeIcon(n && n.name || "", "", n && n.type || "");
-    var details = nodeDetails(n || {});
-    var noteColors = ["#fff3bf", "#c3fae8", "#b2f2bb", "#ffd8a8", "#d0bfff", "#a5d8ff"];
-    var note = noteColors[Math.abs((name + type).split("").reduce(function(a, ch) { return a + ch.charCodeAt(0); }, 0)) % noteColors.length];
-    return '<div class="node-row" style="--note-color:' + note + '">' +
-      '<svg class="rough-svg card-outline" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path d="M4 9 C23 2 74 3 96 8 C99 29 98 72 93 95 C70 100 25 98 6 92 C2 66 1 32 4 9Z"/><path class="soft" d="M2 7 C28 1 70 4 95 6 C101 34 97 68 95 94 C68 99 30 101 5 91 C1 61 -1 31 2 7Z"/></svg>' +
-      '<div class="node-mark" style="--node-color:' + color + '">' + icon + '</div>' +
-      '<div class="node-main"><div class="node-name">' + name + '</div><div class="node-meta">连接地址与端口已隐藏</div><div class="node-detail">' + details + '</div></div>' +
-      '<div class="node-badges"><span class="proto">' + type + '</span></div>' +
-      '</div>';
-  }).join("");
-}
-function copyText(text, successText) {
-  function done() { t(successText || "已复制到剪贴板"); }
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(text).then(done).catch(function(){ fallbackCopy(text, done); });
-  } else {
-    fallbackCopy(text, done);
-  }
-}
-function fallbackCopy(text, done) {
-  var ta = document.createElement("textarea");
-  ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0"; ta.style.pointerEvents = "none";
-  document.body.appendChild(ta); ta.select();
-  try { document.execCommand("copy"); } catch (e) {}
-  document.body.removeChild(ta); done();
-}
-function cp(k) { copyText(routeLinks[k] || "", "路线链接已复制"); }
-function qrKey(k, name) { qr(routeLinks[k] || "", name); }
-function qr(url, name) {
-  document.getElementById("qrTitle").textContent = name + " 路线二维码";
-  document.getElementById("qrImg").src = "https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=" + encodeURIComponent(url);
-  document.getElementById("qrLink").textContent = "订阅链接已隐藏，可直接扫码或复制。";
-  document.getElementById("qrLink").dataset.url = url;
-  document.getElementById("qrModal").classList.add("on");
-}
-function copyModalLink() { copyText(document.getElementById("qrLink").dataset.url || "", "二维码链接已复制"); }
-function cq() { document.getElementById("qrModal").classList.remove("on"); }
-document.getElementById("qrModal").addEventListener("click", function(e) { if (e.target === this) cq(); });
-document.addEventListener("keydown", function(e) { if (e.key === "Escape") cq(); });
-function t(message) {
-  var el = document.getElementById("toast");
-  el.textContent = message; el.classList.add("on");
-  clearTimeout(el._timer); el._timer = setTimeout(function(){ el.classList.remove("on"); }, 2300);
-}
-renderNodes();
+function esc(v){return String(v==null?"":v).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[c];});}
+function protocolColor(type){var t=String(type||"").toLowerCase();if(t.indexOf("vless")>=0)return "#b2f2bb";if(t.indexOf("trojan")>=0)return "#ffd8a8";if(t.indexOf("hysteria")>=0||t.indexOf("hy2")>=0)return "#a5d8ff";if(t.indexOf("tuic")>=0)return "#d0bfff";if(t.indexOf("ss")>=0)return "#ffec99";return "#c3fae8";}
+function flagIcon(code,label){var flags={gb:'<svg viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg"><rect width="60" height="40" fill="#012169"/><path d="M0 0l60 40M60 0L0 40" stroke="#fff" stroke-width="8"/><path d="M0 0l60 40M60 0L0 40" stroke="#C8102E" stroke-width="4"/><path d="M30 0v40M0 20h60" stroke="#fff" stroke-width="13"/><path d="M30 0v40M0 20h60" stroke="#C8102E" stroke-width="8"/></svg>',ng:'<svg viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg"><rect width="20" height="40" fill="#008751"/><rect x="20" width="20" height="40" fill="#fff"/><rect x="40" width="20" height="40" fill="#008751"/></svg>',sg:'<svg viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg"><rect width="60" height="20" fill="#EF3340"/><rect y="20" width="60" height="20" fill="#fff"/><circle cx="16" cy="10" r="7" fill="#fff"/><circle cx="19" cy="10" r="6" fill="#EF3340"/></svg>',us:'<svg viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg"><rect width="60" height="40" fill="#fff"/><g fill="#B22234"><rect y="0" width="60" height="3.08"/><rect y="6.15" width="60" height="3.08"/><rect y="12.31" width="60" height="3.08"/><rect y="18.46" width="60" height="3.08"/><rect y="24.62" width="60" height="3.08"/><rect y="30.77" width="60" height="3.08"/><rect y="36.92" width="60" height="3.08"/></g><rect width="24" height="21.54" fill="#3C3B6E"/></svg>',hk:'<svg viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg"><rect width="60" height="40" fill="#DE2910"/><g fill="#fff" transform="translate(30 20)"><ellipse rx="3" ry="8" transform="rotate(0) translate(0 -8)"/><ellipse rx="3" ry="8" transform="rotate(72) translate(0 -8)"/><ellipse rx="3" ry="8" transform="rotate(144) translate(0 -8)"/><ellipse rx="3" ry="8" transform="rotate(216) translate(0 -8)"/><ellipse rx="3" ry="8" transform="rotate(288) translate(0 -8)"/></g></svg>',tw:'<svg viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg"><rect width="60" height="40" fill="#FE0000"/><rect width="30" height="20" fill="#000095"/><circle cx="15" cy="10" r="6" fill="#fff"/></svg>',jp:'<svg viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg"><rect width="60" height="40" fill="#fff"/><circle cx="30" cy="20" r="11" fill="#BC002D"/></svg>'};return '<span class="flag-svg" role="img" aria-label="'+esc(label||code.toUpperCase())+'">'+(flags[code]||'')+'</span>';}
+function regionIcon(name,server){var text=String((name||"")+" "+(server||"")).toLowerCase();if(text.indexOf("🇬🇧")>=0)return flagIcon("gb","英国");if(text.indexOf("🇳🇬")>=0)return flagIcon("ng","尼日利亚");if(text.indexOf("🇺🇸")>=0)return flagIcon("us","美国");if(text.indexOf("🇸🇬")>=0)return flagIcon("sg","新加坡");if(text.indexOf("🇭🇰")>=0)return flagIcon("hk","香港");if(text.indexOf("🇹🇼")>=0)return flagIcon("tw","台湾");if(text.indexOf("🇯🇵")>=0)return flagIcon("jp","日本");if(/\b(uk|gb|london|united[ -]*kingdom|great[ -]*britain)\b|英国|英國|倫敦|伦敦/.test(text))return flagIcon("gb","英国");if(/\b(ng|nigeria|lagos|abuja)\b|尼日利亚|尼日利亞|奈及利亚|奈及利亞/.test(text))return flagIcon("ng","尼日利亚");if(/\b(hk|hong[ -]*kong)\b|香港|港/.test(text))return flagIcon("hk","香港");if(/\b(tw|taiwan)\b|台湾|臺灣/.test(text))return flagIcon("tw","台湾");if(/\b(sg|singapore)\b|新加坡|狮城/.test(text))return flagIcon("sg","新加坡");if(/\b(jp|japan|tokyo|osaka)\b|日本|东京|東京|大阪|软银|iij/.test(text))return flagIcon("jp","日本");if(/\b(us|usa|united[ -]*states|los[ -]*angeles|new[ -]*york|seattle|san[ -]*jose|dallas|atlanta)\b|美国|美國|洛杉矶|洛杉磯|硅谷|纽约|紐約|西雅图|西雅圖|圣何塞|聖何塞|达拉斯|達拉斯|堪萨斯|堪薩斯/.test(text))return flagIcon("us","美国");return "";}
+function nodeIcon(name,server,type){var flag=regionIcon(name,server);if(flag)return flag;var t=String(type||"").toLowerCase();if(t.indexOf("vless")>=0)return "V";if(t.indexOf("trojan")>=0)return "T";if(t.indexOf("hysteria")>=0||t.indexOf("hy2")>=0)return "H";if(t.indexOf("tuic")>=0)return "U";if(t.indexOf("ss")>=0)return "S";return "N";}
+function displayName(name){var clean=String(name||"未命名节点").replace(/[🇦-🇿]{2}/gu,"").replace(/^\\s*[-|｜·•:：_]+\\s*/,"").replace(/\\s{2,}/g," ").trim();var relay=clean.match(/^(.+?)[-—–_\\s]*(中转|中轉|前置|反连|反連)[-—–_\\s]*(.+)$/);if(relay&&relay[1]&&relay[3])clean=relay[3].trim()+"出口（"+relay[1].trim()+relay[2]+"）";return clean||"未命名节点";}
+function detailPill(text){return '<li>'+esc(text)+'</li>';}
+function vlessDetails(n){var parts=["VLESS"];if(n&&n["reality-opts"])parts.push("REALITY");else if(n&&n.tls)parts.push("TLS");parts.push(String(n&&n.network||"tcp").toUpperCase());if(n&&n.flow)parts.push(String(n.flow).replace(/^xtls-rprx-/,""));return parts.slice(0,4).map(detailPill).join("");}
+function nodeDetails(n){var type=String(n&&n.type||"").toLowerCase();if(type==="vless")return vlessDetails(n);if(type==="trojan")return detailPill("Trojan")+(n&&n.sni?detailPill("SNI "+n.sni):"");if(type==="hysteria2")return detailPill("Hysteria2")+(n&&n.sni?detailPill("SNI "+n.sni):"");return detailPill(type||"Proxy");}
+function renderNodes(){var el=document.getElementById("nodeList");if(!el)return;if(!Array.isArray(proxies)||!proxies.length){el.innerHTML='<div class="empty" data-rough-fill="var(--paper)"><span class="rough-fallback"></span><svg class="rough-outline"></svg>这张白板暂时还是空的。</div>';drawRoughSoon();return;}el.innerHTML=proxies.map(function(n,i){var name=esc(displayName(n&&n.name));var type=esc(n&&n.type||"Unknown");var color=protocolColor(n&&n.type||"");var icon=nodeIcon(n&&n.name||"","",n&&n.type||"");var details=nodeDetails(n||{});var fill=["var(--paper)","#fffdf7","#fff9db","#f8f1ff"][i%4];return '<article class="paper-card node-card" data-rough-fill="'+fill+'"><span class="rough-fallback"></span><svg class="rough-outline"></svg><div class="paper-card__top"><div class="paper-card__icon"><span class="icon-badge" style="--icon-paper:'+color+'">'+icon+'</span></div><span class="paper-card__index">NODE '+String(i+1).padStart(2,"0")+'</span></div><h3 class="node-card__name">'+name+'</h3><p class="node-meta">连接地址与端口已隐藏</p><div class="paper-card__footer"><ul class="tag-list">'+details+'</ul><span class="paper-card__index">'+type+'</span></div></article>';}).join("");drawRoughSoon();}
+function drawRoughSoon(){setTimeout(drawRoughOutlines,0);}
+function drawRoughOutlines(){if(!window.rough)return;document.querySelectorAll('svg.rough-outline').forEach(function(svg,idx){var parent=svg.parentElement;if(!parent)return;var r=parent.getBoundingClientRect();var w=Math.max(1,Math.round(r.width));var h=Math.max(1,Math.round(r.height));svg.replaceChildren();svg.setAttribute('viewBox','0 0 '+w+' '+h);var rc=rough.svg(svg);var fill=parent.getAttribute('data-rough-fill')||'transparent';var shape=rc.rectangle(5,5,Math.max(1,w-10),Math.max(1,h-10),{seed:91+idx,stroke:'#25262b',strokeWidth:1.8,roughness:1.45,bowing:1.35,fill:fill,fillStyle:'solid',fillWeight:1.2});svg.appendChild(shape);});}
+function copyText(text,successText){function done(){t(successText||"已复制到剪贴板");}if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(done).catch(function(){fallbackCopy(text,done);});}else fallbackCopy(text,done);}
+function fallbackCopy(text,done){var ta=document.createElement("textarea");ta.value=text;ta.style.position="fixed";ta.style.opacity="0";ta.style.pointerEvents="none";document.body.appendChild(ta);ta.select();try{document.execCommand("copy");}catch(e){}document.body.removeChild(ta);done();}
+function cp(k){copyText(routeLinks[k]||"","路线链接已复制");}
+function qrKey(k,name){qr(routeLinks[k]||"",name);}
+function qr(url,name){document.getElementById("qrTitle").textContent=name+" 路线二维码";document.getElementById("qrImg").src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data="+encodeURIComponent(url);document.getElementById("qrLink").textContent="订阅链接已隐藏，可直接扫码或复制。";document.getElementById("qrLink").dataset.url=url;document.getElementById("qrModal").classList.add("on");drawRoughSoon();}
+function copyModalLink(){copyText(document.getElementById("qrLink").dataset.url||"","二维码链接已复制");}
+function cq(){document.getElementById("qrModal").classList.remove("on");}
+document.getElementById("qrModal").addEventListener("click",function(e){if(e.target===this)cq();});document.addEventListener("keydown",function(e){if(e.key==="Escape")cq();});window.addEventListener('resize',drawRoughOutlines);window.addEventListener('load',drawRoughOutlines);function t(message){var el=document.getElementById("toast");el.textContent=message;el.classList.add("on");clearTimeout(el._timer);el._timer=setTimeout(function(){el.classList.remove("on");},2300);}renderNodes();drawRoughSoon();
 </script>
 </body>
 </html>`;

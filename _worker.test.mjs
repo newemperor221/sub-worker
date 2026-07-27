@@ -32,9 +32,10 @@ test('GET /login renders the login page', async () => {
   assert.match(body, /<form[^>]+method="POST"[^>]+action="\/login"/);
   assert.match(body, /用户名/);
   assert.match(body, /密码/);
-  assert.match(body, /class="scene"/);
-  assert.match(body, /class="sign"/);
-  assert.match(body, /ISLAND GATE/);
+  assert.match(body, /login-shell/);
+  assert.match(body, /roughjs/);
+  assert.match(body, /登录白板/);
+  assert.match(body, /纸边/);
 });
 
 test('POST /login rejects invalid credentials', async () => {
@@ -92,11 +93,13 @@ test('GET /random/home with a valid matching session renders dashboard', async (
   const body = await res.text();
 
   assert.equal(res.status, 200);
-  assert.match(body, /订阅小岛/);
+  assert.match(body, /纸边订阅白板/);
   assert.match(body, /\/api\/sub\?token=subtoken&type=clash/);
   assert.match(body, /\/api\/sub\?token=subtoken&type=b64/);
   assert.match(body, /href="\/logout"/);
   assert.match(body, /退出/);
+  assert.match(body, /roughjs/);
+  assert.match(body, /node-grid/);
   assert.match(res.headers.get('cache-control') || '', /no-store/);
   assert.doesNotMatch(body, /sub\.example\.com\/subtoken\?/);
 });
