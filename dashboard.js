@@ -32,7 +32,8 @@ export function renderDashboard(config, proxies, baseUrl) {
   --purple: #d0bfff;
   --red: #ffc9c9;
   --teal: #c3fae8;
-  --shadow: rgba(30, 30, 30, .12);
+  --shadow: rgba(30, 30, 30, .10);
+  --card-border: #f0efff;
   --ease: cubic-bezier(.22,.7,.2,1);
 }
 html { min-height: 100%; background: var(--bg); }
@@ -63,10 +64,16 @@ button, .route-card, .node-row { -webkit-tap-highlight-color: transparent; }
   content: "";
   position: absolute;
   inset: 7px -7px -7px 7px;
-  border: 2px solid rgba(30,30,30,.38);
+  border: 2px solid rgba(30,30,30,.34);
   border-radius: 26px 20px 30px 22px;
   pointer-events: none;
 }
+.rough-svg { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; overflow:visible; }
+.rough-svg path, .rough-svg ellipse { fill:none; stroke:var(--ink-black); stroke-width:2.8; stroke-linecap:round; stroke-linejoin:round; }
+.rough-svg .soft { stroke-width:1.8; opacity:.48; }
+.rough-svg .marker { stroke:var(--yellow); stroke-width:13; opacity:.78; mix-blend-mode:multiply; }
+.rough-note { position:relative; display:inline-block; }
+.rough-note .rough-svg { inset:-12px -16px; width:calc(100% + 32px); height:calc(100% + 24px); }
 .tape { position:absolute; width:86px; height:24px; background:rgba(255,243,191,.82); border:1px solid rgba(30,30,30,.18); box-shadow:0 2px 5px rgba(30,30,30,.09); z-index:2; }
 .tape.t1 { left:70px; top:-12px; transform:rotate(-7deg); }
 .tape.t2 { right:105px; top:-10px; transform:rotate(6deg); }
@@ -84,14 +91,15 @@ button, .route-card, .node-row { -webkit-tap-highlight-color: transparent; }
 .logout-btn:focus-visible { outline:4px solid var(--blue); outline-offset:3px; }
 
 .hero { position:relative; z-index:1; min-height:230px; display:grid; grid-template-columns:minmax(0,1.1fr) minmax(270px,.9fr); gap:24px; align-items:center; }
-.hero-copy { position:relative; padding:24px 24px 26px; border:2.5px solid var(--ink-black); border-radius:28px 20px 32px 22px; background:#fff; box-shadow:4px 5px 0 var(--shadow); transform:rotate(-.4deg); }
-.hero-copy:after { content:""; position:absolute; right:26px; bottom:-20px; width:120px; height:48px; border-bottom:3px solid var(--ink-black); border-right:3px solid var(--ink-black); border-radius:0 0 35px 0; transform:rotate(-4deg); }
+.hero-copy { position:relative; padding:28px 26px 30px; border:1px solid var(--card-border); border-radius:16px; background:#fff; box-shadow:none; transform:rotate(-.25deg); overflow:visible; }
+.hero-copy:after { content:""; position:absolute; right:30px; bottom:-20px; width:120px; height:48px; border-bottom:3px solid var(--ink-black); border-right:3px solid var(--ink-black); border-radius:0 0 35px 0; transform:rotate(-4deg); }
 .kicker { display:inline-block; padding:3px 10px; border:2px solid var(--ink-black); border-radius:999px; background:var(--yellow); color:var(--muted); font-size:16px; letter-spacing:.08em; }
 h1 { margin-top:14px; font-size:clamp(48px, 8vw, 76px); line-height:.95; letter-spacing:.02em; color:var(--ink); }
 .mark { background: linear-gradient(transparent 52%, rgba(255,243,191,.96) 52%, rgba(255,243,191,.96) 86%, transparent 86%); padding:0 .06em; }
 .hero-copy p { margin-top:15px; max-width:650px; color:var(--muted); font-family:Kalam, 'Ma Shan Zheng', cursive; font-size:17px; line-height:1.72; font-weight:700; }
+.hero-copy .rough-svg.board-outline { inset:-7px -8px -9px -6px; width:calc(100% + 14px); height:calc(100% + 16px); }
 .hero-stats { display:grid; grid-template-columns:repeat(3, 1fr); gap:12px; }
-.stat { min-height:105px; display:flex; flex-direction:column; justify-content:center; align-items:center; border:2.5px solid var(--ink-black); border-radius:22px 18px 24px 19px; box-shadow:3px 4px 0 var(--shadow); background:var(--paper); position:relative; }
+.stat { min-height:105px; display:flex; flex-direction:column; justify-content:center; align-items:center; border:1px solid var(--card-border); border-radius:16px; box-shadow:none; background:var(--paper); position:relative; }
 .stat:nth-child(1) { background:var(--green); transform:rotate(1.5deg); }
 .stat:nth-child(2) { background:var(--yellow); transform:rotate(-1.8deg); }
 .stat:nth-child(3) { background:var(--orange); transform:rotate(1deg); }
@@ -103,11 +111,11 @@ h1 { margin-top:14px; font-size:clamp(48px, 8vw, 76px); line-height:.95; letter-
 .section-title { display:inline-flex; align-items:center; gap:9px; margin:0 0 17px 12px; padding:6px 14px; border:2.5px solid var(--ink-black); border-radius:14px 18px 12px 20px; background:linear-gradient(transparent 45%, var(--purple) 45% 88%, transparent 88%); box-shadow:none; transform:rotate(-1deg); font-size:22px; }
 .section-title .dot { width:10px; height:10px; border:2px solid var(--ink-black); border-radius:50%; background:var(--paper); }
 .route-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px; }
-.route-card { position:relative; min-height:218px; padding:22px; text-align:left; cursor:pointer; border:2.5px solid var(--ink-black); border-radius:18px; box-shadow:none; transition:transform .18s var(--ease), background .18s var(--ease); }
-.route-card:before { content:""; position:absolute; inset:7px -6px -6px 7px; border:2px solid rgba(30,30,30,.35); border-radius:20px 28px 20px 30px; pointer-events:none; }
+.route-card { position:relative; min-height:218px; padding:22px; text-align:left; cursor:pointer; border:1px solid var(--card-border); border-radius:16px; box-shadow:none; transition:transform .18s var(--ease), background .18s var(--ease); overflow:visible; }
+.route-card .rough-svg.card-outline { inset:-5px -6px -7px -5px; width:calc(100% + 12px); height:calc(100% + 12px); }
 .route-card.clash { background:var(--yellow); transform:rotate(-.7deg); }
 .route-card.b64 { background:var(--teal); transform:rotate(.8deg); }
-.route-card:hover { transform:translateY(-4px) rotate(0deg); box-shadow:none; background:#e7e7e7; }
+.route-card:hover { transform:translateY(-4px) rotate(0deg) scale(1.01); box-shadow:none; background:#e7e7e7; }
 .route-card:focus-visible { outline:4px solid var(--orange); outline-offset:4px; }
 .route-tag { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; }
 .route-tag span { color:var(--muted); font-size:15px; letter-spacing:.12em; }
@@ -117,6 +125,7 @@ h1 { margin-top:14px; font-size:clamp(48px, 8vw, 76px); line-height:.95; letter-
 .route-card h2 { font-size:31px; line-height:1; position:relative; display:inline-block; }
 .clash h2:after { content:""; position:absolute; left:-2px; right:-4px; bottom:-8px; border-bottom:4px solid var(--ink-black); border-radius:50%; transform:rotate(-1deg); }
 .b64 h2:after { content:""; position:absolute; left:-10px; right:-10px; top:-8px; bottom:-9px; border:3px solid var(--ink-black); border-radius:48% 52% 45% 55%; transform:rotate(3deg); }
+.route-card h2 .rough-svg { inset:-14px -18px -16px -16px; width:calc(100% + 34px); height:calc(100% + 30px); }
 .route-card .hint { margin-top:5px; color:#555; font-family:Kalam, 'Ma Shan Zheng', cursive; font-size:13px; }
 .route-line { position:relative; margin:18px 0 15px; padding:10px 12px; border:2px dashed var(--ink-black); border-radius:14px 17px 13px 16px; background:rgba(255,255,255,.45); color:#555; font-family:Kalam, 'Ma Shan Zheng', cursive; font-size:12px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
 .route-line:before { content:"PRIVATE"; position:absolute; right:10px; top:-9px; padding:0 5px; background:inherit; color:var(--muted); font-family:Kalam, 'Ma Shan Zheng', cursive; font-size:11px; font-weight:700; }
@@ -127,18 +136,18 @@ h1 { margin-top:14px; font-size:clamp(48px, 8vw, 76px); line-height:.95; letter-
 .action-btn:active { transform:translateY(2px); box-shadow:none; }
 .action-btn:focus-visible { outline:4px solid var(--blue); outline-offset:3px; }
 
-.node-board { position:relative; padding:20px; border:2.5px solid var(--ink-black); border-radius:24px 18px 30px 20px; background:rgba(255,255,255,.46); box-shadow:7px 8px 0 var(--shadow); }
+.node-board { position:relative; padding:20px; border:1px solid var(--card-border); border-radius:16px; background:rgba(255,255,255,.62); box-shadow:none; }
 .node-board:before { content:""; position:absolute; inset:10px; pointer-events:none; opacity:.20; background:repeating-linear-gradient(0deg, transparent 0 27px, #1e1e1e 28px 29px); }
 .node-top { position:relative; display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin-bottom:14px; }
 .node-title { display:flex; align-items:center; gap:10px; font-size:24px; }
 .node-title .pin { width:38px; height:38px; display:grid; place-items:center; border:2.5px solid var(--ink-black); border-radius:50% 46% 50% 44%; background:var(--red); transform:rotate(-7deg); }
 .node-sub { color:var(--muted); font-family:Kalam, 'Ma Shan Zheng', cursive; font-size:12px; text-align:right; }
-.node-list { position:relative; display:grid; gap:12px; }
-.node-row { display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:13px; min-height:76px; padding:12px 14px 12px 11px; border:2px solid var(--ink-black); border-radius:20px 16px 23px 17px; background:var(--paper); box-shadow:3px 4px 0 var(--shadow); transition:transform .18s var(--ease); }
+.node-list { position:relative; display:grid; grid-template-columns:repeat(auto-fit,minmax(245px,1fr)); gap:14px; align-items:start; }
+.node-row { display:grid; grid-template-columns:auto minmax(0,1fr); align-items:center; gap:13px; min-height:116px; padding:13px 14px 14px 12px; border:1px solid var(--card-border); border-radius:16px; background:var(--note-color,var(--paper)); box-shadow:none; transition:transform .18s var(--ease), background .18s var(--ease); position:relative; overflow:visible; }
 .node-row:nth-child(3n+1) { transform:rotate(-.45deg); }
 .node-row:nth-child(3n+2) { transform:rotate(.35deg); }
 .node-row:nth-child(3n) { transform:rotate(-.15deg); }
-.node-row:hover { transform:translateX(5px) rotate(0deg); }
+.node-row:hover { transform:translateY(-4px) rotate(0deg); background:#e7e7e7; }
 .node-mark { width:48px; height:48px; display:grid; place-items:center; border:2px solid var(--ink-black); color:var(--ink); border-radius:50% 46% 50% 43%; background:var(--node-color,#a5d8ff); font-size:21px; }
 .node-mark .flag-svg { width:31px; height:22px; display:block; border:1px solid rgba(30,30,30,.45); border-radius:4px; background:#fff; overflow:hidden; }
 .node-mark .flag-svg svg { width:100%; height:100%; display:block; }
@@ -147,7 +156,7 @@ h1 { margin-top:14px; font-size:clamp(48px, 8vw, 76px); line-height:.95; letter-
 .node-meta { margin-top:2px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; color:var(--muted); font-family:Kalam, 'Ma Shan Zheng', cursive; font-size:11px; }
 .node-detail { margin-top:7px; display:flex; flex-wrap:wrap; gap:6px; }
 .detail-pill { padding:3px 8px; border:2px solid var(--ink-black); border-radius:999px; background:var(--blue); color:var(--ink); font-size:12px; line-height:1; }
-.node-badges { display:flex; justify-content:flex-end; align-items:center; flex-wrap:wrap; gap:6px; }
+.node-badges { grid-column:1 / -1; display:flex; justify-content:flex-start; align-items:center; flex-wrap:wrap; gap:6px; }
 .proto { padding:4px 9px; border:2px solid var(--ink-black); border-radius:999px; background:var(--green); color:var(--ink); font-size:12px; letter-spacing:.04em; }
 .empty { padding:30px 16px; border:3px dashed var(--ink-black); border-radius:18px; color:var(--muted); text-align:center; background:rgba(255,255,255,.5); font-family:Kalam, 'Ma Shan Zheng', cursive; }
 
@@ -157,7 +166,7 @@ h1 { margin-top:14px; font-size:clamp(48px, 8vw, 76px); line-height:.95; letter-
 
 .modal { display:none; position:fixed; inset:0; z-index:20; align-items:center; justify-content:center; padding:20px; background:rgba(30,30,30,.28); backdrop-filter:blur(4px); }
 .modal.on { display:flex; }
-.modal-card { width:min(410px,100%); position:relative; padding:38px 24px 24px; text-align:center; border:2.5px solid var(--ink-black); border-radius:28px 21px 30px 24px; background:var(--paper); box-shadow:8px 10px 0 var(--shadow); animation:pop .22s var(--ease); }
+.modal-card { width:min(410px,100%); position:relative; padding:38px 24px 24px; text-align:center; border:1px solid var(--card-border); border-radius:16px; background:var(--paper); box-shadow:4px 5px 0 var(--shadow); animation:pop .22s var(--ease); }
 .modal-card .tape { left:50%; top:-13px; transform:translateX(-50%) rotate(-4deg); }
 .modal-card h3 { font-size:29px; }
 .modal-card p { margin:6px 0 16px; color:var(--muted); font-family:Kalam, 'Ma Shan Zheng', cursive; font-size:12px; }
@@ -190,7 +199,7 @@ h1 { margin-top:14px; font-size:clamp(48px, 8vw, 76px); line-height:.95; letter-
   .route-card h2 { font-size:27px; }
   .node-board { padding:14px; }
   .node-row { grid-template-columns:auto minmax(0,1fr); }
-  .node-badges { grid-column:2; justify-content:flex-start; }
+  .node-badges { grid-column:1 / -1; justify-content:flex-start; }
   .node-top { align-items:flex-start; } .node-sub { display:none; }
 }
 </style>
@@ -208,6 +217,7 @@ h1 { margin-top:14px; font-size:clamp(48px, 8vw, 76px); line-height:.95; letter-
 
   <header class="hero">
     <section class="hero-copy">
+      <svg class="rough-svg board-outline" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path d="M2 8 C18 2 70 4 96 7 C101 22 98 76 94 96 C69 101 24 99 4 94 C0 70 1 29 2 8Z"/><path class="soft" d="M4 6 C31 0 73 3 97 9 C99 32 100 70 93 94 C61 98 31 102 6 92 C3 62 -1 33 4 6Z"/></svg>
       <span class="kicker">hand drawn dashboard</span>
       <h1><span class="mark">订阅</span>白板</h1>
       <p>{{SUB_NAME}} · 像 Neal.fun 的小工具卡片、RoughNotation 的手绘标注、Excalidraw Blog 的浅色白板。订阅地址默认隐藏，只保留复制和二维码。</p>
@@ -223,6 +233,7 @@ h1 { margin-top:14px; font-size:clamp(48px, 8vw, 76px); line-height:.95; letter-
     <h2 class="section-title"><span class="dot"></span>导出路线</h2>
     <div class="route-grid">
       <article class="route-card clash" role="button" tabindex="0" onclick="cp('clash')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();cp('clash')}">
+        <svg class="rough-svg card-outline" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path d="M3 8 C23 2 72 4 96 6 C99 31 98 72 94 95 C67 99 27 98 5 93 C1 70 0 29 3 8Z"/><path class="soft" d="M5 6 C29 1 75 2 95 9 C98 25 100 76 92 94 C70 101 23 97 7 92 C2 62 2 31 5 6Z"/></svg>
         <div class="route-tag"><span>ROUTE</span><b>01</b></div>
         <div class="route-head"><div class="route-icon">C</div><div><h2>Clash / Meta</h2><p class="hint">桌面与规则客户端</p></div></div>
         <div class="route-line" id="u-clash">订阅链接已隐藏，点击复制或扫码使用</div>
@@ -232,6 +243,7 @@ h1 { margin-top:14px; font-size:clamp(48px, 8vw, 76px); line-height:.95; letter-
         </div>
       </article>
       <article class="route-card b64" role="button" tabindex="0" onclick="cp('b64')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();cp('b64')}">
+        <svg class="rough-svg card-outline" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path d="M4 7 C28 2 69 3 95 8 C99 27 99 75 93 94 C65 100 28 99 6 92 C1 68 2 27 4 7Z"/><path class="soft" d="M2 9 C20 1 80 4 97 7 C101 34 97 69 95 96 C75 99 24 101 4 91 C1 59 -1 36 2 9Z"/></svg>
         <div class="route-tag"><span>ROUTE</span><b>02</b></div>
         <div class="route-head"><div class="route-icon">B</div><div><h2>Base64</h2><p class="hint">通用 / 移动端客户端</p></div></div>
         <div class="route-line" id="u-b64">订阅链接已隐藏，点击复制或扫码使用</div>
@@ -370,7 +382,10 @@ function renderNodes() {
     var color = protocolColor(n && n.type || "");
     var icon = nodeIcon(n && n.name || "", "", n && n.type || "");
     var details = nodeDetails(n || {});
-    return '<div class="node-row">' +
+    var noteColors = ["#fff3bf", "#c3fae8", "#b2f2bb", "#ffd8a8", "#d0bfff", "#a5d8ff"];
+    var note = noteColors[Math.abs((name + type).split("").reduce(function(a, ch) { return a + ch.charCodeAt(0); }, 0)) % noteColors.length];
+    return '<div class="node-row" style="--note-color:' + note + '">' +
+      '<svg class="rough-svg card-outline" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path d="M4 9 C23 2 74 3 96 8 C99 29 98 72 93 95 C70 100 25 98 6 92 C2 66 1 32 4 9Z"/><path class="soft" d="M2 7 C28 1 70 4 95 6 C101 34 97 68 95 94 C68 99 30 101 5 91 C1 61 -1 31 2 7Z"/></svg>' +
       '<div class="node-mark" style="--node-color:' + color + '">' + icon + '</div>' +
       '<div class="node-main"><div class="node-name">' + name + '</div><div class="node-meta">连接地址与端口已隐藏</div><div class="node-detail">' + details + '</div></div>' +
       '<div class="node-badges"><span class="proto">' + type + '</span></div>' +
