@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import worker from './_worker.js';
 
 const LINK = 'vless://11111111-1111-4111-8111-111111111111@example.com:443?security=tls&type=tcp#TestNode';
+const LINK_A = 'vless://22222222-2222-4222-8222-222222222222@example-a.com:443?security=tls&type=tcp#NodeA';
+const LINK_B = 'vless://33333333-3333-4333-8333-333333333333@example-b.com:443?security=tls&type=tcp#NodeB';
 const env = {
   TOKEN: 'subtoken',
   LINK,
@@ -11,9 +13,16 @@ const env = {
   ADMIN_PASS: 'pass123',
   SESSION_SECRET: 'unit-test-secret',
 };
+const numberedLinkEnv = {
+  ...env,
+  LINK: '',
+  LINK2: LINK_B,
+  LINK1: LINK_A,
+  SUBNAME: 'Test Subscription',
+};
 
-async function fetchPath(path, init = {}) {
-  return worker.fetch(new Request('https://sub.example.com' + path, init), env);
+async function fetchPath(path, init = {}, testEnv = env) {
+  return worker.fetch(new Request('https://sub.example.com' + path, init), testEnv);
 }
 
 test('GET / without session redirects to /login', async () => {
@@ -142,6 +151,24 @@ test('subscription API is token protected and does not require browser session',
   const body = await res.text();
   assert.equal(res.status, 200);
   assert.equal(body, btoa(unescape(encodeURIComponent(LINK))));
+});
+
+test('subscription API reads one proxy link per numbered LINK variable in numeric order', async () => {
+  const res = await fetchPath('/api/sub?token=subtoken&type=b64', {}, numberedLinkEnv);
+  const body = await res.text();
+  const expected = [LINK_A, LINK_B].join('\n');
+
+  assert.equal(res.status, 200);
+  assert.equal(body, btoa(unescape(encodeURIComponent(expected))));
+});
+
+test('Clash output includes proxies from numbered LINK variables', async () => {
+  const res = await fetchPath('/api/sub?token=subtoken&type=clash', {}, numberedLinkEnv);
+  const body = await res.text();
+
+  assert.equal(res.status, 200);
+  assert.match(body, /name: "NodeA"/);
+  assert.match(body, /name: "NodeB"/);
 });
 
 test('legacy /TOKEN?b64 subscription URL remains compatible', async () => {

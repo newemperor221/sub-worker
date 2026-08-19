@@ -26,7 +26,7 @@
 
 - 面板登录使用 `ADMIN_USER` / `ADMIN_PASS`
 - 订阅接口使用 `TOKEN`
-- 节点内容来自环境变量 `LINK`
+- 节点内容来自环境变量 `LINK1` / `LINK2` / ...（兼容旧版 `LINK`）
 - 不需要 D1 / KV / 数据库
 - 主页不展示完整订阅 URL
 - 登录后进入随机路径 `/随机字符/home`
@@ -134,7 +134,8 @@ Cloudflare Pages / Workers 需要配置：
 | 变量名 | 必填 | 说明 |
 |---|---:|---|
 | `TOKEN` | ✅ | 订阅接口访问令牌，会出现在客户端订阅 URL 中 |
-| `LINK` | ✅ | 节点分享链接，一行一个 |
+| `LINK1`, `LINK2`, ... | ✅ | 推荐格式：每个变量只放一个节点分享链接，按数字顺序聚合 |
+| `LINK` | ❌ | 旧版兼容：可放一个链接，或旧版多行链接；会排在 `LINK1` 之前 |
 | `ADMIN_USER` | ✅ | 网页面板登录用户名 |
 | `ADMIN_PASS` | ✅ | 网页面板登录密码 |
 | `SESSION_SECRET` | ✅ | Cookie 签名密钥，只给 Worker 后端使用 |
@@ -161,23 +162,26 @@ openssl rand -hex 32
 
 ---
 
-## `LINK` 格式
+## `LINK1` / `LINK2` 格式
 
-`LINK` 是多行文本，每行一个节点分享链接。
+推荐在 Cloudflare 环境变量里使用 `LINK1`、`LINK2`、`LINK3` ...：**一个变量只放一个节点分享链接**。Worker 会按数字顺序聚合它们。
+
+`LINK` 仍保留兼容：可以放一个链接，也可以继续放旧版多行链接；如果同时设置 `LINK` 和 `LINK1`，`LINK` 里的内容会排在最前面。
 
 示例只保留字段结构，真实 UUID / 密钥 / 地址请自行替换：
 
 ```text
-vless://uuid@example.com:443?encryption=none&security=reality&sni=www.apple.com&fp=chrome&pbk=PUBLIC_KEY&sid=SHORT_ID&type=xhttp&path=%2Fxhttp&mode=stream-up#台湾
-vless://uuid@example.com:443?encryption=none&flow=xtls-rprx-vision&security=reality&sni=www.apple.com&fp=chrome&pbk=PUBLIC_KEY&sid=SHORT_ID&type=tcp#洛杉矶
-trojan://password@example.com:443?sni=example.com#Trojan-Example
-hysteria2://password@example.com:443?sni=example.com#HY2-Example
-hy2://password@example.com:443?sni=example.com#HY2-Short
+LINK1=vless://uuid@example.com:443?encryption=none&security=reality&sni=www.apple.com&fp=chrome&pbk=PUBLIC_KEY&sid=SHORT_ID&type=xhttp&path=%2Fxhttp&mode=stream-up#台湾
+LINK2=vless://uuid@example.com:443?encryption=none&flow=xtls-rprx-vision&security=reality&sni=www.apple.com&fp=chrome&pbk=PUBLIC_KEY&sid=SHORT_ID&type=tcp#洛杉矶
+LINK3=trojan://password@example.com:443?sni=example.com#Trojan-Example
+LINK4=hysteria2://password@example.com:443?sni=example.com#HY2-Example
+LINK5=hy2://password@example.com:443?sni=example.com#HY2-Short
 ```
 
 注意：
 
-- 一行一个节点
+- `LINK1` / `LINK2` / `LINK3` 按数字顺序输出
+- 每个变量只放一个节点
 - 节点名称建议带地区关键词，例如 `台湾`、`香港`、`日本`、`洛杉矶`
 - REALITY 节点需要保留 `sni`、`fp`、`pbk`、`sid`
 - XHTTP 建议写清楚 `type=xhttp` 和 `mode=stream-up`
@@ -266,7 +270,9 @@ sw_session  # 旧版本兼容清理
 4. 构建命令留空。
 5. 配置环境变量：
    - `TOKEN`
-   - `LINK`
+   - `LINK1`
+   - `LINK2`
+   - `LINK3` ...（每个变量一个节点；按实际节点数量继续添加）
    - `ADMIN_USER`
    - `ADMIN_PASS`
    - `SESSION_SECRET`
