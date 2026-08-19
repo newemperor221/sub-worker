@@ -6,6 +6,7 @@ const LINK = 'vless://11111111-1111-4111-8111-111111111111@example.com:443?secur
 const LINK_A = 'vless://22222222-2222-4222-8222-222222222222@example-a.com:443?security=tls&type=tcp#NodeA';
 const LINK_B = 'vless://33333333-3333-4333-8333-333333333333@example-b.com:443?security=tls&type=tcp#NodeB';
 const RELAY_LINK = 'vless://44444444-4444-4444-8444-444444444444@example-sg.com:443?security=tls&type=tcp#🇸🇬 东京-中转-新加坡';
+const FORMATTED_RELAY_LINK = 'vless://55555555-5555-4555-8555-555555555555@example-sg.com:443?security=tls&type=tcp#🇸🇬 新加坡(东京中转)';
 const env = {
   TOKEN: 'subtoken',
   LINK,
@@ -24,6 +25,11 @@ const numberedLinkEnv = {
 const relayNameEnv = {
   ...env,
   LINK: RELAY_LINK,
+  SUBNAME: 'Test Subscription',
+};
+const formattedRelayNameEnv = {
+  ...env,
+  LINK: FORMATTED_RELAY_LINK,
   SUBNAME: 'Test Subscription',
 };
 
@@ -135,6 +141,22 @@ test('relay node display name uses half-width parentheses without extra 出口 s
   assert.equal(res.status, 200);
   assert.match(body, /新加坡\(东京中转\)/);
   assert.doesNotMatch(body, /出口（|）/);
+});
+
+test('already formatted relay node display name is not normalized twice', async () => {
+  const login = await fetchPath('/login', {
+    method: 'POST',
+    body: new URLSearchParams({ username: 'admin', password: 'pass123' }),
+  }, formattedRelayNameEnv);
+  const cookie = login.headers.get('set-cookie').split(';')[0];
+  const homePath = login.headers.get('location');
+
+  const res = await fetchPath(homePath, { headers: { cookie } }, formattedRelayNameEnv);
+  const body = await res.text();
+
+  assert.equal(res.status, 200);
+  assert.match(body, /新加坡\(东京中转\)/);
+  assert.doesNotMatch(body, /\)\(.*新加坡|\)\(\)\(/);
 });
 
 test('GET another random home path with the same session is rejected', async () => {
