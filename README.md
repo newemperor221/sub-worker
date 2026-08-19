@@ -7,8 +7,6 @@
 [![Rough.js](https://img.shields.io/badge/style-Rough.js%20paper-d9485f?style=flat-square)](#视觉风格)
 [![Node Test](https://img.shields.io/badge/test-node%20--test-b2f2bb?style=flat-square)](#本地测试)
 
-仓库：<https://github.com/newemperor221/sub-worker>
-
 ---
 
 ## 这是什么
@@ -38,8 +36,6 @@
 当前 UI 是：
 
 > **纸边实验室式手绘白板风**
-
-它和 [`newemperor221/vps-jsq`](https://github.com/newemperor221/vps-jsq) 共用同一套视觉语言。
 
 关键词：
 
