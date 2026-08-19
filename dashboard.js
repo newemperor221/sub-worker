@@ -1,6 +1,17 @@
 // Dashboard HTML renderer — Paper Playground hand-drawn theme
 // ===========================================================
 
+function normalizeDisplayName(name) {
+  let clean = String(name || '未命名节点')
+    .replace(/[🇦-🇿]{2}/gu, '')
+    .replace(/^\s*[-|｜·•:：_]+\s*/, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+  const relay = clean.match(/^(.+?)[-—–_\s]*(中转|中轉|前置|反连|反連)[-—–_\s]*(.+)$/);
+  if (relay && relay[1] && relay[3]) clean = `${relay[3].trim()}(${relay[1].trim()}${relay[2]})`;
+  return clean || '未命名节点';
+}
+
 export function renderDashboard(config, proxies, baseUrl) {
   const links = {
     clash: baseUrl + '/api/sub?token=' + encodeURIComponent(config.token) + '&type=clash',
@@ -118,7 +129,7 @@ function protocolColor(type){var t=String(type||"").toLowerCase();if(t.indexOf("
 function flagIcon(code,label){var flags={gb:'<svg viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg"><rect width="60" height="40" fill="#012169"/><path d="M0 0l60 40M60 0L0 40" stroke="#fff" stroke-width="8"/><path d="M0 0l60 40M60 0L0 40" stroke="#C8102E" stroke-width="4"/><path d="M30 0v40M0 20h60" stroke="#fff" stroke-width="13"/><path d="M30 0v40M0 20h60" stroke="#C8102E" stroke-width="8"/></svg>',ng:'<svg viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg"><rect width="20" height="40" fill="#008751"/><rect x="20" width="20" height="40" fill="#fff"/><rect x="40" width="20" height="40" fill="#008751"/></svg>',sg:'<svg viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg"><rect width="60" height="20" fill="#EF3340"/><rect y="20" width="60" height="20" fill="#fff"/><circle cx="16" cy="10" r="7" fill="#fff"/><circle cx="19" cy="10" r="6" fill="#EF3340"/></svg>',us:'<svg viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg"><rect width="60" height="40" fill="#fff"/><g fill="#B22234"><rect y="0" width="60" height="3.08"/><rect y="6.15" width="60" height="3.08"/><rect y="12.31" width="60" height="3.08"/><rect y="18.46" width="60" height="3.08"/><rect y="24.62" width="60" height="3.08"/><rect y="30.77" width="60" height="3.08"/><rect y="36.92" width="60" height="3.08"/></g><rect width="24" height="21.54" fill="#3C3B6E"/></svg>',hk:'<svg viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg"><rect width="60" height="40" fill="#DE2910"/><g fill="#fff" transform="translate(30 20)"><ellipse rx="3" ry="8" transform="rotate(0) translate(0 -8)"/><ellipse rx="3" ry="8" transform="rotate(72) translate(0 -8)"/><ellipse rx="3" ry="8" transform="rotate(144) translate(0 -8)"/><ellipse rx="3" ry="8" transform="rotate(216) translate(0 -8)"/><ellipse rx="3" ry="8" transform="rotate(288) translate(0 -8)"/></g></svg>',tw:'<svg viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg"><rect width="60" height="40" fill="#FE0000"/><rect width="30" height="20" fill="#000095"/><circle cx="15" cy="10" r="6" fill="#fff"/></svg>',jp:'<svg viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg"><rect width="60" height="40" fill="#fff"/><circle cx="30" cy="20" r="11" fill="#BC002D"/></svg>'};return '<span class="flag-svg" role="img" aria-label="'+esc(label||code.toUpperCase())+'">'+(flags[code]||'')+'</span>';}
 function regionIcon(name,server){var text=String((name||"")+" "+(server||"")).toLowerCase();if(text.indexOf("🇬🇧")>=0)return flagIcon("gb","英国");if(text.indexOf("🇳🇬")>=0)return flagIcon("ng","尼日利亚");if(text.indexOf("🇺🇸")>=0)return flagIcon("us","美国");if(text.indexOf("🇸🇬")>=0)return flagIcon("sg","新加坡");if(text.indexOf("🇭🇰")>=0)return flagIcon("hk","香港");if(text.indexOf("🇹🇼")>=0)return flagIcon("tw","台湾");if(text.indexOf("🇯🇵")>=0)return flagIcon("jp","日本");if(/\b(uk|gb|london|united[ -]*kingdom|great[ -]*britain)\b|英国|英國|倫敦|伦敦/.test(text))return flagIcon("gb","英国");if(/\b(ng|nigeria|lagos|abuja)\b|尼日利亚|尼日利亞|奈及利亚|奈及利亞/.test(text))return flagIcon("ng","尼日利亚");if(/\b(hk|hong[ -]*kong)\b|香港|港/.test(text))return flagIcon("hk","香港");if(/\b(tw|taiwan)\b|台湾|臺灣/.test(text))return flagIcon("tw","台湾");if(/\b(sg|singapore)\b|新加坡|狮城/.test(text))return flagIcon("sg","新加坡");if(/\b(jp|japan|tokyo|osaka)\b|日本|东京|東京|大阪|软银|iij/.test(text))return flagIcon("jp","日本");if(/\b(us|usa|united[ -]*states|los[ -]*angeles|new[ -]*york|seattle|san[ -]*jose|dallas|atlanta)\b|美国|美國|洛杉矶|洛杉磯|硅谷|纽约|紐約|西雅图|西雅圖|圣何塞|聖何塞|达拉斯|達拉斯|堪萨斯|堪薩斯/.test(text))return flagIcon("us","美国");return "";}
 function nodeIcon(name,server,type){var flag=regionIcon(name,server);if(flag)return flag;var t=String(type||"").toLowerCase();if(t.indexOf("vless")>=0)return "V";if(t.indexOf("trojan")>=0)return "T";if(t.indexOf("hysteria")>=0||t.indexOf("hy2")>=0)return "H";if(t.indexOf("tuic")>=0)return "U";if(t.indexOf("ss")>=0)return "S";return "N";}
-function displayName(name){var clean=String(name||"未命名节点").replace(/[🇦-🇿]{2}/gu,"").replace(/^\\s*[-|｜·•:：_]+\\s*/,"").replace(/\\s{2,}/g," ").trim();var relay=clean.match(/^(.+?)[-—–_\\s]*(中转|中轉|前置|反连|反連)[-—–_\\s]*(.+)$/);if(relay&&relay[1]&&relay[3])clean=relay[3].trim()+"出口（"+relay[1].trim()+relay[2]+"）";return clean||"未命名节点";}
+function displayName(name){var clean=String(name||"未命名节点").replace(/[🇦-🇿]{2}/gu,"").replace(/^\\s*[-|｜·•:：_]+\\s*/,"").replace(/\\s{2,}/g," ").trim();var relay=clean.match(/^(.+?)[-—–_\\s]*(中转|中轉|前置|反连|反連)[-—–_\\s]*(.+)$/);if(relay&&relay[1]&&relay[3])clean=relay[3].trim()+"("+relay[1].trim()+relay[2]+")";return clean||"未命名节点";}
 function detailPill(text){return '<li>'+esc(text)+'</li>';}
 function vlessDetails(n){var parts=["VLESS"];if(n&&n["reality-opts"])parts.push("REALITY");else if(n&&n.tls)parts.push("TLS");parts.push(String(n&&n.network||"tcp").toUpperCase());if(n&&n.flow)parts.push(String(n.flow).replace(/^xtls-rprx-/,""));return parts.slice(0,4).map(detailPill).join("");}
 function nodeDetails(n){var type=String(n&&n.type||"").toLowerCase();if(type==="vless")return vlessDetails(n);if(type==="trojan")return detailPill("Trojan")+(n&&n.sni?detailPill("SNI "+n.sni):"");if(type==="hysteria2")return detailPill("Hysteria2")+(n&&n.sni?detailPill("SNI "+n.sni):"");return detailPill(type||"Proxy");}
@@ -142,7 +153,7 @@ document.getElementById("qrModal").addEventListener("click",function(e){if(e.tar
   html = html.replace('__ROUTE_LINKS__', JSON.stringify(links));
 
   const panelProxies = proxies.map((p) => ({
-    name: p.name,
+    name: normalizeDisplayName(p.name),
     type: p.type,
     network: p.network,
     tls: p.tls,
