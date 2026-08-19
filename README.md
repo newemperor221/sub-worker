@@ -42,7 +42,7 @@
 - 米白纸张背景：`#fffdf7`
 - 点阵草稿纸纹理
 - Rough.js 真实手绘 SVG 外框
-- 中文纸笔字体栈：`LXGW WenKai / Kaiti SC / STKaiti`
+- 清爽 UI 字体栈：`system-ui / Segoe UI / PingFang SC / Microsoft YaHei / Noto Sans CJK SC`
 - Excalidraw 低饱和色板：黄、蓝、红、绿、紫
 - Hero 草稿插画、纸片卡片、手绘按钮
 

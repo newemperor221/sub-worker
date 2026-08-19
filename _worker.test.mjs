@@ -45,6 +45,7 @@ test('GET /login renders the login page', async () => {
   assert.match(body, /roughjs/);
   assert.match(body, /登录白板/);
   assert.match(body, /纸边/);
+  assert.doesNotMatch(body, /Segoe Print|LXGW WenKai|Kaiti SC|STKaiti|Ma Shan Zheng|cursive/);
 });
 
 test('POST /login rejects invalid credentials', async () => {
@@ -111,6 +112,7 @@ test('GET /random/home with a valid matching session renders dashboard', async (
   assert.match(body, /node-grid/);
   assert.match(res.headers.get('cache-control') || '', /no-store/);
   assert.doesNotMatch(body, /sub\.example\.com\/subtoken\?/);
+  assert.doesNotMatch(body, /Segoe Print|LXGW WenKai|Kaiti SC|STKaiti|Ma Shan Zheng|cursive/);
 });
 
 test('GET another random home path with the same session is rejected', async () => {
