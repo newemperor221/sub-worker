@@ -139,7 +139,9 @@ test('relay node display name uses half-width parentheses without extra 出口 s
   const body = await res.text();
 
   assert.equal(res.status, 200);
+  assert.match(body, /🇸🇬/);
   assert.match(body, /新加坡\(东京中转\)/);
+  assert.doesNotMatch(body, /flag-svg/);
   assert.doesNotMatch(body, /出口（|）/);
 });
 
@@ -155,7 +157,9 @@ test('already formatted relay node display name is not normalized twice', async 
   const body = await res.text();
 
   assert.equal(res.status, 200);
+  assert.match(body, /🇸🇬/);
   assert.match(body, /新加坡\(东京中转\)/);
+  assert.doesNotMatch(body, /flag-svg/);
   assert.doesNotMatch(body, /\)\(.*新加坡|\)\(\)\(/);
 });
 
