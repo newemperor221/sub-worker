@@ -136,14 +136,21 @@ window.addEventListener('load',drawRoughOutlines);window.addEventListener('resiz
 }
 
 function parseProxies(config) {
-  const allLines = config.link.split('\n').filter(l => l.trim());
-  const vlessLines = allLines.filter(l => l.startsWith('vless://'));
-  const trojanLines = allLines.filter(l => l.startsWith('trojan://'));
-  const hysteria2Lines = allLines.filter(l => l.startsWith('hysteria2://') || l.startsWith('hy2://'));
-  const vlessProxies = vlessLines.map(l => convertVlessToClashProxy(l.trim())).filter(Boolean);
-  const trojanProxies = trojanLines.map(l => convertTrojanToClashProxy(l.trim())).filter(Boolean);
-  const hysteria2Proxies = hysteria2Lines.map(l => convertHysteria2ToClashProxy(l.trim().replace(/^hy2:\/\//, 'hysteria2://'))).filter(Boolean);
-  return { allLines, proxies: [...vlessProxies, ...trojanProxies, ...hysteria2Proxies] };
+  const allLines = String(config.link || '')
+    .split(/\r?\n/)
+    .map(line => line.replace(/^\uFEFF/, '').trim())
+    .filter(Boolean);
+
+  // 单次顺序解析，保证 LINK / LINK1 / LINK2 的原始排列不会因协议分组而改变。
+  const proxies = allLines.map((line) => {
+    const scheme = line.match(/^([a-z][a-z0-9+.-]*):\/\//i)?.[1]?.toLowerCase();
+    if (scheme === 'vless') return convertVlessToClashProxy(line);
+    if (scheme === 'trojan') return convertTrojanToClashProxy(line);
+    if (scheme === 'hysteria2' || scheme === 'hy2') return convertHysteria2ToClashProxy(line);
+    return null;
+  }).filter(Boolean);
+
+  return { allLines, proxies };
 }
 
 function getSubscriptionKind(params) {
@@ -158,12 +165,18 @@ function renderSubscription(kind, config) {
   const subscriptionContentDisposition = "inline; filename*=UTF-8''" + encodeURIComponent(config.subName);
 
   if (kind === 'clash') {
+    if (!proxies.length) {
+      return new Response('没有可转换为 Mihomo 的有效节点', {
+        status: 422,
+        headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+      });
+    }
     const yaml = generateClashYaml(proxies, config.subName);
     return new Response(yaml, {
       headers: {
         'Content-Type': 'text/plain; charset=utf-8',
         'content-disposition': subscriptionContentDisposition,
-        'profile-title': config.subName,
+        'profile-title': encodeURIComponent(config.subName),
         'profile-update-interval': '6',
       },
     });

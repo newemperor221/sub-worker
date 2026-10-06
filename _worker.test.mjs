@@ -251,3 +251,70 @@ test('legacy /TOKEN?b64 subscription URL remains compatible', async () => {
   assert.equal(res.status, 200);
   assert.equal(body, btoa(unescape(encodeURIComponent(LINK))));
 });
+
+test('Clash parser preserves mixed protocol source order', async () => {
+  const mixedEnv = {
+    ...env,
+    LINK: '',
+    LINK1: 'trojan://secret@trojan.example:443?sni=edge.example#First-Trojan',
+    LINK2: 'vless://77777777-7777-4777-8777-777777777777@vless.example:443?security=tls&type=tcp#Second-VLESS',
+    LINK3: 'hy2://secret@hy2.example:443?sni=hy.example#Third-HY2',
+  };
+  const res = await fetchPath('/api/sub?token=subtoken&type=clash', {}, mixedEnv);
+  const body = await res.text();
+
+  assert.equal(res.status, 200);
+  assert.ok(body.indexOf('name: "First-Trojan"') < body.indexOf('name: "Second-VLESS"'));
+  assert.ok(body.indexOf('name: "Second-VLESS"') < body.indexOf('name: "Third-HY2"'));
+});
+
+test('Clash region groups follow the seven-region exit-prefix logic', async () => {
+  const regions = [
+    ['新加坡(东京中转)', 'sg.example'],
+    ['日本-东京', 'jp.example'],
+    ['德国-法兰克福', 'de.example'],
+    ['尼日利亚-拉各斯', 'ng.example'],
+    ['英国-伦敦', 'uk.example'],
+    ['美国-洛杉矶', 'us.example'],
+    ['香港-中环', 'hk.example'],
+  ];
+  const regionEnv = { ...env, LINK: '' };
+  regions.forEach(([name, host], index) => {
+    regionEnv[`LINK${index + 1}`] = `vless://${index + 1}1111111-1111-4111-8111-111111111111@${host}:443?security=tls&type=tcp#${encodeURIComponent(name)}`;
+  });
+
+  const res = await fetchPath('/api/sub?token=subtoken&type=clash', {}, regionEnv);
+  const body = await res.text();
+  const singaporeGroup = body.match(/name: "🇸🇬 新加坡节点"[\s\S]*?proxies: \[([^\n]+)\]/)?.[1] || '';
+  const japanGroup = body.match(/name: "🇯🇵 日本节点"[\s\S]*?proxies: \[([^\n]+)\]/)?.[1] || '';
+
+  assert.equal(res.status, 200);
+  assert.match(body, /name: "🇩🇪 德国节点"/);
+  assert.match(body, /name: "🇳🇬 尼日利亚节点"/);
+  assert.match(body, /name: "🇬🇧 英国节点"/);
+  assert.match(singaporeGroup, /新加坡\(东京中转\)/);
+  assert.doesNotMatch(japanGroup, /新加坡\(东京中转\)/);
+});
+
+test('Clash service policies mirror the reference Loon routing priorities', async () => {
+  const serviceEnv = {
+    ...env,
+    LINK: 'vless://88888888-8888-4888-8888-888888888888@us.example:443?security=tls&type=tcp#美国-固定',
+  };
+  const res = await fetchPath('/api/sub?token=subtoken&type=clash', {}, serviceEnv);
+  const body = await res.text();
+
+  assert.equal(res.status, 200);
+  for (const group of ['🤖 AI', '🔎 Google', '🎵 Spotify', '𝕏 Twitter', '🎬 Netflix', '📹 YouTube', '📖 Reddit', '🎶 TikTok', '💳 PayPal', '♾️ Meta']) {
+    assert.match(body, new RegExp(`name: "${group}"`));
+  }
+  assert.match(body, /name: "🇺🇸 美国固定节点"[\s\S]*?proxies: \["美国-固定"\]/);
+  assert.ok(body.indexOf('DOMAIN-SUFFIX,x.ai,𝕏 Twitter') < body.indexOf('GEOSITE,openai,🤖 AI'));
+  assert.ok(body.indexOf('GEOSITE,youtube,📹 YouTube') < body.indexOf('GEOSITE,google,🔎 Google'));
+});
+
+test('Clash endpoint returns 422 when every configured node is invalid', async () => {
+  const res = await fetchPath('/api/sub?token=subtoken&type=clash', {}, { ...env, LINK: 'ss://unsupported' });
+  assert.equal(res.status, 422);
+  assert.match(await res.text(), /没有可转换/);
+});

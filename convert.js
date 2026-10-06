@@ -1,178 +1,168 @@
-// Protocol converters — VLESS / Trojan / Hysteria2 → Clash proxy
-// ==============================================================
+// Protocol converters — VLESS / Trojan / Hysteria2 → Mihomo proxy
+// =================================================================
 
-// ==================== VLESS → Clash 代理转换 ====================
+function safeDecode(value) {
+  try { return decodeURIComponent(String(value || '')); } catch { return String(value || ''); }
+}
+
+function proxyName(url) {
+  const fragment = url.hash.replace(/^#/, '');
+  return (fragment ? safeDecode(fragment) : url.hostname).replace(/[\r\n\t]/g, ' ').trim() || url.hostname;
+}
+
+function validPort(url, fallback = 443) {
+  const port = url.port ? Number(url.port) : fallback;
+  return Number.isInteger(port) && port > 0 && port <= 65535 ? port : null;
+}
+
+function queryBoolean(params, ...names) {
+  for (const name of names) {
+    if (params.has(name)) return /^(?:1|true|yes)$/i.test(params.get(name) || '');
+  }
+  return false;
+}
+
+function splitList(value) {
+  return String(value || '').split(',').map(item => item.trim()).filter(Boolean);
+}
+
+function normalizedNetwork(params) {
+  const value = (params.get('type') || params.get('network') || 'tcp').toLowerCase();
+  return ['tcp', 'ws', 'grpc', 'http', 'h2', 'xhttp'].includes(value) ? value : null;
+}
+
+function applyTransport(proxy, params, network) {
+  const host = params.get('host') || '';
+  const path = params.get('path') || '/';
+  const serviceName = params.get('serviceName') || params.get('service-name') || '';
+
+  if (network === 'ws') {
+    proxy['ws-opts'] = { path };
+    if (host) proxy['ws-opts'].headers = { Host: host };
+    const earlyData = Number(params.get('ed'));
+    if (Number.isInteger(earlyData) && earlyData > 0) {
+      proxy['ws-opts']['max-early-data'] = earlyData;
+      proxy['ws-opts']['early-data-header-name'] = params.get('eh') || 'Sec-WebSocket-Protocol';
+    }
+  } else if (network === 'grpc') {
+    proxy['grpc-opts'] = { 'grpc-service-name': serviceName };
+  } else if (network === 'http' || network === 'h2') {
+    proxy[network === 'h2' ? 'h2-opts' : 'http-opts'] = {
+      path: splitList(path),
+      ...(host ? { host: splitList(host) } : {}),
+    };
+  } else if (network === 'xhttp') {
+    proxy['xhttp-opts'] = { path };
+    const mode = params.get('mode') || '';
+    if (['auto', 'stream-one', 'stream-up', 'packet-up'].includes(mode)) proxy['xhttp-opts'].mode = mode;
+    if (host) proxy['xhttp-opts'].host = host;
+  }
+}
+
 export function convertVlessToClashProxy(urlStr) {
   try {
-    const url = new URL(urlStr);
-    const params = new URLSearchParams(url.search.replace(/^&/, ''));
-    const hash = url.hash ? new URLSearchParams(url.hash.replace(/^#/, '')) : new URLSearchParams();
+    const url = new URL(String(urlStr).trim());
+    if (url.protocol.toLowerCase() !== 'vless:' || !url.hostname || !url.username) return null;
+    const params = url.searchParams;
+    const port = validPort(url);
+    const network = normalizedNetwork(params);
+    if (!port || !network) return null;
 
-    // 合并 search 和 hash 参数
-    const allParams = new URLSearchParams();
-    for (const [k, v] of params) allParams.set(k, v);
-    for (const [k, v] of hash) allParams.set(k, v);
-
-    const flow = allParams.get('flow') || '';
-    const mode = allParams.get('mode') || '';
-    const sni = allParams.get('sni') || '';
-    const host = allParams.get('host') || '';
-    const path = allParams.get('path') || '/';
-    const serviceName = allParams.get('serviceName') || '';
-    const security = allParams.get('security') || 'tls';
-    const fp = allParams.get('fp') || '';
-    const pbk = allParams.get('pbk') || '';
-    const sid = allParams.get('sid') || '';
-    const alpn = allParams.get('alpn') || '';
-    const network = allParams.get('type') || 'tcp';
-
-    // 节点名：优先用 URL 片段（#香港），否则用 hostname
-    const remark = url.hash ? decodeURIComponent(url.hash.replace(/^#/, '')) : url.hostname;
-
+    const security = (params.get('security') || 'none').toLowerCase();
+    if (!['none', 'tls', 'reality'].includes(security)) return null;
     const proxy = {
-      name: remark,
-      type: 'vless',
-      server: url.hostname,
-      port: parseInt(url.port) || 443,
-      uuid: url.username,
-      network,
-      tls: security !== 'none',
-      'skip-cert-verify': true,
-      servername: sni || host || url.hostname,
+      name: proxyName(url), type: 'vless', server: url.hostname, port,
+      uuid: safeDecode(url.username), network,
+      tls: security === 'tls' || security === 'reality', udp: true,
     };
 
-    if (sni && sni !== 'undefined') {
-      proxy.sni = sni;
-    }
-    if (alpn) {
-      proxy.alpn = alpn.split(',').map(x => x.trim()).filter(Boolean);
-    }
+    const encryption = params.get('encryption');
+    if (encryption) proxy.encryption = encryption;
+    const packetEncoding = params.get('packetEncoding') || params.get('packet-encoding');
+    if (packetEncoding) proxy['packet-encoding'] = packetEncoding;
 
-    if (fp) {
-      proxy['client-fingerprint'] = fp;
+    if (proxy.tls) {
+      const sni = params.get('sni') || params.get('serverName') || params.get('servername') || '';
+      if (sni) proxy.servername = sni;
+      proxy['skip-cert-verify'] = queryBoolean(params, 'allowInsecure', 'insecure');
+      const alpn = splitList(params.get('alpn'));
+      if (alpn.length) proxy.alpn = alpn;
+      const fp = params.get('fp') || params.get('fingerprint') || '';
+      if (fp) proxy['client-fingerprint'] = fp;
     }
 
     if (security === 'reality') {
-      proxy['reality-opts'] = {
-        'public-key': pbk,
-        'short-id': sid,
-      };
-      if (!proxy['client-fingerprint']) {
-        proxy['client-fingerprint'] = 'chrome';
-      }
+      const publicKey = params.get('pbk') || params.get('publicKey') || '';
+      if (!publicKey) return null;
+      proxy['reality-opts'] = { 'public-key': publicKey };
+      const shortId = params.get('sid') || params.get('shortId') || '';
+      if (shortId) proxy['reality-opts']['short-id'] = shortId;
+      if (!proxy['client-fingerprint']) proxy['client-fingerprint'] = 'chrome';
     }
 
-    // flow：仅非空且非 xhttp 时保留；xhttp 不需要 flow
-    if (flow && flow !== 'none' && network !== 'xhttp') {
-      proxy.flow = flow;
-    }
-
-    if (network === 'xhttp') {
-      proxy['xhttp-opts'] = {
-        mode: mode || 'packet-up',
-        path,
-      };
-      if (host) {
-        proxy['xhttp-opts'].host = host;
-      }
-      delete proxy.flow;
-    } else if (network === 'grpc') {
-      proxy['grpc-opts'] = {
-        'grpc-service-name': serviceName,
-      };
-    } else if (network === 'ws') {
-      proxy['ws-opts'] = {
-        path,
-      };
-      if (host) {
-        proxy['ws-opts'].headers = { Host: host };
-      }
-    }
-
+    const flow = params.get('flow') || '';
+    if (flow && flow !== 'none' && network !== 'xhttp') proxy.flow = flow;
+    applyTransport(proxy, params, network);
     return proxy;
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 }
 
-// ==================== Trojan → Clash 代理转换 ====================
 export function convertTrojanToClashProxy(urlStr) {
   try {
-    const url = new URL(urlStr);
-    const remark = url.hash ? decodeURIComponent(url.hash.replace(/^#/, '')) : url.hostname;
-    const password = url.username;
-    const host = url.hostname;
-    const port = parseInt(url.port) || 443;
+    const url = new URL(String(urlStr).trim());
+    if (url.protocol.toLowerCase() !== 'trojan:' || !url.hostname || !url.username) return null;
+    const params = url.searchParams;
+    const port = validPort(url);
+    const network = normalizedNetwork(params);
+    if (!port || !network || network === 'xhttp') return null;
 
     const proxy = {
-      name: remark,
-      type: 'trojan',
-      server: host,
-      port: port,
-      password: password,
+      name: proxyName(url), type: 'trojan', server: url.hostname, port,
+      password: safeDecode(url.username + (url.password ? `:${url.password}` : '')),
       udp: true,
-      sni: host,
-      'skip-cert-verify': false,
+      'skip-cert-verify': queryBoolean(params, 'allowInsecure', 'insecure'),
     };
-
+    const sni = params.get('sni') || params.get('peer') || params.get('serverName') || '';
+    if (sni) proxy.sni = sni;
+    const alpn = splitList(params.get('alpn'));
+    if (alpn.length) proxy.alpn = alpn;
+    const fp = params.get('fp') || params.get('fingerprint') || '';
+    if (fp) proxy['client-fingerprint'] = fp;
+    if (network !== 'tcp') proxy.network = network;
+    applyTransport(proxy, params, network);
     return proxy;
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 }
 
-// ==================== Hysteria2 → Clash 代理转换 ====================
 export function convertHysteria2ToClashProxy(urlStr) {
   try {
-    const url = new URL(urlStr);
-    const params = new URLSearchParams(url.search.replace(/^\?/, ''));
-    const remark = url.hash ? decodeURIComponent(url.hash.replace(/^#/, '')) : url.hostname;
+    const normalized = String(urlStr).trim().replace(/^hy2:\/\//i, 'hysteria2://');
+    const url = new URL(normalized);
+    if (url.protocol.toLowerCase() !== 'hysteria2:' || !url.hostname || (!url.username && !url.password)) return null;
+    const params = url.searchParams;
+    const port = validPort(url);
+    if (!port) return null;
 
+    const userInfo = url.username + (url.password ? `:${url.password}` : '');
     const proxy = {
-      name: remark,
-      type: 'hysteria2',
-      server: url.hostname,
-      port: parseInt(url.port) || 443,
-      password: decodeURIComponent(url.username || ''),
-      udp: true,
+      name: proxyName(url), type: 'hysteria2', server: url.hostname, port,
+      password: safeDecode(userInfo), udp: true,
+      'skip-cert-verify': queryBoolean(params, 'allowInsecure', 'insecure'),
     };
-
     const sni = params.get('sni') || params.get('peer') || '';
-    if (sni) {
-      proxy.sni = sni;
-    }
-
-    const insecure = params.get('insecure') || params.get('allowInsecure') || '';
-    if (insecure === '1' || insecure === 'true') {
-      proxy['skip-cert-verify'] = true;
-    }
-
-    const alpn = params.get('alpn') || '';
-    if (alpn) {
-      proxy.alpn = alpn.split(',').map(x => x.trim()).filter(Boolean);
-    }
-
+    if (sni) proxy.sni = sni;
+    const alpn = splitList(params.get('alpn'));
+    if (alpn.length) proxy.alpn = alpn;
     const obfs = params.get('obfs') || '';
-    if (obfs && obfs !== 'none') {
-      proxy.obfs = obfs;
-    }
-
     const obfsPassword = params.get('obfs-password') || params.get('obfsParam') || '';
-    if (obfsPassword) {
-      proxy['obfs-password'] = obfsPassword;
-    }
-
-    const up = params.get('upmbps') || params.get('up') || '';
-    const down = params.get('downmbps') || params.get('down') || '';
-    if (up) {
-      proxy.up = parseInt(up, 10);
-    }
-    if (down) {
-      proxy.down = parseInt(down, 10);
-    }
-
+    if (obfs && obfs !== 'none') proxy.obfs = obfs;
+    if (obfsPassword) proxy['obfs-password'] = obfsPassword;
+    const up = Number(params.get('upmbps') || params.get('up'));
+    const down = Number(params.get('downmbps') || params.get('down'));
+    if (Number.isFinite(up) && up > 0) proxy.up = up;
+    if (Number.isFinite(down) && down > 0) proxy.down = down;
+    const fingerprint = params.get('pinSHA256') || params.get('pin-sha256') || '';
+    if (fingerprint) proxy.fingerprint = fingerprint;
     return proxy;
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 }
