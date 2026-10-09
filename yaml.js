@@ -331,7 +331,6 @@ export function generateClashYaml(inputProxies, subName) {
   for (const group of regionGroups) {
     if (!deferredRegionNames.has(group.name)) appendSelectGroup(lines, group.name, group.members);
   }
-  appendSelectGroup(lines, '🇺🇸 美国固定节点', usFixedChoices);
 
   appendSelectGroup(lines, '🤖 AI', usServiceChoices);
   appendSelectGroup(lines, '📲 Telegram', serviceChoices.telegram);
@@ -353,6 +352,7 @@ export function generateClashYaml(inputProxies, subName) {
   for (const group of regionGroups) {
     if (deferredRegionNames.has(group.name)) appendSelectGroup(lines, group.name, group.members);
   }
+  appendSelectGroup(lines, '🇺🇸 美国固定节点', usFixedChoices);
   appendSelectGroup(lines, 'AdBlock', ['REJECT', 'DIRECT']);
 
   lines.push('');

@@ -302,6 +302,9 @@ test('Clash region groups follow the seven-region exit-prefix logic', async () =
     assert.ok(gameIndex < groupIndex, `${group} should appear after 游戏`);
     assert.ok(groupIndex < adBlockIndex, `${group} should appear before AdBlock`);
   }
+  const usFixedIndex = body.indexOf('name: "🇺🇸 美国固定节点"');
+  assert.ok(usFixedIndex < adBlockIndex, '美国固定节点 should appear before AdBlock');
+  assert.doesNotMatch(body.slice(usFixedIndex, adBlockIndex), /\n  - name:/);
 });
 
 test('Clash service policies mirror the reference Loon routing priorities', async () => {
