@@ -294,6 +294,14 @@ test('Clash region groups follow the seven-region exit-prefix logic', async () =
   assert.match(body, /name: "🇬🇧 英国节点"/);
   assert.match(singaporeGroup, /新加坡\(东京中转\)/);
   assert.doesNotMatch(japanGroup, /新加坡\(东京中转\)/);
+  assert.doesNotMatch(body, /\bAuto\b/);
+  const gameIndex = body.indexOf('name: "🎮 游戏"');
+  const adBlockIndex = body.indexOf('name: "AdBlock"');
+  for (const group of ['🇺🇸 美国节点', '🇸🇬 新加坡节点', '🇯🇵 日本节点', '🇭🇰 香港节点', '🇳🇬 尼日利亚节点']) {
+    const groupIndex = body.indexOf(`name: "${group}"`);
+    assert.ok(gameIndex < groupIndex, `${group} should appear after 游戏`);
+    assert.ok(groupIndex < adBlockIndex, `${group} should appear before AdBlock`);
+  }
 });
 
 test('Clash service policies mirror the reference Loon routing priorities', async () => {

@@ -12,7 +12,7 @@ function commentText(value) {
 
 function dedupeProxyNames(proxies) {
   const reserved = new Set([
-    'DIRECT', 'REJECT', 'Proxy', 'Auto', 'AdBlock',
+    'DIRECT', 'REJECT', 'Proxy', 'AdBlock',
     '🇺🇸 美国节点', '🇺🇸 美国固定节点', '🇸🇬 新加坡节点', '🇯🇵 日本节点',
     '🇭🇰 香港节点', '🇳🇬 尼日利亚节点', '🇬🇧 英国节点', '🇩🇪 德国节点', '🌍 其它地区',
     '🤖 AI', '📲 Telegram', '🔎 Google', '🎵 Spotify', '𝕏 Twitter', '🎬 Netflix',
@@ -155,34 +155,23 @@ function appendSelectGroup(lines, name, members) {
   lines.push(`    proxies: [${uniq(members).map(quote).join(', ')}]`);
 }
 
-function appendUrlTestGroup(lines, name, members, url = 'http://www.gstatic.com/generate_204') {
-  if (!members.length) return;
-  lines.push(`  - name: ${quote(name)}`);
-  lines.push('    type: url-test');
-  lines.push(`    proxies: [${uniq(members).map(quote).join(', ')}]`);
-  lines.push(`    url: ${quote(url)}`);
-  lines.push('    interval: 300');
-  lines.push('    tolerance: 50');
-}
-
 export function generateClashYaml(inputProxies, subName) {
   const proxies = dedupeProxyNames(inputProxies || []);
-  const allNames = proxies.map(p => p.name);
   const regionGroups = buildRegionGroups(proxies);
   const regionNames = regionGroups.map(g => g.name);
   const miscMembers = proxies
     .filter(p => !regionGroups.some(group => group.members.includes(p.name)))
     .map(p => p.name);
 
-  const proxyChoices = uniq(['Auto', ...regionNames, ...(miscMembers.length ? ['🌍 其它地区'] : []), 'DIRECT']);
-  const commonChoices = uniq(['Proxy', 'Auto', ...regionNames, ...(miscMembers.length ? ['🌍 其它地区'] : []), 'DIRECT']);
+  const proxyChoices = uniq([...regionNames, ...(miscMembers.length ? ['🌍 其它地区'] : []), 'DIRECT']);
+  const commonChoices = uniq(['Proxy', ...regionNames, ...(miscMembers.length ? ['🌍 其它地区'] : []), 'DIRECT']);
   const membersOf = name => findRegionGroup(regionGroups, name)?.members || [];
   const availableRegions = names => names.filter(name => regionNames.includes(name));
   const usMembers = membersOf('🇺🇸 美国节点');
-  const usFixedChoices = usMembers.length ? usMembers : ['Proxy', 'Auto', 'DIRECT'];
-  const usServiceChoices = uniq(['🇺🇸 美国固定节点', 'Proxy', 'Auto', 'DIRECT']);
+  const usFixedChoices = usMembers.length ? usMembers : ['Proxy', 'DIRECT'];
+  const usServiceChoices = uniq(['🇺🇸 美国固定节点', 'Proxy', 'DIRECT']);
   const serviceChoices = {
-    telegram: uniq([...availableRegions(['🇸🇬 新加坡节点', '🇭🇰 香港节点', '🇺🇸 美国节点', '🇯🇵 日本节点', '🇬🇧 英国节点', '🇩🇪 德国节点']), 'Proxy', 'Auto', 'DIRECT']),
+    telegram: uniq([...availableRegions(['🇸🇬 新加坡节点', '🇭🇰 香港节点', '🇺🇸 美国节点', '🇯🇵 日本节点', '🇬🇧 英国节点', '🇩🇪 德国节点']), 'Proxy', 'DIRECT']),
     spotify: uniq([...availableRegions(['🇺🇸 美国节点', '🇳🇬 尼日利亚节点']), 'Proxy', 'DIRECT']),
     twitter: uniq([...availableRegions(['🇭🇰 香港节点', '🇯🇵 日本节点', '🇸🇬 新加坡节点', '🇺🇸 美国节点', '🇬🇧 英国节点', '🇩🇪 德国节点']), 'Proxy', 'DIRECT']),
     netflix: uniq([...availableRegions(['🇸🇬 新加坡节点', '🇳🇬 尼日利亚节点']), 'Proxy', 'DIRECT']),
@@ -192,7 +181,7 @@ export function generateClashYaml(inputProxies, subName) {
     github: uniq([...availableRegions(['🇺🇸 美国节点', '🇸🇬 新加坡节点', '🇯🇵 日本节点', '🇭🇰 香港节点', '🇬🇧 英国节点', '🇩🇪 德国节点']), 'Proxy', 'DIRECT']),
     meta: uniq([...availableRegions(['🇯🇵 日本节点', '🇸🇬 新加坡节点', '🇺🇸 美国节点', '🇭🇰 香港节点', '🇬🇧 英国节点', '🇩🇪 德国节点']), 'Proxy', 'DIRECT']),
   };
-  const directPreferredChoices = uniq(['DIRECT', 'Proxy', 'Auto', ...regionNames, ...(miscMembers.length ? ['🌍 其它地区'] : [])]);
+  const directPreferredChoices = uniq(['DIRECT', 'Proxy', ...regionNames, ...(miscMembers.length ? ['🌍 其它地区'] : [])]);
 
   const lines = [
     `# 订阅: ${commentText(subName)}`,
@@ -335,9 +324,13 @@ export function generateClashYaml(inputProxies, subName) {
   lines.push('');
   lines.push('proxy-groups:');
   appendSelectGroup(lines, 'Proxy', proxyChoices);
-  appendUrlTestGroup(lines, 'Auto', allNames);
   if (miscMembers.length) appendSelectGroup(lines, '🌍 其它地区', miscMembers);
-  for (const group of regionGroups) appendSelectGroup(lines, group.name, group.members);
+  const deferredRegionNames = new Set([
+    '🇺🇸 美国节点', '🇸🇬 新加坡节点', '🇯🇵 日本节点', '🇭🇰 香港节点', '🇳🇬 尼日利亚节点',
+  ]);
+  for (const group of regionGroups) {
+    if (!deferredRegionNames.has(group.name)) appendSelectGroup(lines, group.name, group.members);
+  }
   appendSelectGroup(lines, '🇺🇸 美国固定节点', usFixedChoices);
 
   appendSelectGroup(lines, '🤖 AI', usServiceChoices);
@@ -357,6 +350,9 @@ export function generateClashYaml(inputProxies, subName) {
   appendSelectGroup(lines, '🍎 Apple', directPreferredChoices);
   appendSelectGroup(lines, '🪟 Microsoft', directPreferredChoices);
   appendSelectGroup(lines, '🎮 游戏', directPreferredChoices);
+  for (const group of regionGroups) {
+    if (deferredRegionNames.has(group.name)) appendSelectGroup(lines, group.name, group.members);
+  }
   appendSelectGroup(lines, 'AdBlock', ['REJECT', 'DIRECT']);
 
   lines.push('');
