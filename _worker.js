@@ -387,11 +387,15 @@ async function handleRequest(request, env) {
   const baseUrl = url.protocol + '//' + url.host;
 
   if (path === '/api/health') {
+    let component = 'session-crypto';
     try {
       await signSessionPayload('health-check', config.sessionSecret);
+      component = 'subscription-storage';
       const subscriptions = await loadSubscriptions(env, config);
+      component = 'proxy-parser';
       const activeConfig = configWithSubscriptions(config, subscriptions);
       const { proxies } = parseProxies(activeConfig);
+      component = 'dashboard-renderer';
       renderDashboard(activeConfig, proxies, baseUrl, {
         kvBound: subscriptions.kvBound,
         source: subscriptions.saved ? 'kv' : 'env',
@@ -399,7 +403,7 @@ async function handleRequest(request, env) {
       });
       return jsonResponse({ ok: true, storage: subscriptions.kvBound ? 'kv' : 'env' });
     } catch {
-      return jsonResponse({ ok: false, component: 'dashboard-runtime' }, 503);
+      return jsonResponse({ ok: false, component }, 503);
     }
   }
 
