@@ -10,7 +10,7 @@ const FORMATTED_RELAY_LINK = 'vless://55555555-5555-4555-8555-555555555555@examp
 const HK_LINK = 'vless://66666666-6666-4666-8666-666666666666@example-hk.com:443?security=tls&type=tcp#🇭🇰 香港';
 const env = {
   TOKEN: 'subtoken',
-  LINK,
+  SUBSCRIPTIONS: createKv([LINK]),
   SUBNAME: '测试订阅',
   ADMIN_USER: 'admin',
   ADMIN_PASS: 'pass123',
@@ -18,24 +18,22 @@ const env = {
 };
 const numberedLinkEnv = {
   ...env,
-  LINK: '',
-  LINK2: LINK_B,
-  LINK1: LINK_A,
+  SUBSCRIPTIONS: createKv([LINK_A, LINK_B]),
   SUBNAME: 'Test Subscription',
 };
 const relayNameEnv = {
   ...env,
-  LINK: RELAY_LINK,
+  SUBSCRIPTIONS: createKv([RELAY_LINK]),
   SUBNAME: 'Test Subscription',
 };
 const formattedRelayNameEnv = {
   ...env,
-  LINK: FORMATTED_RELAY_LINK,
+  SUBSCRIPTIONS: createKv([FORMATTED_RELAY_LINK]),
   SUBNAME: 'Test Subscription',
 };
 const hkNameEnv = {
   ...env,
-  LINK: HK_LINK,
+  SUBSCRIPTIONS: createKv([HK_LINK]),
   SUBNAME: 'Test Subscription',
 };
 
@@ -267,7 +265,7 @@ test('subscription API is token protected and does not require browser session',
   assert.equal(body, btoa(unescape(encodeURIComponent(LINK))));
 });
 
-test('subscription API reads one proxy link per numbered LINK variable in numeric order', async () => {
+test('subscription API preserves KV node order', async () => {
   const res = await fetchPath('/api/sub?token=subtoken&type=base64', {}, numberedLinkEnv);
   const body = await res.text();
   const expected = [LINK_A, LINK_B].join('\n');
@@ -276,7 +274,7 @@ test('subscription API reads one proxy link per numbered LINK variable in numeri
   assert.equal(body, btoa(unescape(encodeURIComponent(expected))));
 });
 
-test('Clash output includes proxies from numbered LINK variables', async () => {
+test('Clash output includes proxies from KV', async () => {
   const res = await fetchPath('/api/sub?token=subtoken&type=clash', {}, numberedLinkEnv);
   const body = await res.text();
 
@@ -288,9 +286,10 @@ test('Clash output includes proxies from numbered LINK variables', async () => {
 test('Loon output includes VLESS Reality and Hysteria2 proxy lines', async () => {
   const loonEnv = {
     ...env,
-    LINK: '',
-    LINK1: 'vless://77777777-7777-4777-8777-777777777777@vless.example:443?security=reality&type=tcp&flow=xtls-rprx-vision&sni=edge.example&fp=chrome&pbk=public-key&sid=abcd#Reality-Node',
-    LINK2: 'hysteria2://secret@hy.example:8443?sni=hy.example&insecure=1#HY2-Node',
+    SUBSCRIPTIONS: createKv([
+      'vless://77777777-7777-4777-8777-777777777777@vless.example:443?security=reality&type=tcp&flow=xtls-rprx-vision&sni=edge.example&fp=chrome&pbk=public-key&sid=abcd#Reality-Node',
+      'hysteria2://secret@hy.example:8443?sni=hy.example&insecure=1#HY2-Node',
+    ]),
   };
   const res = await fetchPath('/api/sub?token=subtoken&type=loon', {}, loonEnv);
   const body = await res.text();
@@ -314,14 +313,16 @@ test('old subscription aliases and paths are not compatible', async () => {
   assert.equal((await fetchPath('/subtoken?clash')).status, 404);
 });
 
-test('legacy sources keep only VLESS and Hysteria2 in source order', async () => {
+test('KV keeps only VLESS and Hysteria2 in source order', async () => {
+  const mixedLinks = [
+    'trojan://secret@trojan.example:443?sni=edge.example#First-Trojan',
+    'vless://77777777-7777-4777-8777-777777777777@vless.example:443?security=tls&type=tcp#Second-VLESS',
+    'hy2://secret@hy2.example:443?sni=hy.example#Third-HY2',
+    'hysteria2://secret@hysteria.example:443?sni=hy.example#Fourth-Hysteria2',
+  ];
   const mixedEnv = {
     ...env,
-    LINK: '',
-    LINK1: 'trojan://secret@trojan.example:443?sni=edge.example#First-Trojan',
-    LINK2: 'vless://77777777-7777-4777-8777-777777777777@vless.example:443?security=tls&type=tcp#Second-VLESS',
-    LINK3: 'hy2://secret@hy2.example:443?sni=hy.example#Third-HY2',
-    LINK4: 'hysteria2://secret@hysteria.example:443?sni=hy.example#Fourth-Hysteria2',
+    SUBSCRIPTIONS: createKv(mixedLinks),
   };
   const res = await fetchPath('/api/sub?token=subtoken&type=clash', {}, mixedEnv);
   const body = await res.text();
@@ -334,7 +335,7 @@ test('legacy sources keep only VLESS and Hysteria2 in source order', async () =>
 
   const base64 = await fetchPath('/api/sub?token=subtoken&type=base64', {}, mixedEnv);
   const decoded = decodeURIComponent(escape(atob(await base64.text())));
-  assert.equal(decoded, [mixedEnv.LINK2, mixedEnv.LINK4].join('\n'));
+  assert.equal(decoded, [mixedLinks[1], mixedLinks[3]].join('\n'));
 });
 
 test('Clash region groups follow the seven-region exit-prefix logic', async () => {
@@ -347,10 +348,10 @@ test('Clash region groups follow the seven-region exit-prefix logic', async () =
     ['美国-洛杉矶', 'us.example'],
     ['香港-中环', 'hk.example'],
   ];
-  const regionEnv = { ...env, LINK: '' };
-  regions.forEach(([name, host], index) => {
-    regionEnv[`LINK${index + 1}`] = `vless://${index + 1}1111111-1111-4111-8111-111111111111@${host}:443?security=tls&type=tcp#${encodeURIComponent(name)}`;
-  });
+  const regionLinks = regions.map(([name, host], index) =>
+    `vless://${index + 1}1111111-1111-4111-8111-111111111111@${host}:443?security=tls&type=tcp#${encodeURIComponent(name)}`
+  );
+  const regionEnv = { ...env, SUBSCRIPTIONS: createKv(regionLinks) };
 
   const res = await fetchPath('/api/sub?token=subtoken&type=clash', {}, regionEnv);
   const body = await res.text();
@@ -379,7 +380,7 @@ test('Clash region groups follow the seven-region exit-prefix logic', async () =
 test('Clash service policies mirror the reference Loon routing priorities', async () => {
   const serviceEnv = {
     ...env,
-    LINK: 'vless://88888888-8888-4888-8888-888888888888@us.example:443?security=tls&type=tcp#美国-固定',
+    SUBSCRIPTIONS: createKv(['vless://88888888-8888-4888-8888-888888888888@us.example:443?security=tls&type=tcp#美国-固定']),
   };
   const res = await fetchPath('/api/sub?token=subtoken&type=clash', {}, serviceEnv);
   const body = await res.text();
@@ -394,7 +395,7 @@ test('Clash service policies mirror the reference Loon routing priorities', asyn
 });
 
 test('Clash endpoint returns 422 when every configured node is invalid', async () => {
-  const res = await fetchPath('/api/sub?token=subtoken&type=clash', {}, { ...env, LINK: 'ss://unsupported' });
+  const res = await fetchPath('/api/sub?token=subtoken&type=clash', {}, { ...env, SUBSCRIPTIONS: createKv(['ss://unsupported']) });
   assert.equal(res.status, 422);
   assert.match(await res.text(), /没有可转换/);
 });
@@ -408,6 +409,7 @@ test('health endpoint exercises session crypto, storage and dashboard rendering'
     storage: 'kv',
     formats: ['clash', 'loon', 'base64'],
     legacySubscriptionUrls: false,
+    legacyEnvironmentLinks: false,
     loonSyntax: 'nsloon',
     subscriptionManagement: ['add', 'reorder', 'delete'],
   });
@@ -435,15 +437,15 @@ test('logged-in administrator can add, list and delete KV subscriptions', async 
   const addBody = await add.json();
   assert.equal(add.status, 200);
   assert.equal(addBody.added, 1);
-  assert.equal(addBody.items.length, 2);
-  assert.equal(addBody.items[1].name, 'ManagedNode');
-  assert.equal(JSON.parse(kv.values.get('subscription_links')).length, 2);
+  assert.equal(addBody.items.length, 1);
+  assert.equal(addBody.items[0].name, 'ManagedNode');
+  assert.equal(JSON.parse(kv.values.get('subscription_links')).length, 1);
 
   const list = await fetchPath('/api/manage/subscriptions', { headers: { cookie } }, testEnv);
   const listBody = await list.json();
   assert.equal(list.status, 200);
   assert.equal(listBody.source, 'kv');
-  assert.equal(listBody.items[1].protocol, 'hysteria2');
+  assert.equal(listBody.items[0].protocol, 'hysteria2');
   assert.doesNotMatch(JSON.stringify(listBody), /secret@hysteria\.example/);
 
   const remove = await fetchPath('/api/manage/subscriptions', {
@@ -453,8 +455,8 @@ test('logged-in administrator can add, list and delete KV subscriptions', async 
   }, testEnv);
   const removeBody = await remove.json();
   assert.equal(remove.status, 200);
-  assert.equal(removeBody.items.length, 1);
-  assert.equal(JSON.parse(kv.values.get('subscription_links'))[0], addedLink);
+  assert.equal(removeBody.items.length, 0);
+  assert.deepEqual(JSON.parse(kv.values.get('subscription_links')), []);
 });
 
 test('logged-in administrator can reorder KV subscriptions', async () => {
@@ -508,26 +510,33 @@ test('multi-line add trims, removes blanks and duplicates, and rejects unsupport
   assert.deepEqual(JSON.parse(kv.values.get('subscription_links')), [LINK_A, LINK_B]);
 });
 
-test('management mutation clearly reports a missing SUBSCRIPTIONS binding while env nodes remain usable', async () => {
-  const { cookie, homePath } = await loginSession(env);
+test('missing SUBSCRIPTIONS binding exposes no environment-variable nodes', async () => {
+  const { SUBSCRIPTIONS: _ignored, ...unboundEnv } = env;
+  const envWithLegacyLinks = { ...unboundEnv, LINK, LINK1: LINK_A };
+  const { cookie, homePath } = await loginSession(envWithLegacyLinks);
   const add = await fetchPath('/api/manage/subscriptions', {
     method: 'POST', headers: { cookie, 'content-type': 'application/json' },
     body: JSON.stringify({ links: LINK_A }),
-  });
+  }, envWithLegacyLinks);
   assert.equal(add.status, 503);
   assert.match((await add.json()).error, /尚未绑定 Cloudflare KV.*SUBSCRIPTIONS/);
 
-  const panel = await fetchPath(homePath, { headers: { cookie } });
+  const panel = await fetchPath(homePath, { headers: { cookie } }, envWithLegacyLinks);
   const panelBody = await panel.text();
   assert.equal(panel.status, 200);
   assert.match(panelBody, /尚未绑定 SUBSCRIPTIONS KV/);
-  assert.match(panelBody, /当前读取：env 回退/);
-  assert.match(panelBody, /TestNode/);
+  assert.match(panelBody, /KV 未绑定/);
+  assert.doesNotMatch(panelBody, /TestNode|NodeA/);
+
+  const subscription = await fetchPath('/api/sub?token=subtoken&type=base64', {}, envWithLegacyLinks);
+  assert.equal(subscription.status, 503);
+  assert.match(await subscription.text(), /SUBSCRIPTIONS KV is not bound/);
+  assert.match(subscription.headers.get('cache-control') || '', /no-store/);
 });
 
-test('saved KV data overrides env for subscription output and dashboard without exposing full nodes', async () => {
+test('KV is the only subscription source and dashboard does not expose full nodes', async () => {
   const kv = createKv([LINK_B]);
-  const testEnv = { ...env, SUBSCRIPTIONS: kv };
+  const testEnv = { ...env, LINK, LINK1: LINK_A, SUBSCRIPTIONS: kv };
   const subscription = await fetchPath('/api/sub?token=subtoken&type=base64', {}, testEnv);
   assert.equal(await subscription.text(), btoa(unescape(encodeURIComponent(LINK_B))));
 
@@ -540,15 +549,15 @@ test('saved KV data overrides env for subscription output and dashboard without 
   assert.match(body, /当前读取：KV/);
 });
 
-test('empty KV falls back to legacy LINK values until the first save', async () => {
+test('empty KV ignores legacy LINK variables', async () => {
   const kv = createKv();
-  const testEnv = { ...numberedLinkEnv, SUBSCRIPTIONS: kv };
-  const fallback = await fetchPath('/api/sub?token=subtoken&type=base64', {}, testEnv);
-  assert.equal(await fallback.text(), btoa(unescape(encodeURIComponent([LINK_A, LINK_B].join('\n')))));
+  const testEnv = { ...env, LINK: LINK_A, LINK1: LINK_B, SUBSCRIPTIONS: kv };
+  const subscription = await fetchPath('/api/sub?token=subtoken&type=base64', {}, testEnv);
+  assert.equal(await subscription.text(), '');
 
   const { cookie } = await loginSession(testEnv);
   const list = await fetchPath('/api/manage/subscriptions', { headers: { cookie } }, testEnv);
   const body = await list.json();
-  assert.equal(body.source, 'env');
-  assert.equal(body.items.length, 2);
+  assert.equal(body.source, 'kv');
+  assert.equal(body.items.length, 0);
 });

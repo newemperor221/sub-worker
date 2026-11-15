@@ -13,7 +13,7 @@
 
 `sub-worker` 是一个部署在 **Cloudflare Pages / Workers** 上的私有订阅面板。
 
-它会把 KV（或首次迁移前的环境变量）中的节点分享链接整理成：
+它会把 Cloudflare KV 中的节点分享链接整理成：
 
 - Clash / Mihomo YAML 订阅
 - Loon 原生 Proxy 订阅
@@ -25,8 +25,7 @@
 
 - 面板登录使用 `ADMIN_USER` / `ADMIN_PASS`
 - 订阅接口使用 `TOKEN`
-- 节点优先来自绑定名为 `SUBSCRIPTIONS` 的 Cloudflare KV
-- KV 尚无数据时兼容旧版 `LINK` / `LINK1` / `LINK2` / ...
+- 节点仅来自绑定名为 `SUBSCRIPTIONS` 的 Cloudflare KV
 - 首次创建并绑定 KV 后，以后可直接在登录面板批量添加、查看脱敏摘要、调整顺序和删除节点
 - 不需要 D1 或其他数据库
 - 主页不展示完整订阅 URL
@@ -117,8 +116,6 @@ Cloudflare Pages / Workers 需要配置：
 | 变量名 | 必填 | 说明 |
 |---|---:|---|
 | `TOKEN` | ✅ | 订阅接口访问令牌，会出现在客户端订阅 URL 中 |
-| `LINK1`, `LINK2`, ... | ❌ | 旧配置兼容/首次迁移来源：每个变量一个节点，按数字顺序聚合 |
-| `LINK` | ❌ | 旧版兼容/首次迁移来源：可放一个或多行链接；排在 `LINK1` 之前 |
 | `ADMIN_USER` | ✅ | 网页面板登录用户名 |
 | `ADMIN_PASS` | ✅ | 网页面板登录密码 |
 | `SESSION_SECRET` | 推荐 | Cookie 签名密钥；未设置时回退到由 `ADMIN_PASS` 派生的稳定密钥 |
@@ -147,7 +144,7 @@ openssl rand -hex 32
 
 ## Cloudflare KV 创建与绑定
 
-KV 只需首次创建并绑定一次；完成后节点增删都在登录面板操作，不再需要到 Cloudflare 后台逐条维护 `LINK` / `LINK1`。
+KV 只需首次创建并绑定一次；完成后节点增删和排序都在登录面板操作。
 
 ### Pages 项目
 
@@ -169,34 +166,12 @@ id = "你的 KV namespace ID"
 
 Worker 使用固定 key `subscription_links` 保存一个 JSON 节点链接数组。不要手工创建多个 key。
 
-### 旧 `LINK` 的兼容与迁移语义
+### 唯一数据源
 
-- 未绑定 `SUBSCRIPTIONS`：旧 `LINK` / `LINK1...` 继续提供订阅和面板节点，但面板会明确提示无法保存。
-- 已绑定、但固定 key 尚不存在：仍读取旧环境变量；第一次从面板添加或删除时，会把当前 env 节点与该次操作结果写入 KV，完成迁移。
-- 固定 key 已存在（包括保存的空数组）：KV 为唯一数据源，不再合并 env；删除所有节点也不会重新回退到 env。
-- 迁移完成并确认订阅正常后，可以删除旧 `LINK` 变量；也可以保留作为不再读取的历史配置。
-
----
-
-## `LINK1` / `LINK2` 格式
-
-推荐在 Cloudflare 环境变量里使用 `LINK1`、`LINK2`、`LINK3` ...：**一个变量只放一个节点分享链接**。Worker 会按数字顺序聚合它们。
-
-`LINK` 仍保留兼容：可以放一个链接，也可以继续放旧版多行链接；如果同时设置 `LINK` 和 `LINK1`，`LINK` 里的内容会排在最前面。
-
-示例只保留字段结构，真实 UUID / 密钥 / 地址请自行替换：
-
-```text
-LINK1=vless://uuid@example.com:443?encryption=none&security=reality&sni=www.apple.com&fp=chrome&pbk=PUBLIC_KEY&sid=SHORT_ID&type=xhttp&path=%2Fxhttp&mode=stream-up#台湾
-LINK2=vless://uuid@example.com:443?encryption=none&flow=xtls-rprx-vision&security=reality&sni=www.apple.com&fp=chrome&pbk=PUBLIC_KEY&sid=SHORT_ID&type=tcp#洛杉矶
-LINK3=hysteria2://password@example.com:443?sni=example.com#Hysteria2-Example
-```
-
-注意：
-
-- `LINK1` / `LINK2` / `LINK3` 按数字顺序输出
-- 每个变量只放一个节点
-- 节点名称建议带地区关键词，例如 `台湾`、`香港`、`日本`、`洛杉矶`
+- `SUBSCRIPTIONS` KV 是节点的唯一数据源。
+- 未绑定 KV 时不提供节点订阅，面板只显示绑定提示。
+- KV 中固定 key 尚不存在或保存为空数组时，节点列表为空。
+- `LINK`、`LINK1...` 环境变量已彻底停用，即使误配也不会读取。
 - REALITY 节点需要保留 `sni`、`fp`、`pbk`、`sid`
 - XHTTP 建议写清楚 `type=xhttp` 和 `mode=stream-up`
 - XHTTP 不建议带 `flow=xtls-rprx-vision`
@@ -300,7 +275,7 @@ sw_session  # 旧版本兼容清理
    - `ADMIN_PASS`
    - `SESSION_SECRET`
    - `SUBNAME`
-   - 已有部署可暂时保留 `LINK` / `LINK1...` 作为首次迁移来源
+
 6. 按上文创建 KV 命名空间，并以 `SUBSCRIPTIONS` 绑定到项目。
 7. 重新部署并绑定自定义域名。
 8. 访问 `/login`，登录后在“订阅管理”中维护节点。
@@ -365,9 +340,9 @@ npm test
 - `/logout` 清理 Cookie
 - `/api/sub` 需要 `TOKEN`
 - 旧 `/TOKEN?...` 地址、`type=b64` 和 `type=mihomo` 均拒绝
-- 管理 API 未登录拒绝，登录后可增/列/删
+- 管理 API 未登录拒绝，登录后可增/列/排序/删
 - 多行输入去重、非法协议和未绑定 KV 错误
-- KV 优先读取、env 回退与首次迁移
+- KV 唯一数据源与空 KV 行为
 - 面板不暴露完整节点链接
 
 ---

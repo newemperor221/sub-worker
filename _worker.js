@@ -121,7 +121,7 @@ function parseProxies(config) {
     .map(line => line.replace(/^\uFEFF/, '').trim())
     .filter(Boolean);
 
-  // 单次顺序解析，保证 LINK / LINK1 / LINK2 的原始排列不会因协议分组而改变。
+  // 单次顺序解析，保证 KV 中的原始排列不会因协议分组而改变。
   const proxies = allLines.map((line) => {
     const scheme = line.match(/^([a-z][a-z0-9+.-]*):\/\//i)?.[1]?.toLowerCase();
     if (scheme === 'vless') return convertVlessToClashProxy(line);
@@ -151,13 +151,13 @@ function parseSubscriptionInput(value) {
   return [...new Set(lines)];
 }
 
-async function loadSubscriptions(env, config) {
+async function loadSubscriptions(env) {
   if (!env?.SUBSCRIPTIONS) {
-    return { links: normalizeSubscriptionLines(config.link).filter((link) => SUPPORTED_LINK_PATTERN.test(link)), kvBound: false, saved: false };
+    return { links: [], kvBound: false };
   }
   const stored = await env.SUBSCRIPTIONS.get(SUBSCRIPTIONS_KEY);
   if (stored === null) {
-    return { links: normalizeSubscriptionLines(config.link).filter((link) => SUPPORTED_LINK_PATTERN.test(link)), kvBound: true, saved: false };
+    return { links: [], kvBound: true };
   }
   let links;
   try {
@@ -168,7 +168,7 @@ async function loadSubscriptions(env, config) {
   if (!Array.isArray(links) || links.some((link) => typeof link !== 'string')) {
     throw new Error('KV 中的订阅数据格式错误，应为节点链接数组');
   }
-  return { links: normalizeSubscriptionLines(links.join('\n')).filter((link) => SUPPORTED_LINK_PATTERN.test(link)), kvBound: true, saved: true };
+  return { links: normalizeSubscriptionLines(links.join('\n')).filter((link) => SUPPORTED_LINK_PATTERN.test(link)), kvBound: true };
 }
 
 function configWithSubscriptions(config, subscriptions) {
@@ -200,7 +200,7 @@ async function handleSubscriptionManagement(request, env, config, session) {
 
   let current;
   try {
-    current = await loadSubscriptions(env, config);
+    current = await loadSubscriptions(env);
   } catch (error) {
     return jsonResponse({ error: error.message }, 500);
   }
@@ -209,7 +209,7 @@ async function handleSubscriptionManagement(request, env, config, session) {
     return jsonResponse({
       items: current.links.map(subscriptionSummary),
       kvBound: current.kvBound,
-      source: current.saved ? 'kv' : 'env',
+      source: current.kvBound ? 'kv' : 'unbound',
     });
   }
   if (request.method !== 'POST' && request.method !== 'PATCH' && request.method !== 'DELETE') {
@@ -405,21 +405,22 @@ async function handleRequest(request, env) {
     try {
       await signSessionPayload('health-check', config.sessionSecret);
       component = 'subscription-storage';
-      const subscriptions = await loadSubscriptions(env, config);
+      const subscriptions = await loadSubscriptions(env);
       component = 'proxy-parser';
       const activeConfig = configWithSubscriptions(config, subscriptions);
       const { proxies } = parseProxies(activeConfig);
       component = 'dashboard-renderer';
       renderDashboard(activeConfig, proxies, baseUrl, {
         kvBound: subscriptions.kvBound,
-        source: subscriptions.saved ? 'kv' : 'env',
+        source: subscriptions.kvBound ? 'kv' : 'unbound',
         items: subscriptions.links.map(subscriptionSummary),
       });
       return jsonResponse({
         ok: true,
-        storage: subscriptions.kvBound ? 'kv' : 'env',
+        storage: subscriptions.kvBound ? 'kv' : 'unbound',
         formats: ['clash', 'loon', 'base64'],
         legacySubscriptionUrls: false,
+        legacyEnvironmentLinks: false,
         loonSyntax: 'nsloon',
         subscriptionManagement: ['add', 'reorder', 'delete'],
       });
@@ -436,7 +437,13 @@ async function handleRequest(request, env) {
   if (path === '/api/sub') {
     if (!config.token || params.get('token') !== config.token) return new Response('Not Found', { status: 404 });
     try {
-      const subscriptions = await loadSubscriptions(env, config);
+      const subscriptions = await loadSubscriptions(env);
+      if (!subscriptions.kvBound) {
+        return new Response('SUBSCRIPTIONS KV is not bound', {
+          status: 503,
+          headers: noStoreHeaders({ 'Content-Type': 'text/plain; charset=utf-8' }),
+        });
+      }
       return renderSubscription(getSubscriptionKind(params), configWithSubscriptions(config, subscriptions));
     } catch (error) {
       return new Response(error.message, { status: 500, headers: noStoreHeaders({ 'Content-Type': 'text/plain; charset=utf-8' }) });
@@ -463,12 +470,12 @@ async function handleRequest(request, env) {
   const session = await getValidSession(request, config);
   if (session && path === session.homePath) {
     try {
-      const subscriptions = await loadSubscriptions(env, config);
+      const subscriptions = await loadSubscriptions(env);
       const activeConfig = configWithSubscriptions(config, subscriptions);
       const { proxies } = parseProxies(activeConfig);
       return new Response(renderDashboard(activeConfig, proxies, baseUrl, {
         kvBound: subscriptions.kvBound,
-        source: subscriptions.saved ? 'kv' : 'env',
+        source: subscriptions.kvBound ? 'kv' : 'unbound',
         items: subscriptions.links.map(subscriptionSummary),
       }), {
         headers: noStoreHeaders({ 'Content-Type': 'text/html; charset=utf-8' }),
