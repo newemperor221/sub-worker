@@ -288,18 +288,20 @@ test('Loon output includes VLESS Reality and Hysteria2 proxy lines', async () =>
     ...env,
     LINK: '',
     LINK1: 'vless://77777777-7777-4777-8777-777777777777@vless.example:443?security=reality&type=tcp&flow=xtls-rprx-vision&sni=edge.example&fp=chrome&pbk=public-key&sid=abcd#Reality-Node',
-    LINK2: 'hysteria2://secret@hy.example:8443?sni=hy.example#HY2-Node',
+    LINK2: 'hysteria2://secret@hy.example:8443?sni=hy.example&insecure=1#HY2-Node',
   };
   const res = await fetchPath('/api/sub?token=subtoken&type=loon', {}, loonEnv);
   const body = await res.text();
 
   assert.equal(res.status, 200);
   assert.match(body, /^\[Proxy\]\n/);
-  assert.match(body, /Reality-Node = vless/);
-  assert.match(body, /reality=true/);
+  assert.match(body, /Reality-Node = VLESS/);
+  assert.doesNotMatch(body, /reality=true/);
   assert.match(body, /public-key=public-key/);
   assert.match(body, /short-id=abcd/);
-  assert.match(body, /HY2-Node = hysteria2, hy\.example, 8443, secret/);
+  assert.match(body, /tls-profile=chrome/);
+  assert.match(body, /HY2-Node = Hysteria2, hy\.example, 8443, "secret"/);
+  assert.match(body, /skip-cert-verify=true/);
 });
 
 test('old subscription aliases and paths are not compatible', async () => {
@@ -404,6 +406,7 @@ test('health endpoint exercises session crypto, storage and dashboard rendering'
     storage: 'kv',
     formats: ['clash', 'loon', 'base64'],
     legacySubscriptionUrls: false,
+    loonSyntax: 'nsloon',
   });
   assert.match(res.headers.get('cache-control') || '', /no-store/);
 });

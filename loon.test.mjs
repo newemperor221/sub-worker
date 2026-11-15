@@ -13,22 +13,25 @@ test('Loon renderer outputs VLESS Reality and Hysteria2 nodes', () => {
     },
     {
       name: 'HY2 Node', type: 'hysteria2', server: '5.6.7.8', port: 8443,
-      password: 'secret', sni: 'hy.example.com', 'skip-cert-verify': false,
+      password: 'secret', sni: 'hy.example.com', 'skip-cert-verify': true,
     },
   ]);
 
   assert.match(output, /^\[Proxy\]\n/);
-  assert.match(output, /Reality Node = vless, 1\.2\.3\.4, 443, 11111111-1111-4111-8111-111111111111/);
+  assert.match(output, /Reality Node = VLESS, 1\.2\.3\.4, 443, "11111111-1111-4111-8111-111111111111"/);
   assert.match(output, /flow=xtls-rprx-vision/);
   assert.match(output, /transport=tcp/);
   assert.match(output, /over-tls=true/);
-  assert.match(output, /reality=true/);
+  assert.doesNotMatch(output, /reality=true/);
   assert.match(output, /public-key=public-key/);
   assert.match(output, /short-id=abcd/);
   assert.match(output, /sni=example\.com/);
-  assert.match(output, /client-fingerprint=chrome/);
-  assert.match(output, /HY2 Node = hysteria2, 5\.6\.7\.8, 8443, secret, sni=hy\.example\.com/);
-  assert.doesNotMatch(output, /skip-cert-verify=true/);
+  assert.match(output, /tls-profile=chrome/);
+  assert.match(output, /udp=true/);
+  assert.match(output, /block-quic=false/);
+  assert.match(output, /ip-mode=prefer-v4/);
+  assert.match(output, /HY2 Node = Hysteria2, 5\.6\.7\.8, 8443, "secret", sni=hy\.example\.com/);
+  assert.match(output, /skip-cert-verify=true/);
 });
 
 test('Loon renderer sanitizes and de-duplicates node names', () => {
@@ -37,6 +40,6 @@ test('Loon renderer sanitizes and de-duplicates node names', () => {
     { name: 'Same Name', type: 'hysteria2', server: 'b.example', port: 443, password: 'b' },
   ]);
 
-  assert.match(output, /Same Name = hysteria2/);
-  assert.match(output, /Same Name_1 = hysteria2/);
+  assert.match(output, /Same Name = Hysteria2/);
+  assert.match(output, /Same Name_1 = Hysteria2/);
 });

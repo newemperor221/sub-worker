@@ -402,6 +402,7 @@ async function handleRequest(request, env) {
         storage: subscriptions.kvBound ? 'kv' : 'env',
         formats: ['clash', 'loon', 'base64'],
         legacySubscriptionUrls: false,
+        loonSyntax: 'nsloon',
       });
     } catch {
       return jsonResponse({ ok: false, component }, 503);
