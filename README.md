@@ -1,365 +1,129 @@
 # Sub Worker 订阅控制台
 
-> 私有代理订阅管理控制台：登录后添加、排序和删除节点，生成 Auto / Clash / Loon / Base64 订阅并扫码导入，同时隐藏敏感连接细节。
+私有 Cloudflare Worker 订阅面板。登录后可添加、排序、搜索、分组、添加标签和备注节点，也可停用节点而不删除。输出 Auto / Clash / Loon / Base64，管理界面不显示完整节点 URL。
 
-[![Cloudflare Worker](https://img.shields.io/badge/runtime-Cloudflare%20Workers-f38020?style=flat-square)](#部署)
-[![Private Panel](https://img.shields.io/badge/panel-private%20login-5f7fe7?style=flat-square)](#访问结构)
-[![Dark Console](https://img.shields.io/badge/style-dark%20console-6875f5?style=flat-square)](#视觉风格)
-[![Node Test](https://img.shields.io/badge/test-node%20--test-b2f2bb?style=flat-square)](#本地测试)
+## 存储模型
 
----
+- **D1 主存储**：绑定名固定为 `SUBSCRIPTIONS_DB`。绑定且可用时，D1 是唯一权威数据源。
+- **KV 兼容与备份**：绑定名固定为 `SUBSCRIPTIONS`。结构化备份写入 `subscription_nodes_v2`，同时继续写入兼容 key `subscription_links`（URL 数组）。
+- **无 D1 时**：Worker 使用结构化 KV 完整支持添加、排序、编辑元数据、启停和删除，因此可以先部署 KV 版本，再绑定 D1。
+- **首次绑定 D1**：运行时安全执行 `CREATE TABLE IF NOT EXISTS`，然后只迁移一次 KV 数据。`app_meta` 中的 `kv_nodes_migrated_v2` 标记可防止删除全部节点后又从旧 KV 数据回填。
+- **D1 读取失败**：订阅接口可以读取 KV 备份。D1 已绑定时，管理写入会失败而不是写 KV，避免 split-brain。
+- D1 成功变更后会刷新两个 KV key；若 KV 未绑定或备份写入失败，D1 中的变更仍是权威结果，API 的 `backupUpdated` 会反映备份状态。
+- `LINK`、`LINK1...` 环境变量仍然完全停用，不参与迁移、读取或回退。
 
-## 这是什么
+每个节点保存稳定字符串 ID、URL、整数位置、一个自由文本分组、多个标签、备注、启用状态和创建/更新时间。停用节点仍在面板中，但不会进入任何订阅输出。
 
-`sub-worker` 是一个部署在 **Cloudflare Pages / Workers** 上的私有订阅面板。
+## 功能
 
-它会把 Cloudflare KV 中的节点分享链接整理成：
+- 仅接受 `vless://` 与完整的 `hysteria2://` 链接
+- 批量添加自动 trim、去空行、去重
+- 按稳定 ID 相邻上移/下移和删除
+- 编辑分组、标签、备注；标签 trim 并按大小写去重
+- 客户端搜索覆盖节点名称、分组、标签和备注
+- 分组与启用状态筛选
+- Auto 根据 User-Agent 选择 Loon、Clash/Mihomo 或 Base64
+- 深色响应式面板，无地区图片或旗帜卡片，无横向溢出
 
-- Auto 自动识别订阅
-- Clash / Mihomo YAML 订阅
-- Loon 原生 Proxy 订阅
-- Base64 原始分享链接订阅
-- 登录后可视化管理节点、调整顺序和查看脱敏摘要
-- 可复制 / 可扫码的订阅入口
+## 环境变量与绑定
 
-当前版本是 **单管理员、单订阅源** 版本：
+| 名称 | 类型 | 必填 | 说明 |
+|---|---|---:|---|
+| `TOKEN` | secret/variable | ✅ | 订阅 API 令牌 |
+| `ADMIN_USER` | secret/variable | ✅ | 管理员用户名 |
+| `ADMIN_PASS` | secret | ✅ | 管理员密码 |
+| `SESSION_SECRET` | secret | 推荐 | Cookie HMAC 密钥；未设置时由 `ADMIN_PASS` 派生 |
+| `SUBNAME` | variable | 否 | 订阅显示名称 |
+| `SUBSCRIPTIONS` | KV binding | 推荐 | KV 兼容存储和 D1 备份；无 D1 时必填 |
+| `SUBSCRIPTIONS_DB` | D1 binding | 推荐 | D1 权威存储 |
 
-- 面板登录使用 `ADMIN_USER` / `ADMIN_PASS`
-- 订阅接口使用 `TOKEN`
-- 节点仅来自绑定名为 `SUBSCRIPTIONS` 的 Cloudflare KV
-- 首次创建并绑定 KV 后，以后可直接在登录面板批量添加、查看脱敏摘要、调整顺序和删除节点
-- 不需要 D1 或其他数据库
-- 主页不展示完整订阅 URL
-- 登录后进入随机路径 `/随机字符/home`
+不要把真实令牌、密码、节点链接、数据库 ID 或 KV namespace ID 提交到仓库。
 
----
+## 创建 D1 与 KV
 
-## 视觉风格
-
-当前 UI 是纯深色、紧凑的 SaaS 管理后台：
-
-- 炭黑页面背景、深灰面板、细灰边框与克制的紫蓝主色
-- 高对比文字和系统字体栈：`system-ui / Segoe UI / PingFang SC / Microsoft YaHei / Noto Sans CJK SC`
-- 顶部品牌栏和居中内容区，不使用侧边栏、玻璃态或大型 Hero
-- `/login` 使用工作区介绍与登录表单组成的双栏布局，移动端自动收为单列
-- `/随机字符/home` 使用两列控制台布局：左侧管理节点，右侧展示 Auto / Clash / Loon / Base64 导出入口
-- 字体和操作图标统一采用较大的可读尺寸；节点卡片不显示地区图片或旗帜
-- 桌面端导出工具保持在右侧，移动端自动切换为单列布局
-
----
-
-## 访问结构
-
-### 登录页
-
-```text
-/login
-```
-
-未登录访问根路径：
-
-```text
-/
-```
-
-会自动跳转到：
-
-```text
-/login
-```
-
-### 登录后的面板主页
-
-登录成功后会跳转到随机主页路径：
-
-```text
-/随机字符/home
-```
-
-这个随机路径和登录 Cookie 绑定。没有对应会话时，直接访问别人猜的 `/随机字符/home` 不会显示面板。
-
-### 退出登录
-
-```text
-/logout
-```
-
-退出时会清理登录 Cookie，并跳回 `/login`。
-
----
-
-## 订阅接口
-
-推荐新接口：
-
-```text
-https://你的域名/api/sub?token=你的TOKEN&type=auto
-https://你的域名/api/sub?token=你的TOKEN&type=clash
-https://你的域名/api/sub?token=你的TOKEN&type=loon
-https://你的域名/api/sub?token=你的TOKEN&type=base64
-```
-
-参数：
-
-| 参数 | 说明 |
-|---|---|
-| `token` | 订阅访问令牌，对应环境变量 `TOKEN` |
-| `type=auto` | 根据客户端 User-Agent 自动选择 Loon、Clash 或 Base64 |
-| `type=clash` | 输出 Clash / Mihomo YAML |
-| `type=loon` | 输出 Loon 原生 `[Proxy]` 订阅 |
-| `type=base64` | 输出 Base64 原始分享链接订阅 |
-
-仅支持上面的 `/api/sub?...` 地址，不兼容旧 `/TOKEN?...` 地址或 `type=b64` 别名。
-
-Auto 识别规则：Loon 客户端输出 Loon 格式；Clash、Mihomo、Stash、OpenClash、Nikki、FlClash 输出 Clash 格式；其他客户端回退到 Base64。Auto 响应带有 `Vary: User-Agent`，避免不同客户端之间复用错误格式的缓存。
-
----
-
-## 环境变量
-
-Cloudflare Pages / Workers 需要配置：
-
-| 变量名 | 必填 | 说明 |
-|---|---:|---|
-| `TOKEN` | ✅ | 订阅接口访问令牌，会出现在客户端订阅 URL 中 |
-| `ADMIN_USER` | ✅ | 网页面板登录用户名 |
-| `ADMIN_PASS` | ✅ | 网页面板登录密码 |
-| `SESSION_SECRET` | 推荐 | Cookie 签名密钥；未设置时回退到由 `ADMIN_PASS` 派生的稳定密钥 |
-| `SUBNAME` | ❌ | 面板副标题 / 客户端订阅名称 |
-
-生成 URL 友好的 `TOKEN`：
+### Wrangler
 
 ```bash
-openssl rand -base64 24 | tr '+/' '-_' | tr -d '='
+npx wrangler d1 create sub-worker-db
+npx wrangler kv namespace create SUBSCRIPTIONS
 ```
 
-生成 `SESSION_SECRET`：
-
-```bash
-openssl rand -hex 32
-```
-
-`TOKEN` 和 `SESSION_SECRET` 不要设置成一样：
-
-| 变量 | 用途 | 是否会出现在 URL |
-|---|---|---:|
-| `TOKEN` | 订阅 API 访问令牌 | 会 |
-| `SESSION_SECRET` | 登录 Cookie 签名密钥 | 不会 |
-
----
-
-## Cloudflare KV 创建与绑定
-
-KV 只需首次创建并绑定一次；完成后节点增删和排序都在登录面板操作。
-
-### Pages 项目
-
-1. 在 Cloudflare Dashboard 打开 **Storage & Databases → KV**，创建一个 KV 命名空间（名称可自定）。
-2. 打开对应的 **Workers & Pages → Pages 项目 → Settings → Bindings**。
-3. 新增 **KV namespace binding**，变量名必须填写 `SUBSCRIPTIONS`，选择刚创建的命名空间。
-4. 保存绑定并重新部署一次项目。
-5. 登录 `/login`，在“订阅管理 / 添加订阅”中粘贴节点（每行一个）并保存。
-
-### 普通 Worker
-
-在 Worker 的 **Settings → Bindings** 中新增 KV namespace，变量名同样必须是 `SUBSCRIPTIONS`，保存后重新部署。若使用 Wrangler，可在配置中增加：
+在项目的 Wrangler 配置中使用命令输出的 ID：
 
 ```toml
+[[d1_databases]]
+binding = "SUBSCRIPTIONS_DB"
+database_name = "sub-worker-db"
+database_id = "你的 D1 database ID"
+
 [[kv_namespaces]]
 binding = "SUBSCRIPTIONS"
 id = "你的 KV namespace ID"
 ```
 
-Worker 使用固定 key `subscription_links` 保存一个 JSON 节点链接数组。不要手工创建多个 key。
+可以预先应用仓库中的 schema；即使不执行，Worker 也会在运行时幂等初始化：
 
-### 唯一数据源
-
-- `SUBSCRIPTIONS` KV 是节点的唯一数据源。
-- 未绑定 KV 时不提供节点订阅，面板只显示绑定提示。
-- KV 中固定 key 尚不存在或保存为空数组时，节点列表为空。
-- `LINK`、`LINK1...` 环境变量已彻底停用，即使误配也不会读取。
-- REALITY 节点需要保留 `sni`、`fp`、`pbk`、`sid`
-- XHTTP 建议写清楚 `type=xhttp` 和 `mode=stream-up`
-- XHTTP 不建议带 `flow=xtls-rprx-vision`
-
----
-
-## 面板管理节点
-
-1. 登录后滚动到“订阅管理”。
-2. 在“添加订阅”中粘贴一行或多行节点链接并保存。
-3. 输入会自动 trim、忽略空行并去重；仅接受 `vless://`、`hysteria2://`。
-4. “已添加节点”只显示协议与节点名称等脱敏摘要；使用上移/下移按钮调整顺序，点击删除可移除对应节点。
-5. 排序会直接写回 KV，Auto、Clash、Loon、Base64 都按相同的新顺序输出。
-6. 添加、排序或删除后，订阅 API 与节点卡片都以 KV 中的最新数组为准。
-
-这些操作使用同源管理 API、登录 Cookie，并且响应禁止缓存。未登录请求会被拒绝；未绑定 KV 时不会假装保存成功。
-
----
-
-## 面板展示规则
-
-面板会尽量隐藏敏感信息，适合截图或投屏。
-
-不会直接展示：
-
-```text
-完整订阅 URL
-节点 IP / 域名
-节点端口
-UUID
-Hysteria2 password
-Reality public key
-Reality shortId
-WS path
-gRPC serviceName
-XHTTP path
+```bash
+npx wrangler d1 execute sub-worker-db --remote --file=schema.sql
 ```
 
-会展示：
+### Cloudflare Dashboard / Pages
+
+1. 在 **Storage & Databases → KV** 创建命名空间，并以 `SUBSCRIPTIONS` 绑定。
+2. 在 **Storage & Databases → D1** 创建数据库，并以 `SUBSCRIPTIONS_DB` 绑定。
+3. 重新部署 Worker/Pages 项目。
+4. 请求 `/api/health` 或登录面板触发初始化与一次性迁移。
+5. 确认健康响应的 `storage` 与 `subscriptionSource` 为 `d1`。
+
+推荐先绑定 KV 并部署，确认现有 `subscription_links` 可用后再绑定空 D1。首次 D1 初始化会优先读取 `subscription_nodes_v2`；该 key 不存在时再读取 `subscription_links`。迁移期间不要手工编辑两个 key。
+
+## 管理 API
+
+所有管理请求都需要有效登录 Cookie，并返回 `Cache-Control: no-store`：
 
 ```text
-节点名称
-协议类型
-VLESS / Hysteria2
-REALITY / TLS
-TCP / XHTTP / WS / gRPC
-Vision
-XHTTP mode
-SNI 域名
+GET    /api/manage/subscriptions   # 全部节点（含停用节点和元数据，不返回 URL）
+POST   /api/manage/subscriptions   # { "links": "vless://...\nhysteria2://..." }
+PATCH  /api/manage/subscriptions   # { "id": "稳定ID", "direction": "up|down" }
+PUT    /api/manage/subscriptions   # { "id": "稳定ID", "group": "...", "tags": [], "note": "...", "enabled": true }
+DELETE /api/manage/subscriptions   # { "id": "稳定ID" }
 ```
 
----
+元数据限制：分组 64 字符、备注 500 字符、最多 12 个标签、单标签 32 字符。`enabled` 必须是 JSON 布尔值。
 
-## Cookie 与登录状态
-
-登录后 Worker 写入：
+## 订阅接口
 
 ```text
-sub_worker_session=...
+/api/sub?token=你的TOKEN&type=auto
+/api/sub?token=你的TOKEN&type=clash
+/api/sub?token=你的TOKEN&type=loon
+/api/sub?token=你的TOKEN&type=base64
 ```
 
-Cookie 属性：
+Auto 规则：Loon 输出 Loon；Clash、Mihomo、Stash、OpenClash、Nikki、FlClash 输出 Clash；其他客户端输出 Base64。Auto 响应带 `Vary: User-Agent`。旧 `/TOKEN?...` 路径和 `type=b64` / `type=mihomo` 不受支持。
 
-```text
-HttpOnly
-Secure
-SameSite=Lax
-Max-Age=7天
-```
+## 路由与安全
 
-会重新要求登录的情况：
+- `/login`：管理员登录
+- `/随机字符/home`：与签名 Cookie 绑定的管理主页
+- `/logout`：清除会话
+- `/api/health`：存储状态、格式与管理能力，不返回秘密
 
-- 点击退出
-- 浏览器清 Cookie
-- 换浏览器 / 换设备
-- Cookie 超过 7 天
-- 修改 `SESSION_SECRET`
-
-退出时会清理当前的 `sub_worker_session` Cookie。
-
----
-
-## 部署
-
-### Cloudflare Pages + GitHub
-
-1. 打开 Cloudflare Dashboard。
-2. 进入 **Workers & Pages**。
-3. 创建 Pages 项目并连接此 GitHub 仓库。
-4. 构建命令留空。
-5. 配置环境变量：
-   - `TOKEN`
-   - `ADMIN_USER`
-   - `ADMIN_PASS`
-   - `SESSION_SECRET`
-   - `SUBNAME`
-
-6. 按上文创建 KV 命名空间，并以 `SUBSCRIPTIONS` 绑定到项目。
-7. 重新部署并绑定自定义域名。
-8. 访问 `/login`，登录后在“订阅管理”中维护节点。
-
-### 普通 Worker 部署
-
-项目是模块化结构，入口是：
-
-```text
-_worker.js
-```
-
-同时依赖：
-
-```text
-utils.js
-convert.js
-yaml.js
-loon.js
-dashboard.js
-```
-
-如果不用 Pages，而是普通 Worker，需要一起上传这些模块，或自行打包成单文件。
-
----
-
-## 支持协议和客户端
-
-当前节点解析支持：
-
-- VLESS
-- Hysteria2（仅接受完整的 `hysteria2://` scheme）
-
-推荐客户端：
-
-| 客户端 | 推荐类型 |
-|---|---|
-| 自动识别 | `type=auto` |
-| Clash Verge Rev | `type=clash` |
-| Mihomo Party | `type=clash` |
-| FlClash | `type=clash` |
-| Clash Meta for Android | `type=clash` |
-| OpenClash / Nikki | `type=clash` |
-| Loon | `type=loon` |
-| v2rayN | `type=base64` |
-| NekoBox | `type=base64` |
-| Hiddify | `type=base64` |
-| Shadowrocket | `type=base64`，视版本协议支持情况 |
-
----
+Cookie 使用 `HttpOnly; Secure; SameSite=Lax`，有效期 7 天。订阅 URL 持有 `TOKEN` 的客户端可获取启用节点的完整凭据；请只通过 HTTPS 分发，并在泄露后立即轮换令牌。
 
 ## 本地测试
+
+无需运行时依赖：
 
 ```bash
 npm test
 ```
 
-当前测试覆盖：
+测试覆盖认证与路由、KV 结构化模式、KV→D1 一次性迁移、迁移标记、元数据持久化、稳定 ID 排序、D1 失败回退和写入拒绝、停用节点从四种输出排除，以及搜索/筛选/编辑 UI 标记。
 
-- `/` 未登录跳 `/login`
-- `/login` 显示深色管理后台登录卡
-- 登录成功后跳 `/随机字符/home`
-- 随机主页路径必须匹配当前会话
-- `/logout` 清理 Cookie
-- `/api/sub` 需要 `TOKEN`
-- `type=auto` 按 User-Agent 选择 Loon、Clash 或 Base64，并返回 `Vary: User-Agent`
-- 旧 `/TOKEN?...` 地址、`type=b64` 和 `type=mihomo` 均拒绝
-- 管理 API 未登录拒绝，登录后可增/列/排序/删
-- 多行输入去重、非法协议和未绑定 KV 错误
-- KV 唯一数据源与空 KV 行为
-- 面板不暴露完整节点链接
+## 部署文件
 
----
-
-## 安全注意事项
-
-- 不要把真实 `TOKEN`、`SESSION_SECRET`、密码、节点链接提交到仓库。
-- `TOKEN` 泄露后，别人可以拉取订阅，需要立即更换。
-- `SESSION_SECRET` 泄露后，别人可能伪造网页登录状态，需要立即更换。
-- 仓库即使公开，也不要公开任何真实连接串或环境变量。
-- `SUBSCRIPTIONS` KV 保存完整节点凭据；只把它绑定到此 Worker，不要公开 KV 内容或授予无关账号写权限。
-- 管理 API 只接受有效登录 Cookie，并返回 `no-store`；节点卡片和列表只显示脱敏摘要，但订阅 API 持有 `TOKEN` 的客户端仍可获取完整节点。
-- 当前版本是单管理员模型；不包含多用户权限隔离，也不需要 D1。
-
----
+Worker 入口为 `_worker.js`，并依赖 `dashboard.js`、`utils.js`、`convert.js`、`yaml.js` 与 `loon.js`。`schema.sql` 是可选的预初始化脚本。Cloudflare Pages 可直接部署；普通 Worker 需要上传这些 ES modules 或自行打包。
 
 ## License
 

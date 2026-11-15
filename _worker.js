@@ -111,75 +111,49 @@ function renderLoginPage(config, errorMessage = '') {
 <body>
 <div class="site">
   <header class="topbar"><div class="topbar-inner"><div class="brand"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M6 6.5h12M6 12h12M6 17.5h7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span><span class="brand-copy"><span class="brand-name">订阅控制台</span><span class="brand-subtitle">${escapeHtml(config.subName)}</span></span></div><span class="secure-label"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 10V8a5 5 0 0 1 10 0v2M6 10h12v10H6V10Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>安全管理入口</span></div></header>
-  <main class="login-main"><section class="login-intro" aria-labelledby="welcome-title"><div class="eyebrow">Private workspace</div><h1 id="welcome-title">管理节点，<br>保持订阅井然有序。</h1><p>一个专注的私有工作区，用于维护节点顺序并为常用客户端生成订阅入口。</p><ul class="feature-list"><li><span class="feature-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="4" width="16" height="6" rx="2" stroke="currentColor" stroke-width="1.7"/><rect x="4" y="14" width="16" height="6" rx="2" stroke="currentColor" stroke-width="1.7"/></svg></span>节点凭据在管理界面中保持隐藏</li><li><span class="feature-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 7.5C5 5.6 8.1 4 12 4s7 1.6 7 3.5S15.9 11 12 11 5 9.4 5 7.5Z" stroke="currentColor" stroke-width="1.7"/><path d="M5 7.5v8c0 1.9 3.1 3.5 7 3.5s7-1.6 7-3.5v-8" stroke="currentColor" stroke-width="1.7"/></svg></span>以 Cloudflare KV 作为唯一节点源</li><li><span class="feature-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 12h10M14 9l3 3-3 3M5 5h14v14H5z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>快速导出 Clash、Loon 与 Base64</li></ul></section><section class="login-shell" aria-labelledby="login-title"><form class="login-card" method="POST" action="/login" autocomplete="on"><div class="card-heading"><h2 id="login-title">管理员登录</h2><p>验证身份后进入订阅工作区</p></div>${error}<div class="field"><label for="username">用户名</label><div class="input-wrap"><input id="username" name="username" autocomplete="username" required autofocus><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="1.7"/><path d="M5 20a7 7 0 0 1 14 0" stroke="currentColor" stroke-width="1.7"/></svg></div></div><div class="field"><label for="password">密码</label><div class="input-wrap"><input id="password" name="password" type="password" autocomplete="current-password" required><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 10V8a5 5 0 0 1 10 0v2M6 10h12v10H6V10Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg></div></div><button class="submit" type="submit">登录控制台<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m9 6 6 6-6 6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></button><p class="hint"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 10V8a5 5 0 0 1 10 0v2M6 10h12v10H6V10Z" stroke="currentColor" stroke-width="1.8"/></svg>登录后进入当前会话专属的随机路径</p></form></section></main>
+  <main class="login-main"><section class="login-intro" aria-labelledby="welcome-title"><div class="eyebrow">Private workspace</div><h1 id="welcome-title">管理节点，<br>保持订阅井然有序。</h1><p>一个专注的私有工作区，用于维护节点顺序并为常用客户端生成订阅入口。</p><ul class="feature-list"><li><span class="feature-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="4" width="16" height="6" rx="2" stroke="currentColor" stroke-width="1.7"/><rect x="4" y="14" width="16" height="6" rx="2" stroke="currentColor" stroke-width="1.7"/></svg></span>节点凭据在管理界面中保持隐藏</li><li><span class="feature-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 7.5C5 5.6 8.1 4 12 4s7 1.6 7 3.5S15.9 11 12 11 5 9.4 5 7.5Z" stroke="currentColor" stroke-width="1.7"/><path d="M5 7.5v8c0 1.9 3.1 3.5 7 3.5s7-1.6 7-3.5v-8" stroke="currentColor" stroke-width="1.7"/></svg></span>以 D1 管理节点，并同步 KV 兼容备份</li><li><span class="feature-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 12h10M14 9l3 3-3 3M5 5h14v14H5z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>快速导出 Clash、Loon 与 Base64</li></ul></section><section class="login-shell" aria-labelledby="login-title"><form class="login-card" method="POST" action="/login" autocomplete="on"><div class="card-heading"><h2 id="login-title">管理员登录</h2><p>验证身份后进入订阅工作区</p></div>${error}<div class="field"><label for="username">用户名</label><div class="input-wrap"><input id="username" name="username" autocomplete="username" required autofocus><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="1.7"/><path d="M5 20a7 7 0 0 1 14 0" stroke="currentColor" stroke-width="1.7"/></svg></div></div><div class="field"><label for="password">密码</label><div class="input-wrap"><input id="password" name="password" type="password" autocomplete="current-password" required><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 10V8a5 5 0 0 1 10 0v2M6 10h12v10H6V10Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg></div></div><button class="submit" type="submit">登录控制台<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m9 6 6 6-6 6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></button><p class="hint"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 10V8a5 5 0 0 1 10 0v2M6 10h12v10H6V10Z" stroke="currentColor" stroke-width="1.8"/></svg>登录后进入当前会话专属的随机路径</p></form></section></main>
   <footer class="footer"><strong>Private subscription administration</strong><span>Protected workspace</span></footer>
 </div>
 </body>
 </html>`;
 }
 function parseProxies(config) {
-  const allLines = String(config.link || '')
-    .split(/\r?\n/)
-    .map(line => line.replace(/^\uFEFF/, '').trim())
-    .filter(Boolean);
-
-  // 单次顺序解析，保证 KV 中的原始排列不会因协议分组而改变。
+  const allLines = String(config.link || '').split(/\r?\n/).map(line => line.replace(/^\uFEFF/, '').trim()).filter(Boolean);
   const proxies = allLines.map((line) => {
     const scheme = line.match(/^([a-z][a-z0-9+.-]*):\/\//i)?.[1]?.toLowerCase();
     if (scheme === 'vless') return convertVlessToClashProxy(line);
     if (scheme === 'hysteria2') return convertHysteria2ToClashProxy(line);
     return null;
   }).filter(Boolean);
-
   return { allLines, proxies };
 }
 
 function normalizeSubscriptionLines(value) {
-  return [...new Set(String(value || '')
-    .split(/\r?\n/)
-    .map((line) => line.replace(/^\uFEFF/, '').trim())
-    .filter(Boolean))];
+  return [...new Set(String(value || '').split(/\r?\n/).map(line => line.replace(/^\uFEFF/, '').trim()).filter(Boolean))];
 }
 
 function parseSubscriptionInput(value) {
   const lines = normalizeSubscriptionLines(value);
-  const invalid = lines
-    .map((line, index) => ({ line, number: index + 1 }))
-    .filter(({ line }) => !SUPPORTED_LINK_PATTERN.test(line));
-  if (invalid.length) {
-    const numbers = invalid.map(({ number }) => number).join('、');
-    throw new Error(`第 ${numbers} 行协议不受支持，仅接受 vless://、hysteria2://`);
-  }
-  return [...new Set(lines)];
+  const invalid = lines.map((line, index) => ({ line, number: index + 1 })).filter(({ line }) => !SUPPORTED_LINK_PATTERN.test(line));
+  if (invalid.length) throw new Error(`第 ${invalid.map(({ number }) => number).join('、')} 行协议不受支持，仅接受 vless://、hysteria2://`);
+  return lines;
 }
 
-async function loadSubscriptions(env) {
-  if (!env?.SUBSCRIPTIONS) {
-    return { links: [], kvBound: false };
-  }
-  const stored = await env.SUBSCRIPTIONS.get(SUBSCRIPTIONS_KEY);
-  if (stored === null) {
-    return { links: [], kvBound: true };
-  }
-  let links;
-  try {
-    links = JSON.parse(stored);
-  } catch {
-    throw new Error('KV 中的订阅数据不是有效 JSON，请检查 subscription_links');
-  }
-  if (!Array.isArray(links) || links.some((link) => typeof link !== 'string')) {
-    throw new Error('KV 中的订阅数据格式错误，应为节点链接数组');
-  }
-  return { links: normalizeSubscriptionLines(links.join('\n')).filter((link) => SUPPORTED_LINK_PATTERN.test(link)), kvBound: true };
+const STRUCTURED_KEY = 'subscription_nodes_v2';
+const MIGRATION_KEY = 'kv_nodes_migrated_v2';
+const d1Initialization = new WeakMap();
+const MAX_GROUP_LENGTH = 64;
+const MAX_NOTE_LENGTH = 500;
+const MAX_TAGS = 12;
+const MAX_TAG_LENGTH = 32;
+
+function newNodeId() {
+  return typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : randomUrlToken(18);
 }
 
-function configWithSubscriptions(config, subscriptions) {
-  return { ...config, link: subscriptions.links.join('\n') };
-}
-
-function subscriptionSummary(link, index) {
-  const scheme = link.match(/^([^:]+):\/\//)?.[1]?.toLowerCase() || 'unknown';
-  const fragment = link.includes('#') ? link.slice(link.indexOf('#') + 1) : '';
+function displaySummary(url) {
+  const scheme = url.match(/^([^:]+):\/\//)?.[1]?.toLowerCase() || 'unknown';
+  const fragment = url.includes('#') ? url.slice(url.indexOf('#') + 1) : '';
   let name = '未命名节点';
   if (fragment) {
     try { name = decodeURIComponent(fragment).trim() || name; } catch { name = fragment.trim() || name; }
@@ -187,104 +161,207 @@ function subscriptionSummary(link, index) {
   name = name.replace(/[\u{1F1E6}-\u{1F1FF}]{2}/gu, '').trim() || '未命名节点';
   const relay = name.match(/^(.+?)[-—–_\s]+(中转|中轉|前置|反连|反連)[-—–_\s]+(.+)$/);
   if (relay?.[1] && relay?.[3]) name = `${relay[3].trim()}(${relay[1].trim()}${relay[2]})`;
-  return { id: String(index), protocol: scheme, name };
+  return { protocol: scheme, name };
+}
+
+function normalizeTags(value) {
+  if (!Array.isArray(value)) throw new Error('标签必须是数组');
+  if (value.length > MAX_TAGS) throw new Error(`标签最多 ${MAX_TAGS} 个`);
+  const tags = [];
+  const seen = new Set();
+  for (const raw of value) {
+    if (typeof raw !== 'string') throw new Error('标签必须是文本');
+    const tag = raw.trim();
+    if (!tag) continue;
+    if (tag.length > MAX_TAG_LENGTH) throw new Error(`单个标签不能超过 ${MAX_TAG_LENGTH} 个字符`);
+    const key = tag.toLocaleLowerCase();
+    if (!seen.has(key)) { seen.add(key); tags.push(tag); }
+  }
+  return tags;
+}
+
+function normalizeMetadata(payload, current = {}) {
+  const group = payload.group === undefined ? String(current.group || '') : String(payload.group).trim();
+  const note = payload.note === undefined ? String(current.note || '') : String(payload.note).trim();
+  const tags = payload.tags === undefined ? [...(current.tags || [])] : normalizeTags(payload.tags);
+  const enabled = payload.enabled === undefined ? current.enabled !== false : payload.enabled;
+  if (group.length > MAX_GROUP_LENGTH) throw new Error(`分组不能超过 ${MAX_GROUP_LENGTH} 个字符`);
+  if (note.length > MAX_NOTE_LENGTH) throw new Error(`备注不能超过 ${MAX_NOTE_LENGTH} 个字符`);
+  if (typeof enabled !== 'boolean') throw new Error('启用状态必须是布尔值');
+  return { group, tags, note, enabled };
+}
+
+function makeNode(url, position, metadata = {}) {
+  const now = new Date().toISOString();
+  const clean = normalizeMetadata(metadata, { enabled: true, tags: [] });
+  return { id: newNodeId(), url, position, ...clean, createdAt: now, updatedAt: now };
+}
+
+function normalizeStoredNode(raw, position) {
+  if (!raw || typeof raw !== 'object' || typeof raw.url !== 'string' || !SUPPORTED_LINK_PATTERN.test(raw.url.trim())) return null;
+  const clean = normalizeMetadata({ group: raw.group ?? raw.group_name ?? '', tags: Array.isArray(raw.tags) ? raw.tags : [], note: raw.note ?? '', enabled: raw.enabled === undefined ? true : raw.enabled });
+  const now = new Date().toISOString();
+  return {
+    id: typeof raw.id === 'string' && raw.id ? raw.id : newNodeId(), url: raw.url.trim(), position,
+    ...clean, createdAt: typeof raw.createdAt === 'string' ? raw.createdAt : (typeof raw.created_at === 'string' ? raw.created_at : now),
+    updatedAt: typeof raw.updatedAt === 'string' ? raw.updatedAt : (typeof raw.updated_at === 'string' ? raw.updated_at : now),
+  };
+}
+
+function publicNode(node) {
+  return { id: node.id, position: node.position, ...displaySummary(node.url), group: node.group, tags: node.tags, note: node.note, enabled: node.enabled, createdAt: node.createdAt, updatedAt: node.updatedAt };
+}
+
+async function readKvNodes(env) {
+  if (!env?.SUBSCRIPTIONS) return { nodes: [], kvBound: false };
+  const structured = await env.SUBSCRIPTIONS.get(STRUCTURED_KEY);
+  if (structured !== null) {
+    let parsed;
+    try { parsed = JSON.parse(structured); } catch { throw new Error(`KV 中的 ${STRUCTURED_KEY} 不是有效 JSON`); }
+    if (!Array.isArray(parsed)) throw new Error(`KV 中的 ${STRUCTURED_KEY} 必须是数组`);
+    return { nodes: parsed.map(normalizeStoredNode).filter(Boolean), kvBound: true };
+  }
+  const legacy = await env.SUBSCRIPTIONS.get(SUBSCRIPTIONS_KEY);
+  let links = [];
+  if (legacy !== null) {
+    try { links = JSON.parse(legacy); } catch { throw new Error('KV 中的订阅数据不是有效 JSON，请检查 subscription_links'); }
+    if (!Array.isArray(links) || links.some(link => typeof link !== 'string')) throw new Error('KV 中的订阅数据格式错误，应为节点链接数组');
+  }
+  const nodes = normalizeSubscriptionLines(links.join('\n')).filter(link => SUPPORTED_LINK_PATTERN.test(link)).map(makeNode);
+  await backupNodes(env, nodes);
+  return { nodes, kvBound: true };
+}
+
+async function backupNodes(env, nodes) {
+  if (!env?.SUBSCRIPTIONS) return false;
+  const positioned = nodes.map((node, position) => ({ ...node, position }));
+  await env.SUBSCRIPTIONS.put(STRUCTURED_KEY, JSON.stringify(positioned));
+  await env.SUBSCRIPTIONS.put(SUBSCRIPTIONS_KEY, JSON.stringify(positioned.map(node => node.url)));
+  return true;
+}
+
+async function initializeD1(env) {
+  const db = env?.SUBSCRIPTIONS_DB;
+  if (!db) return null;
+  if (!d1Initialization.has(db)) {
+    const initialize = (async () => {
+      await db.exec(`CREATE TABLE IF NOT EXISTS nodes (id TEXT PRIMARY KEY, url TEXT NOT NULL UNIQUE, position INTEGER NOT NULL, group_name TEXT NOT NULL DEFAULT '', tags_json TEXT NOT NULL DEFAULT '[]', note TEXT NOT NULL DEFAULT '', enabled INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, updated_at TEXT NOT NULL); CREATE INDEX IF NOT EXISTS idx_nodes_position ON nodes(position); CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);`);
+      const marker = await db.prepare('SELECT value FROM app_meta WHERE key = ?').bind(MIGRATION_KEY).first();
+      if (!marker) {
+        const kv = await readKvNodes(env);
+        const statements = kv.nodes.map(node => db.prepare('INSERT OR IGNORE INTO nodes (id,url,position,group_name,tags_json,note,enabled,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)').bind(node.id, node.url, node.position, node.group, JSON.stringify(node.tags), node.note, node.enabled ? 1 : 0, node.createdAt, node.updatedAt));
+        statements.push(db.prepare('INSERT OR REPLACE INTO app_meta (key,value) VALUES (?,?)').bind(MIGRATION_KEY, new Date().toISOString()));
+        await db.batch(statements);
+      }
+      return db;
+    })();
+    d1Initialization.set(db, initialize);
+    initialize.catch(() => d1Initialization.delete(db));
+  }
+  return d1Initialization.get(db);
+}
+
+function nodeFromD1(row) {
+  let tags = [];
+  try { tags = JSON.parse(row.tags_json || '[]'); } catch { tags = []; }
+  return normalizeStoredNode({ id: row.id, url: row.url, group: row.group_name, tags, note: row.note, enabled: row.enabled === 1 || row.enabled === true, created_at: row.created_at, updated_at: row.updated_at }, Number(row.position));
+}
+
+async function loadNodes(env) {
+  if (env?.SUBSCRIPTIONS_DB) {
+    try {
+      const db = await initializeD1(env);
+      const result = await db.prepare('SELECT * FROM nodes ORDER BY position ASC, created_at ASC').all();
+      return { nodes: (result.results || []).map(nodeFromD1).filter(Boolean), source: 'd1', storage: 'd1', kvBound: !!env.SUBSCRIPTIONS, d1Bound: true, writable: true };
+    } catch (d1Error) {
+      const kv = await readKvNodes(env);
+      return { ...kv, source: kv.kvBound ? 'kv' : 'unbound', storage: kv.kvBound ? 'kv' : 'unbound', d1Bound: true, writable: false, d1Error };
+    }
+  }
+  const kv = await readKvNodes(env);
+  return { ...kv, source: kv.kvBound ? 'kv' : 'unbound', storage: kv.kvBound ? 'kv' : 'unbound', d1Bound: false, writable: kv.kvBound };
+}
+
+async function saveNodes(env, state, nodes) {
+  const positioned = nodes.map((node, position) => ({ ...node, position }));
+  if (state.d1Bound) {
+    if (state.source !== 'd1' || !state.writable) throw new Error('D1 当前不可写，为避免数据分叉已拒绝管理操作');
+    const db = env.SUBSCRIPTIONS_DB;
+    const statements = [db.prepare('DELETE FROM nodes')];
+    for (const node of positioned) statements.push(db.prepare('INSERT INTO nodes (id,url,position,group_name,tags_json,note,enabled,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)').bind(node.id, node.url, node.position, node.group, JSON.stringify(node.tags), node.note, node.enabled ? 1 : 0, node.createdAt, node.updatedAt));
+    await db.batch(statements);
+    let backupUpdated = false;
+    try { backupUpdated = await backupNodes(env, positioned); } catch { backupUpdated = false; }
+    return { nodes: positioned, backupUpdated };
+  }
+  if (!state.kvBound) throw new Error('尚未绑定 Cloudflare KV：请以 SUBSCRIPTIONS 绑定后再保存');
+  await backupNodes(env, positioned);
+  return { nodes: positioned, backupUpdated: true };
+}
+
+function configWithNodes(config, state) {
+  return { ...config, link: state.nodes.filter(node => node.enabled).map(node => node.url).join('\n') };
+}
+
+function managementState(state) {
+  return { items: state.nodes.map(publicNode), kvBound: state.kvBound, d1Bound: state.d1Bound, writable: state.writable, source: state.source };
 }
 
 function jsonResponse(data, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: noStoreHeaders({ 'Content-Type': 'application/json; charset=utf-8' }),
-  });
+  return new Response(JSON.stringify(data), { status, headers: noStoreHeaders({ 'Content-Type': 'application/json; charset=utf-8' }) });
 }
 
 async function handleSubscriptionManagement(request, env, config, session) {
   if (!session) return jsonResponse({ error: '请先登录后再管理订阅' }, 401);
-
   let current;
-  try {
-    current = await loadSubscriptions(env);
-  } catch (error) {
-    return jsonResponse({ error: error.message }, 500);
-  }
-
-  if (request.method === 'GET') {
-    return jsonResponse({
-      items: current.links.map(subscriptionSummary),
-      kvBound: current.kvBound,
-      source: current.kvBound ? 'kv' : 'unbound',
-    });
-  }
-  if (request.method !== 'POST' && request.method !== 'PATCH' && request.method !== 'DELETE') {
-    return jsonResponse({ error: '不支持的请求方法' }, 405);
-  }
-  if (!current.kvBound) {
-    return jsonResponse({ error: '尚未绑定 Cloudflare KV：请创建 KV 命名空间并以 SUBSCRIPTIONS 绑定后再保存' }, 503);
-  }
-
+  try { current = await loadNodes(env); } catch (error) { return jsonResponse({ error: error.message }, 500); }
+  if (request.method === 'GET') return jsonResponse(managementState(current));
+  if (!['POST', 'PATCH', 'PUT', 'DELETE'].includes(request.method)) return jsonResponse({ error: '不支持的请求方法' }, 405);
+  if (!current.writable) return jsonResponse({ error: current.d1Bound ? 'D1 当前不可写，为避免数据分叉已拒绝管理操作' : '尚未绑定 Cloudflare KV：请以 SUBSCRIPTIONS 绑定后再保存' }, 503);
   let payload;
-  try {
-    payload = await request.json();
-  } catch {
-    return jsonResponse({ error: '请求内容必须是有效 JSON' }, 400);
-  }
+  try { payload = await request.json(); } catch { return jsonResponse({ error: '请求内容必须是有效 JSON' }, 400); }
 
+  let nodes = [...current.nodes];
+  let result = {};
   if (request.method === 'POST') {
-    let added;
-    try {
-      added = parseSubscriptionInput(payload?.links);
-    } catch (error) {
-      return jsonResponse({ error: error.message }, 400);
+    let links;
+    try { links = parseSubscriptionInput(payload?.links); } catch (error) { return jsonResponse({ error: error.message }, 400); }
+    if (!links.length) return jsonResponse({ error: '请至少粘贴一个节点链接' }, 400);
+    const known = new Set(nodes.map(node => node.url));
+    const added = links.filter(link => !known.has(link)).map(link => makeNode(link, nodes.length));
+    nodes.push(...added); result.added = added.length;
+  } else {
+    const index = nodes.findIndex(node => node.id === payload?.id);
+    if (index < 0) return jsonResponse({ error: '指定的节点不存在，请刷新后重试' }, 404);
+    if (request.method === 'PATCH') {
+      const offset = payload?.direction === 'up' ? -1 : payload?.direction === 'down' ? 1 : 0;
+      if (!offset) return jsonResponse({ error: '移动方向必须是 up 或 down' }, 400);
+      const target = index + offset;
+      if (target < 0 || target >= nodes.length) return jsonResponse({ error: '节点已经位于列表边界' }, 400);
+      [nodes[index], nodes[target]] = [nodes[target], nodes[index]]; result.moved = 1;
+    } else if (request.method === 'DELETE') {
+      nodes.splice(index, 1); result.deleted = 1;
+    } else {
+      try {
+        const metadata = normalizeMetadata(payload, nodes[index]);
+        nodes[index] = { ...nodes[index], ...metadata, updatedAt: new Date().toISOString() };
+        result.updated = 1;
+      } catch (error) { return jsonResponse({ error: error.message }, 400); }
     }
-    if (!added.length) return jsonResponse({ error: '请至少粘贴一个节点链接' }, 400);
-    const links = [...new Set([...current.links, ...added])];
-    try {
-      await env.SUBSCRIPTIONS.put(SUBSCRIPTIONS_KEY, JSON.stringify(links));
-    } catch {
-      return jsonResponse({ error: '写入 Cloudflare KV 失败，请稍后重试' }, 500);
-    }
-    return jsonResponse({ items: links.map(subscriptionSummary), added: links.length - current.links.length });
   }
-
-  const index = Number(payload?.id);
-  if (!Number.isInteger(index) || index < 0 || index >= current.links.length) {
-    return jsonResponse({ error: '指定的节点不存在，请刷新后重试' }, 404);
-  }
-
-  if (request.method === 'PATCH') {
-    const offset = payload?.direction === 'up' ? -1 : payload?.direction === 'down' ? 1 : 0;
-    if (!offset) return jsonResponse({ error: '移动方向必须是 up 或 down' }, 400);
-    const targetIndex = index + offset;
-    if (targetIndex < 0 || targetIndex >= current.links.length) {
-      return jsonResponse({ error: '节点已经位于列表边界' }, 400);
-    }
-    const links = [...current.links];
-    [links[index], links[targetIndex]] = [links[targetIndex], links[index]];
-    try {
-      await env.SUBSCRIPTIONS.put(SUBSCRIPTIONS_KEY, JSON.stringify(links));
-    } catch {
-      return jsonResponse({ error: '写入 Cloudflare KV 失败，请稍后重试' }, 500);
-    }
-    return jsonResponse({ items: links.map(subscriptionSummary), moved: 1 });
-  }
-
-  const links = current.links.filter((_, itemIndex) => itemIndex !== index);
   try {
-    await env.SUBSCRIPTIONS.put(SUBSCRIPTIONS_KEY, JSON.stringify(links));
-  } catch {
-    return jsonResponse({ error: '写入 Cloudflare KV 失败，请稍后重试' }, 500);
-  }
-  return jsonResponse({ items: links.map(subscriptionSummary), deleted: 1 });
+    const saved = await saveNodes(env, current, nodes);
+    return jsonResponse({ items: saved.nodes.map(publicNode), source: current.source, backupUpdated: saved.backupUpdated, ...result });
+  } catch (error) { return jsonResponse({ error: error.message || '保存节点失败' }, 500); }
 }
 
 function getSubscriptionKind(params, request) {
   const type = (params.get('type') || '').toLowerCase();
-  if (type === 'clash') return 'clash';
-  if (type === 'loon') return 'loon';
-  if (type === 'base64') return 'base64';
+  if (['clash', 'loon', 'base64'].includes(type)) return type;
   if (type === 'auto') {
-    const userAgent = (request.headers.get('User-Agent') || '').toLowerCase();
-    if (userAgent.includes('loon')) return 'loon';
-    if (/clash|mihomo|stash|openclash|nikki|flclash/.test(userAgent)) return 'clash';
+    const ua = (request.headers.get('User-Agent') || '').toLowerCase();
+    if (ua.includes('loon')) return 'loon';
+    if (/clash|mihomo|stash|openclash|nikki|flclash/.test(ua)) return 'clash';
     return 'base64';
   }
   return '';
@@ -292,210 +369,77 @@ function getSubscriptionKind(params, request) {
 
 function renderSubscription(kind, config) {
   const { allLines, proxies } = parseProxies(config);
-  const subscriptionContentDisposition = "inline; filename*=UTF-8''" + encodeURIComponent(config.subName);
-
+  const disposition = "inline; filename*=UTF-8''" + encodeURIComponent(config.subName);
   if (kind === 'clash') {
-    if (!proxies.length) {
-      return new Response('没有可转换为 Mihomo 的有效节点', {
-        status: 422,
-        headers: { 'Content-Type': 'text/plain; charset=utf-8' },
-      });
-    }
-    const yaml = generateClashYaml(proxies, config.subName);
-    return new Response(yaml, {
-      headers: {
-        'Content-Type': 'text/plain; charset=utf-8',
-        'content-disposition': subscriptionContentDisposition,
-        'profile-title': encodeURIComponent(config.subName),
-        'profile-update-interval': '6',
-      },
-    });
+    if (!proxies.length) return new Response('没有可转换为 Mihomo 的有效节点', { status: 422, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+    return new Response(generateClashYaml(proxies, config.subName), { headers: { 'Content-Type': 'text/plain; charset=utf-8', 'content-disposition': disposition, 'profile-title': encodeURIComponent(config.subName), 'profile-update-interval': '6' } });
   }
-
   if (kind === 'loon') {
-    if (!proxies.length) {
-      return new Response('没有可转换为 Loon 的有效节点', {
-        status: 422,
-        headers: { 'Content-Type': 'text/plain; charset=utf-8' },
-      });
-    }
-    return new Response(generateLoonConfig(proxies), {
-      headers: {
-        'Content-Type': 'text/plain; charset=utf-8',
-        'content-disposition': subscriptionContentDisposition,
-        'profile-title': encodeURIComponent(config.subName),
-        'profile-update-interval': '6',
-      },
-    });
+    if (!proxies.length) return new Response('没有可转换为 Loon 的有效节点', { status: 422, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+    return new Response(generateLoonConfig(proxies), { headers: { 'Content-Type': 'text/plain; charset=utf-8', 'content-disposition': disposition, 'profile-title': encodeURIComponent(config.subName), 'profile-update-interval': '6' } });
   }
-
   if (kind === 'base64') {
-    const linkList = allLines.map(l => {
-      const t = l.trim();
-      return t.startsWith('vless://') ? t.replace(/[?&]flow=(&|$)/g, '$1') : t;
-    }).join('\n');
-    return new Response(encodeBase64(linkList), {
-      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
-    });
+    const links = allLines.map(line => line.startsWith('vless://') ? line.replace(/[?&]flow=(&|$)/g, '$1') : line).join('\n');
+    return new Response(encodeBase64(links), { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
   }
-
   return new Response('Not Found', { status: 404 });
 }
 
 async function handleLogin(request, config) {
-  if (request.method !== 'POST') {
-    return new Response(renderLoginPage(config), { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
-  }
-
+  if (request.method !== 'POST') return new Response(renderLoginPage(config), { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
   const form = await request.formData();
-  const username = String(form.get('username') || '');
-  const password = String(form.get('password') || '');
-  if (username !== config.adminUser || password !== config.adminPass) {
-    return new Response(renderLoginPage(config, '用户名或密码错误'), {
-      status: 401,
-      headers: { 'Content-Type': 'text/html; charset=utf-8' },
-    });
-  }
-
+  if (String(form.get('username') || '') !== config.adminUser || String(form.get('password') || '') !== config.adminPass) return new Response(renderLoginPage(config, '用户名或密码错误'), { status: 401, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
   const session = await createSessionCookie(config);
-  return new Response(null, {
-    status: 303,
-    headers: {
-      Location: session.homePath,
-      'Set-Cookie': session.cookie,
-    },
-  });
+  return new Response(null, { status: 303, headers: { Location: session.homePath, 'Set-Cookie': session.cookie } });
 }
 
-function noStoreHeaders(extra = {}) {
-  return {
-    'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
-    Pragma: 'no-cache',
-    Expires: '0',
-    ...extra,
-  };
-}
-
-function parentCookieDomains(hostname) {
-  const parts = hostname.split('.').filter(Boolean);
-  const domains = [hostname];
-  for (let i = 1; i < parts.length - 1; i++) {
-    domains.push(parts.slice(i).join('.'));
-  }
-  return [...new Set(domains)];
-}
-
+function noStoreHeaders(extra = {}) { return { 'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0', Pragma: 'no-cache', Expires: '0', ...extra }; }
+function parentCookieDomains(hostname) { const parts = hostname.split('.').filter(Boolean); const domains = [hostname]; for (let i = 1; i < parts.length - 1; i++) domains.push(parts.slice(i).join('.')); return [...new Set(domains)]; }
 function buildClearSessionHeaders(url) {
-  const headers = new Headers(noStoreHeaders({
-    Location: '/login',
-    'Clear-Site-Data': '"cache"',
-  }));
-  const cookieAttrs = 'Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax';
-  headers.append('Set-Cookie', `${SESSION_COOKIE}=; ${cookieAttrs}`);
-  for (const domain of parentCookieDomains(url.hostname)) {
-    headers.append('Set-Cookie', `${SESSION_COOKIE}=; Domain=${domain}; ${cookieAttrs}`);
-  }
+  const headers = new Headers(noStoreHeaders({ Location: '/login', 'Clear-Site-Data': '"cache"' }));
+  const attrs = 'Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax';
+  headers.append('Set-Cookie', `${SESSION_COOKIE}=; ${attrs}`);
+  for (const domain of parentCookieDomains(url.hostname)) headers.append('Set-Cookie', `${SESSION_COOKIE}=; Domain=${domain}; ${attrs}`);
   return headers;
 }
 
-// ==================== 路由处理 ====================
 async function handleRequest(request, env) {
   const config = loadConfig(env);
   const url = new URL(request.url);
   const path = url.pathname.replace(/\/$/, '') || '/';
-  const params = url.searchParams;
   const baseUrl = url.protocol + '//' + url.host;
-
   if (path === '/api/health') {
     let component = 'session-crypto';
     try {
       await signSessionPayload('health-check', config.sessionSecret);
-      component = 'subscription-storage';
-      const subscriptions = await loadSubscriptions(env);
-      component = 'proxy-parser';
-      const activeConfig = configWithSubscriptions(config, subscriptions);
-      const { proxies } = parseProxies(activeConfig);
-      component = 'dashboard-renderer';
-      renderDashboard(activeConfig, proxies, baseUrl, {
-        kvBound: subscriptions.kvBound,
-        source: subscriptions.kvBound ? 'kv' : 'unbound',
-        items: subscriptions.links.map(subscriptionSummary),
-      });
-      return jsonResponse({
-        ok: true,
-        storage: subscriptions.kvBound ? 'kv' : 'unbound',
-        subscriptionSource: 'kv',
-        formats: ['auto', 'clash', 'loon', 'base64'],
-        loonSyntax: 'nsloon',
-        subscriptionManagement: ['add', 'reorder', 'delete'],
-      });
-    } catch {
-      return jsonResponse({ ok: false, component }, 503);
-    }
+      component = 'subscription-storage'; const state = await loadNodes(env);
+      component = 'proxy-parser'; const active = configWithNodes(config, state); const { proxies } = parseProxies(active);
+      component = 'dashboard-renderer'; renderDashboard(active, proxies, baseUrl, managementState(state));
+      return jsonResponse({ ok: true, storage: state.storage, subscriptionSource: state.source, formats: ['auto', 'clash', 'loon', 'base64'], loonSyntax: 'nsloon', subscriptionManagement: ['add', 'reorder', 'delete', 'edit', 'toggle'], capabilities: ['grouping', 'tags', 'notes', 'search', 'toggle'] });
+    } catch { return jsonResponse({ ok: false, component }, 503); }
   }
-
-  if (path === '/api/manage/subscriptions') {
-    const session = await getValidSession(request, config);
-    return handleSubscriptionManagement(request, env, config, session);
-  }
-
+  if (path === '/api/manage/subscriptions') return handleSubscriptionManagement(request, env, config, await getValidSession(request, config));
   if (path === '/api/sub') {
-    if (!config.token || params.get('token') !== config.token) return new Response('Not Found', { status: 404 });
+    if (!config.token || url.searchParams.get('token') !== config.token) return new Response('Not Found', { status: 404 });
     try {
-      const subscriptions = await loadSubscriptions(env);
-      if (!subscriptions.kvBound) {
-        return new Response('SUBSCRIPTIONS KV is not bound', {
-          status: 503,
-          headers: noStoreHeaders({ 'Content-Type': 'text/plain; charset=utf-8' }),
-        });
-      }
-      const response = renderSubscription(getSubscriptionKind(params, request), configWithSubscriptions(config, subscriptions));
-      if ((params.get('type') || '').toLowerCase() === 'auto') response.headers.set('Vary', 'User-Agent');
+      const state = await loadNodes(env);
+      if (state.source === 'unbound') return new Response('SUBSCRIPTIONS KV is not bound and D1 is unavailable', { status: 503, headers: noStoreHeaders({ 'Content-Type': 'text/plain; charset=utf-8' }) });
+      const response = renderSubscription(getSubscriptionKind(url.searchParams, request), configWithNodes(config, state));
+      if ((url.searchParams.get('type') || '').toLowerCase() === 'auto') response.headers.set('Vary', 'User-Agent');
       return response;
-    } catch (error) {
-      return new Response(error.message, { status: 500, headers: noStoreHeaders({ 'Content-Type': 'text/plain; charset=utf-8' }) });
-    }
+    } catch (error) { return new Response(error.message, { status: 500, headers: noStoreHeaders({ 'Content-Type': 'text/plain; charset=utf-8' }) }); }
   }
-
   if (path === '/login') return handleLogin(request, config);
-
-  if (path === '/logout') {
-    return new Response(null, {
-      status: 303,
-      headers: buildClearSessionHeaders(url),
-    });
-  }
-
-  if (path === '/') {
-    const session = await getValidSession(request, config);
-    return new Response(null, {
-      status: 303,
-      headers: { Location: session ? session.homePath : '/login' },
-    });
-  }
-
+  if (path === '/logout') return new Response(null, { status: 303, headers: buildClearSessionHeaders(url) });
+  if (path === '/') { const session = await getValidSession(request, config); return new Response(null, { status: 303, headers: { Location: session ? session.homePath : '/login' } }); }
   const session = await getValidSession(request, config);
   if (session && path === session.homePath) {
     try {
-      const subscriptions = await loadSubscriptions(env);
-      const activeConfig = configWithSubscriptions(config, subscriptions);
-      const { proxies } = parseProxies(activeConfig);
-      return new Response(renderDashboard(activeConfig, proxies, baseUrl, {
-        kvBound: subscriptions.kvBound,
-        source: subscriptions.kvBound ? 'kv' : 'unbound',
-        items: subscriptions.links.map(subscriptionSummary),
-      }), {
-        headers: noStoreHeaders({ 'Content-Type': 'text/html; charset=utf-8' }),
-      });
-    } catch (error) {
-      return new Response(error.message, { status: 500, headers: noStoreHeaders({ 'Content-Type': 'text/plain; charset=utf-8' }) });
-    }
+      const state = await loadNodes(env); const active = configWithNodes(config, state); const { proxies } = parseProxies(active);
+      return new Response(renderDashboard(active, proxies, baseUrl, managementState(state)), { headers: noStoreHeaders({ 'Content-Type': 'text/html; charset=utf-8' }) });
+    } catch (error) { return new Response(error.message, { status: 500, headers: noStoreHeaders({ 'Content-Type': 'text/plain; charset=utf-8' }) }); }
   }
-
   return new Response('Not Found', { status: 404 });
 }
 
-// ==================== Worker 入口 ====================
-export default {
-  fetch: handleRequest,
-};
+export default { fetch: handleRequest };
