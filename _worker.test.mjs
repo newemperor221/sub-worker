@@ -273,20 +273,27 @@ test('legacy /TOKEN?b64 subscription URL remains compatible', async () => {
   assert.equal(body, btoa(unescape(encodeURIComponent(LINK))));
 });
 
-test('Clash parser preserves mixed protocol source order', async () => {
+test('legacy sources keep only VLESS and Hysteria2 in source order', async () => {
   const mixedEnv = {
     ...env,
     LINK: '',
     LINK1: 'trojan://secret@trojan.example:443?sni=edge.example#First-Trojan',
     LINK2: 'vless://77777777-7777-4777-8777-777777777777@vless.example:443?security=tls&type=tcp#Second-VLESS',
     LINK3: 'hy2://secret@hy2.example:443?sni=hy.example#Third-HY2',
+    LINK4: 'hysteria2://secret@hysteria.example:443?sni=hy.example#Fourth-Hysteria2',
   };
   const res = await fetchPath('/api/sub?token=subtoken&type=clash', {}, mixedEnv);
   const body = await res.text();
 
   assert.equal(res.status, 200);
-  assert.ok(body.indexOf('name: "First-Trojan"') < body.indexOf('name: "Second-VLESS"'));
-  assert.ok(body.indexOf('name: "Second-VLESS"') < body.indexOf('name: "Third-HY2"'));
+  assert.match(body, /name: "Second-VLESS"/);
+  assert.match(body, /name: "Fourth-Hysteria2"/);
+  assert.ok(body.indexOf('name: "Second-VLESS"') < body.indexOf('name: "Fourth-Hysteria2"'));
+  assert.doesNotMatch(body, /First-Trojan|Third-HY2/);
+
+  const b64 = await fetchPath('/api/sub?token=subtoken&type=b64', {}, mixedEnv);
+  const decoded = decodeURIComponent(escape(atob(await b64.text())));
+  assert.equal(decoded, [mixedEnv.LINK2, mixedEnv.LINK4].join('\n'));
 });
 
 test('Clash region groups follow the seven-region exit-prefix logic', async () => {
@@ -362,7 +369,7 @@ test('logged-in administrator can add, list and delete KV subscriptions', async 
   const kv = createKv();
   const testEnv = { ...env, SUBSCRIPTIONS: kv };
   const { cookie } = await loginSession(testEnv);
-  const addedLink = 'trojan://secret@trojan.example:443?sni=edge.example#ManagedNode';
+  const addedLink = 'hysteria2://secret@hysteria.example:443?sni=edge.example#ManagedNode';
 
   const add = await fetchPath('/api/manage/subscriptions', {
     method: 'POST',
@@ -380,8 +387,8 @@ test('logged-in administrator can add, list and delete KV subscriptions', async 
   const listBody = await list.json();
   assert.equal(list.status, 200);
   assert.equal(listBody.source, 'kv');
-  assert.equal(listBody.items[1].protocol, 'trojan');
-  assert.doesNotMatch(JSON.stringify(listBody), /secret@trojan\.example/);
+  assert.equal(listBody.items[1].protocol, 'hysteria2');
+  assert.doesNotMatch(JSON.stringify(listBody), /secret@hysteria\.example/);
 
   const remove = await fetchPath('/api/manage/subscriptions', {
     method: 'DELETE',
@@ -409,10 +416,10 @@ test('multi-line add trims, removes blanks and duplicates, and rejects unsupport
 
   const invalid = await fetchPath('/api/manage/subscriptions', {
     method: 'POST', headers: { cookie, 'content-type': 'application/json' },
-    body: JSON.stringify({ links: `${LINK_A}\nss://unsupported` }),
+    body: JSON.stringify({ links: `${LINK_A}\ntrojan://unsupported\nhy2://unsupported` }),
   }, testEnv);
   assert.equal(invalid.status, 400);
-  assert.match((await invalid.json()).error, /第 2 行协议不受支持/);
+  assert.match((await invalid.json()).error, /第 2、3 行协议不受支持.*vless:\/\/、hysteria2:\/\//);
   assert.deepEqual(JSON.parse(kv.values.get('subscription_links')), [LINK_A, LINK_B]);
 });
 

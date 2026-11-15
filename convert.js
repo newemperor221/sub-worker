@@ -1,4 +1,4 @@
-// Protocol converters — VLESS / Trojan / Hysteria2 → Mihomo proxy
+// Protocol converters — VLESS / Hysteria2 → Mihomo proxy
 // =================================================================
 
 function safeDecode(value) {
@@ -107,37 +107,9 @@ export function convertVlessToClashProxy(urlStr) {
   } catch { return null; }
 }
 
-export function convertTrojanToClashProxy(urlStr) {
-  try {
-    const url = new URL(String(urlStr).trim());
-    if (url.protocol.toLowerCase() !== 'trojan:' || !url.hostname || !url.username) return null;
-    const params = url.searchParams;
-    const port = validPort(url);
-    const network = normalizedNetwork(params);
-    if (!port || !network || network === 'xhttp') return null;
-
-    const proxy = {
-      name: proxyName(url), type: 'trojan', server: url.hostname, port,
-      password: safeDecode(url.username + (url.password ? `:${url.password}` : '')),
-      udp: true,
-      'skip-cert-verify': queryBoolean(params, 'allowInsecure', 'insecure'),
-    };
-    const sni = params.get('sni') || params.get('peer') || params.get('serverName') || '';
-    if (sni) proxy.sni = sni;
-    const alpn = splitList(params.get('alpn'));
-    if (alpn.length) proxy.alpn = alpn;
-    const fp = params.get('fp') || params.get('fingerprint') || '';
-    if (fp) proxy['client-fingerprint'] = fp;
-    if (network !== 'tcp') proxy.network = network;
-    applyTransport(proxy, params, network);
-    return proxy;
-  } catch { return null; }
-}
-
 export function convertHysteria2ToClashProxy(urlStr) {
   try {
-    const normalized = String(urlStr).trim().replace(/^hy2:\/\//i, 'hysteria2://');
-    const url = new URL(normalized);
+    const url = new URL(String(urlStr).trim());
     if (url.protocol.toLowerCase() !== 'hysteria2:' || !url.hostname || (!url.username && !url.password)) return null;
     const params = url.searchParams;
     const port = validPort(url);

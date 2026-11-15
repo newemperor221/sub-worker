@@ -114,26 +114,6 @@ function appendProxy(lines, p) {
       lines.push(`      public-key: ${quote(p['reality-opts']['public-key'] || '')}`);
       lines.push(`      short-id: ${quote(p['reality-opts']['short-id'] || '')}`);
     }
-  } else if (p.type === 'trojan') {
-    lines.push(`    password: ${quote(p.password || '')}`);
-    lines.push('    udp: true');
-    lines.push(`    skip-cert-verify: ${Boolean(p['skip-cert-verify'])}`);
-    if (p.sni) lines.push(`    sni: ${quote(p.sni)}`);
-    if (p.alpn?.length) lines.push(`    alpn: [${p.alpn.map(quote).join(', ')}]`);
-    if (p.network) lines.push(`    network: ${quote(p.network)}`);
-    if (p['client-fingerprint']) lines.push(`    client-fingerprint: ${quote(p['client-fingerprint'])}`);
-    if (p['ws-opts']) {
-      lines.push('    ws-opts:');
-      lines.push(`      path: ${quote(p['ws-opts'].path || '/')}`);
-      if (p['ws-opts'].headers?.Host) {
-        lines.push('      headers:');
-        lines.push(`        Host: ${quote(p['ws-opts'].headers.Host)}`);
-      }
-    }
-    if (p['grpc-opts']) {
-      lines.push('    grpc-opts:');
-      lines.push(`      grpc-service-name: ${quote(p['grpc-opts']['grpc-service-name'] || '')}`);
-    }
   } else if (p.type === 'hysteria2') {
     lines.push(`    password: ${quote(p.password || '')}`);
     lines.push('    udp: true');

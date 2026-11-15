@@ -3,14 +3,14 @@
 // ==/UserScript==
 
 import { loadConfig, encodeBase64 } from './utils.js';
-import { convertVlessToClashProxy, convertTrojanToClashProxy, convertHysteria2ToClashProxy } from './convert.js';
+import { convertVlessToClashProxy, convertHysteria2ToClashProxy } from './convert.js';
 import { generateClashYaml } from './yaml.js';
 import { renderDashboard } from './dashboard.js';
 
 const SESSION_COOKIE = 'sub_worker_session';
 const SESSION_TTL_SECONDS = 7 * 24 * 60 * 60;
 const SUBSCRIPTIONS_KEY = 'subscription_links';
-const SUPPORTED_LINK_PATTERN = /^(vless|trojan|hysteria2|hy2):\/\//i;
+const SUPPORTED_LINK_PATTERN = /^(vless|hysteria2):\/\//i;
 
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -147,8 +147,7 @@ function parseProxies(config) {
   const proxies = allLines.map((line) => {
     const scheme = line.match(/^([a-z][a-z0-9+.-]*):\/\//i)?.[1]?.toLowerCase();
     if (scheme === 'vless') return convertVlessToClashProxy(line);
-    if (scheme === 'trojan') return convertTrojanToClashProxy(line);
-    if (scheme === 'hysteria2' || scheme === 'hy2') return convertHysteria2ToClashProxy(line);
+    if (scheme === 'hysteria2') return convertHysteria2ToClashProxy(line);
     return null;
   }).filter(Boolean);
 
@@ -169,18 +168,18 @@ function parseSubscriptionInput(value) {
     .filter(({ line }) => !SUPPORTED_LINK_PATTERN.test(line));
   if (invalid.length) {
     const numbers = invalid.map(({ number }) => number).join('、');
-    throw new Error(`第 ${numbers} 行协议不受支持，仅接受 vless://、trojan://、hysteria2://、hy2://`);
+    throw new Error(`第 ${numbers} 行协议不受支持，仅接受 vless://、hysteria2://`);
   }
   return [...new Set(lines)];
 }
 
 async function loadSubscriptions(env, config) {
   if (!env?.SUBSCRIPTIONS) {
-    return { links: normalizeSubscriptionLines(config.link), kvBound: false, saved: false };
+    return { links: normalizeSubscriptionLines(config.link).filter((link) => SUPPORTED_LINK_PATTERN.test(link)), kvBound: false, saved: false };
   }
   const stored = await env.SUBSCRIPTIONS.get(SUBSCRIPTIONS_KEY);
   if (stored === null) {
-    return { links: normalizeSubscriptionLines(config.link), kvBound: true, saved: false };
+    return { links: normalizeSubscriptionLines(config.link).filter((link) => SUPPORTED_LINK_PATTERN.test(link)), kvBound: true, saved: false };
   }
   let links;
   try {
@@ -191,7 +190,7 @@ async function loadSubscriptions(env, config) {
   if (!Array.isArray(links) || links.some((link) => typeof link !== 'string')) {
     throw new Error('KV 中的订阅数据格式错误，应为节点链接数组');
   }
-  return { links: parseSubscriptionInput(links.join('\n')), kvBound: true, saved: true };
+  return { links: normalizeSubscriptionLines(links.join('\n')).filter((link) => SUPPORTED_LINK_PATTERN.test(link)), kvBound: true, saved: true };
 }
 
 function configWithSubscriptions(config, subscriptions) {
@@ -208,7 +207,7 @@ function subscriptionSummary(link, index) {
   name = name.replace(/[\u{1F1E6}-\u{1F1FF}]{2}/gu, '').trim() || '未命名节点';
   const relay = name.match(/^(.+?)[-—–_\s]+(中转|中轉|前置|反连|反連)[-—–_\s]+(.+)$/);
   if (relay?.[1] && relay?.[3]) name = `${relay[3].trim()}(${relay[1].trim()}${relay[2]})`;
-  return { id: String(index), protocol: scheme === 'hy2' ? 'Hysteria2' : scheme, name };
+  return { id: String(index), protocol: scheme, name };
 }
 
 function jsonResponse(data, status = 200) {

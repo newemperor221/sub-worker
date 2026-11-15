@@ -205,9 +205,7 @@ Worker 使用固定 key `subscription_links` 保存一个 JSON 节点链接数�
 ```text
 LINK1=vless://uuid@example.com:443?encryption=none&security=reality&sni=www.apple.com&fp=chrome&pbk=PUBLIC_KEY&sid=SHORT_ID&type=xhttp&path=%2Fxhttp&mode=stream-up#台湾
 LINK2=vless://uuid@example.com:443?encryption=none&flow=xtls-rprx-vision&security=reality&sni=www.apple.com&fp=chrome&pbk=PUBLIC_KEY&sid=SHORT_ID&type=tcp#洛杉矶
-LINK3=trojan://password@example.com:443?sni=example.com#Trojan-Example
-LINK4=hysteria2://password@example.com:443?sni=example.com#HY2-Example
-LINK5=hy2://password@example.com:443?sni=example.com#HY2-Short
+LINK3=hysteria2://password@example.com:443?sni=example.com#Hysteria2-Example
 ```
 
 注意：
@@ -225,7 +223,7 @@ LINK5=hy2://password@example.com:443?sni=example.com#HY2-Short
 
 1. 登录后滚动到“订阅管理”。
 2. 在“添加订阅”中粘贴一行或多行节点链接并保存。
-3. 输入会自动 trim、忽略空行并去重；仅接受 `vless://`、`trojan://`、`hysteria2://`、`hy2://`。
+3. 输入会自动 trim、忽略空行并去重；仅接受 `vless://`、`hysteria2://`。
 4. “已添加项”只显示协议与节点名称等脱敏摘要；点击“删除”可移除对应节点。
 5. 添加或删除后，订阅 API 与节点卡片都以 KV 中的最新数组为准。
 
@@ -244,7 +242,7 @@ LINK5=hy2://password@example.com:443?sni=example.com#HY2-Short
 节点 IP / 域名
 节点端口
 UUID
-Trojan password
+Hysteria2 password
 Reality public key
 Reality shortId
 WS path
@@ -258,7 +256,7 @@ XHTTP path
 节点名称
 地区图标
 协议类型
-VLESS / Trojan / Hysteria2
+VLESS / Hysteria2
 REALITY / TLS
 TCP / XHTTP / WS / gRPC
 Vision
@@ -349,8 +347,7 @@ dashboard.js
 当前节点解析支持：
 
 - VLESS
-- Trojan
-- Hysteria2 / HY2
+- Hysteria2（仅接受完整的 `hysteria2://` scheme）
 
 推荐客户端：
 
