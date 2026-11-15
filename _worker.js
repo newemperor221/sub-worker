@@ -402,8 +402,13 @@ async function handleRequest(request, env) {
         items: subscriptions.links.map(subscriptionSummary),
       });
       return jsonResponse({ ok: true, storage: subscriptions.kvBound ? 'kv' : 'env' });
-    } catch {
-      return jsonResponse({ ok: false, component }, 503);
+    } catch (error) {
+      return jsonResponse({
+        ok: false,
+        component,
+        error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
+        secretType: typeof config.sessionSecret,
+      }, 503);
     }
   }
 
