@@ -161,6 +161,7 @@ test('GET /random/home with a valid matching session renders dashboard', async (
   assert.match(body, /data-direction="up"/);
   assert.match(body, /data-direction="down"/);
   assert.match(body, /node-grid/);
+  assert.doesNotMatch(body, /node-badge|flagIcon|regionIcon/);
   assert.match(body, /color-scheme:dark/);
   assert.doesNotMatch(body, /roughjs|rough-outline|drawRough|纸边|手绘|白板/i);
   assert.match(res.headers.get('cache-control') || '', /no-store/);
@@ -180,7 +181,6 @@ test('relay node display name uses half-width parentheses without extra 出口 s
   const body = await res.text();
 
   assert.equal(res.status, 200);
-  assert.match(body, /sg:\"新\"/);
   assert.match(body, /新加坡\(东京中转\)/);
   assert.doesNotMatch(body, /flag-svg|flag-emoji|🇸🇬/);
   assert.doesNotMatch(body, /出口（|）/);
@@ -198,13 +198,12 @@ test('already formatted relay node display name is not normalized twice', async 
   const body = await res.text();
 
   assert.equal(res.status, 200);
-  assert.match(body, /sg:\"新\"/);
   assert.match(body, /新加坡\(东京中转\)/);
   assert.doesNotMatch(body, /flag-svg|flag-emoji|🇸🇬/);
   assert.doesNotMatch(body, /\)\(.*新加坡|\)\(\)\(/);
 });
 
-test('Hong Kong node badge uses CJK text instead of HK regional indicator fallback', async () => {
+test('Hong Kong node name renders without a regional image badge', async () => {
   const login = await fetchPath('/login', {
     method: 'POST',
     body: new URLSearchParams({ username: 'admin', password: 'pass123' }),
@@ -216,9 +215,8 @@ test('Hong Kong node badge uses CJK text instead of HK regional indicator fallba
   const body = await res.text();
 
   assert.equal(res.status, 200);
-  assert.match(body, /hk:\"港\"/);
   assert.match(body, /香港/);
-  assert.doesNotMatch(body, /🇭🇰|>HK</);
+  assert.doesNotMatch(body, /🇭🇰|>HK<|node-badge/);
 });
 
 test('GET another random home path with the same session is rejected', async () => {
