@@ -258,9 +258,9 @@ async function handleSubscriptionManagement(request, env, config, session) {
 
 function getSubscriptionKind(params) {
   const type = (params.get('type') || '').toLowerCase();
-  if (params.has('clash') || type === 'clash' || type === 'mihomo') return 'clash';
-  if (params.has('loon') || type === 'loon') return 'loon';
-  if (params.has('b64') || type === 'b64' || type === 'base64') return 'b64';
+  if (type === 'clash') return 'clash';
+  if (type === 'loon') return 'loon';
+  if (type === 'base64') return 'base64';
   return '';
 }
 
@@ -303,7 +303,7 @@ function renderSubscription(kind, config) {
     });
   }
 
-  if (kind === 'b64') {
+  if (kind === 'base64') {
     const linkList = allLines.map(l => {
       const t = l.trim();
       return t.startsWith('vless://') ? t.replace(/[?&]flow=(&|$)/g, '$1') : t;
@@ -401,6 +401,7 @@ async function handleRequest(request, env) {
         ok: true,
         storage: subscriptions.kvBound ? 'kv' : 'env',
         formats: ['clash', 'loon', 'base64'],
+        legacySubscriptionUrls: false,
       });
     } catch {
       return jsonResponse({ ok: false, component }, 503);
@@ -414,18 +415,6 @@ async function handleRequest(request, env) {
 
   if (path === '/api/sub') {
     if (!config.token || params.get('token') !== config.token) return new Response('Not Found', { status: 404 });
-    try {
-      const subscriptions = await loadSubscriptions(env, config);
-      return renderSubscription(getSubscriptionKind(params), configWithSubscriptions(config, subscriptions));
-    } catch (error) {
-      return new Response(error.message, { status: 500, headers: noStoreHeaders({ 'Content-Type': 'text/plain; charset=utf-8' }) });
-    }
-  }
-
-  // 兼容旧订阅地址：/TOKEN?clash 与 /TOKEN?b64
-  const pathParts = path.split('/').filter(Boolean);
-  const token = pathParts[0] || '';
-  if (token && token === config.token) {
     try {
       const subscriptions = await loadSubscriptions(env, config);
       return renderSubscription(getSubscriptionKind(params), configWithSubscriptions(config, subscriptions));

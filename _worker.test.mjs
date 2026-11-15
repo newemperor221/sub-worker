@@ -157,7 +157,7 @@ test('GET /random/home with a valid matching session renders dashboard', async (
   assert.match(body, /订阅管理控制台/);
   assert.match(body, /\/api\/sub\?token=subtoken&type=clash/);
   assert.match(body, /\/api\/sub\?token=subtoken&type=loon/);
-  assert.match(body, /\/api\/sub\?token=subtoken&type=b64/);
+  assert.match(body, /\/api\/sub\?token=subtoken&type=base64/);
   assert.match(body, /href="\/logout"/);
   assert.match(body, /退出/);
   assert.match(body, /dashboard-grid/);
@@ -253,20 +253,20 @@ test('GET /logout clears the browser session and redirects to /login', async () 
 });
 
 test('subscription API is token protected and does not require browser session', async () => {
-  const denied = await fetchPath('/api/sub?type=b64');
+  const denied = await fetchPath('/api/sub?type=base64');
   assert.equal(denied.status, 404);
 
-  const emptyToken = await fetchPath('/api/sub?token=&type=b64', {}, { ...env, TOKEN: '' });
+  const emptyToken = await fetchPath('/api/sub?token=&type=base64', {}, { ...env, TOKEN: '' });
   assert.equal(emptyToken.status, 404);
 
-  const res = await fetchPath('/api/sub?token=subtoken&type=b64');
+  const res = await fetchPath('/api/sub?token=subtoken&type=base64');
   const body = await res.text();
   assert.equal(res.status, 200);
   assert.equal(body, btoa(unescape(encodeURIComponent(LINK))));
 });
 
 test('subscription API reads one proxy link per numbered LINK variable in numeric order', async () => {
-  const res = await fetchPath('/api/sub?token=subtoken&type=b64', {}, numberedLinkEnv);
+  const res = await fetchPath('/api/sub?token=subtoken&type=base64', {}, numberedLinkEnv);
   const body = await res.text();
   const expected = [LINK_A, LINK_B].join('\n');
 
@@ -302,18 +302,12 @@ test('Loon output includes VLESS Reality and Hysteria2 proxy lines', async () =>
   assert.match(body, /HY2-Node = hysteria2, hy\.example, 8443, secret/);
 });
 
-test('legacy /TOKEN?loon subscription URL remains compatible', async () => {
-  const res = await fetchPath('/subtoken?loon');
-  assert.equal(res.status, 200);
-  assert.match(await res.text(), /^\[Proxy\]\n/);
-});
-
-test('legacy /TOKEN?b64 subscription URL remains compatible', async () => {
-  const res = await fetchPath('/subtoken?b64');
-  const body = await res.text();
-
-  assert.equal(res.status, 200);
-  assert.equal(body, btoa(unescape(encodeURIComponent(LINK))));
+test('old subscription aliases and paths are not compatible', async () => {
+  assert.equal((await fetchPath('/api/sub?token=subtoken&type=b64')).status, 404);
+  assert.equal((await fetchPath('/api/sub?token=subtoken&type=mihomo')).status, 404);
+  assert.equal((await fetchPath('/subtoken?base64')).status, 404);
+  assert.equal((await fetchPath('/subtoken?loon')).status, 404);
+  assert.equal((await fetchPath('/subtoken?clash')).status, 404);
 });
 
 test('legacy sources keep only VLESS and Hysteria2 in source order', async () => {
@@ -334,8 +328,8 @@ test('legacy sources keep only VLESS and Hysteria2 in source order', async () =>
   assert.ok(body.indexOf('name: "Second-VLESS"') < body.indexOf('name: "Fourth-Hysteria2"'));
   assert.doesNotMatch(body, /First-Trojan|Third-HY2/);
 
-  const b64 = await fetchPath('/api/sub?token=subtoken&type=b64', {}, mixedEnv);
-  const decoded = decodeURIComponent(escape(atob(await b64.text())));
+  const base64 = await fetchPath('/api/sub?token=subtoken&type=base64', {}, mixedEnv);
+  const decoded = decodeURIComponent(escape(atob(await base64.text())));
   assert.equal(decoded, [mixedEnv.LINK2, mixedEnv.LINK4].join('\n'));
 });
 
@@ -409,6 +403,7 @@ test('health endpoint exercises session crypto, storage and dashboard rendering'
     ok: true,
     storage: 'kv',
     formats: ['clash', 'loon', 'base64'],
+    legacySubscriptionUrls: false,
   });
   assert.match(res.headers.get('cache-control') || '', /no-store/);
 });
@@ -498,7 +493,7 @@ test('management mutation clearly reports a missing SUBSCRIPTIONS binding while 
 test('saved KV data overrides env for subscription output and dashboard without exposing full nodes', async () => {
   const kv = createKv([LINK_B]);
   const testEnv = { ...env, SUBSCRIPTIONS: kv };
-  const subscription = await fetchPath('/api/sub?token=subtoken&type=b64', {}, testEnv);
+  const subscription = await fetchPath('/api/sub?token=subtoken&type=base64', {}, testEnv);
   assert.equal(await subscription.text(), btoa(unescape(encodeURIComponent(LINK_B))));
 
   const { cookie, homePath } = await loginSession(testEnv);
@@ -513,7 +508,7 @@ test('saved KV data overrides env for subscription output and dashboard without 
 test('empty KV falls back to legacy LINK values until the first save', async () => {
   const kv = createKv();
   const testEnv = { ...numberedLinkEnv, SUBSCRIPTIONS: kv };
-  const fallback = await fetchPath('/api/sub?token=subtoken&type=b64', {}, testEnv);
+  const fallback = await fetchPath('/api/sub?token=subtoken&type=base64', {}, testEnv);
   assert.equal(await fallback.text(), btoa(unescape(encodeURIComponent([LINK_A, LINK_B].join('\n')))));
 
   const { cookie } = await loginSession(testEnv);

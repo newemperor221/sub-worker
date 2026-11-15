@@ -94,7 +94,7 @@
 ```text
 https://你的域名/api/sub?token=你的TOKEN&type=clash
 https://你的域名/api/sub?token=你的TOKEN&type=loon
-https://你的域名/api/sub?token=你的TOKEN&type=b64
+https://你的域名/api/sub?token=你的TOKEN&type=base64
 ```
 
 参数：
@@ -104,17 +104,9 @@ https://你的域名/api/sub?token=你的TOKEN&type=b64
 | `token` | 订阅访问令牌，对应环境变量 `TOKEN` |
 | `type=clash` | 输出 Clash / Mihomo YAML |
 | `type=loon` | 输出 Loon 原生 `[Proxy]` 订阅 |
-| `type=b64` | 输出 Base64 原始分享链接订阅 |
+| `type=base64` | 输出 Base64 原始分享链接订阅 |
 
-旧接口仍兼容：
-
-```text
-/你的TOKEN?clash
-/你的TOKEN?loon
-/你的TOKEN?b64
-```
-
-新客户端建议优先使用 `/api/sub?...`。
+仅支持上面的 `/api/sub?...` 地址，不兼容旧 `/TOKEN?...` 地址或 `type=b64` 别名。
 
 ---
 
@@ -351,10 +343,10 @@ dashboard.js
 | Clash Meta for Android | `type=clash` |
 | OpenClash / Nikki | `type=clash` |
 | Loon | `type=loon` |
-| v2rayN | `type=b64` |
-| NekoBox | `type=b64` |
-| Hiddify | `type=b64` |
-| Shadowrocket | `type=b64`，视版本协议支持情况 |
+| v2rayN | `type=base64` |
+| NekoBox | `type=base64` |
+| Hiddify | `type=base64` |
+| Shadowrocket | `type=base64`，视版本协议支持情况 |
 
 ---
 
@@ -372,7 +364,7 @@ npm test
 - 随机主页路径必须匹配当前会话
 - `/logout` 清理 Cookie
 - `/api/sub` 需要 `TOKEN`
-- 旧 `/TOKEN?clash`、`/TOKEN?loon`、`/TOKEN?b64` 兼容
+- 旧 `/TOKEN?...` 地址、`type=b64` 和 `type=mihomo` 均拒绝
 - 管理 API 未登录拒绝，登录后可增/列/删
 - 多行输入去重、非法协议和未绑定 KV 错误
 - KV 优先读取、env 回退与首次迁移
