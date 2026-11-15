@@ -137,7 +137,7 @@ Cloudflare Pages / Workers 需要配置：
 | `LINK` | ❌ | 旧版兼容/首次迁移来源：可放一个或多行链接；排在 `LINK1` 之前 |
 | `ADMIN_USER` | ✅ | 网页面板登录用户名 |
 | `ADMIN_PASS` | ✅ | 网页面板登录密码 |
-| `SESSION_SECRET` | ✅ | Cookie 签名密钥，只给 Worker 后端使用 |
+| `SESSION_SECRET` | 推荐 | Cookie 签名密钥；未设置时回退到由 `ADMIN_PASS` 派生的稳定密钥 |
 | `SUBNAME` | ❌ | 面板副标题 / 客户端订阅名称 |
 
 生成 URL 友好的 `TOKEN`：

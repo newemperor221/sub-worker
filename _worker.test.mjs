@@ -116,6 +116,17 @@ test('POST /login accepts valid credentials and redirects to a random home path 
   assert.doesNotMatch(cookie, /pass123|subtoken/);
 });
 
+test('login remains usable without SESSION_SECRET and TOKEN when ADMIN_PASS is configured', async () => {
+  const fallbackEnv = { ...env, TOKEN: '', SESSION_SECRET: '' };
+  const login = await fetchPath('/login', {
+    method: 'POST',
+    body: new URLSearchParams({ username: 'admin', password: 'pass123' }),
+  }, fallbackEnv);
+
+  assert.equal(login.status, 303);
+  assert.match(login.headers.get('set-cookie') || '', /sub_worker_session=/);
+});
+
 test('GET / with a valid session redirects to that session random home path', async () => {
   const login = await fetchPath('/login', {
     method: 'POST',

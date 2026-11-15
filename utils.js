@@ -28,13 +28,14 @@ function collectLinks(env) {
 
 export function loadConfig(env) {
   const token = env?.TOKEN || '';
+  const adminPass = env?.ADMIN_PASS || '';
   return {
     token,
     link: collectLinks(env),
     subName: env?.SUBNAME || '小岛航线',
     adminUser: env?.ADMIN_USER || '',
-    adminPass: env?.ADMIN_PASS || '',
-    sessionSecret: env?.SESSION_SECRET || token,
+    adminPass,
+    sessionSecret: env?.SESSION_SECRET || token || (adminPass ? `sub-worker-session:${adminPass}` : ''),
   };
 }
 
