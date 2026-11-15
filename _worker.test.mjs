@@ -252,6 +252,9 @@ test('subscription API is token protected and does not require browser session',
   const denied = await fetchPath('/api/sub?type=b64');
   assert.equal(denied.status, 404);
 
+  const emptyToken = await fetchPath('/api/sub?token=&type=b64', {}, { ...env, TOKEN: '' });
+  assert.equal(emptyToken.status, 404);
+
   const res = await fetchPath('/api/sub?token=subtoken&type=b64');
   const body = await res.text();
   assert.equal(res.status, 200);

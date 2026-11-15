@@ -413,7 +413,7 @@ async function handleRequest(request, env) {
   }
 
   if (path === '/api/sub') {
-    if (params.get('token') !== config.token) return new Response('Not Found', { status: 404 });
+    if (!config.token || params.get('token') !== config.token) return new Response('Not Found', { status: 404 });
     try {
       const subscriptions = await loadSubscriptions(env, config);
       return renderSubscription(getSubscriptionKind(params), configWithSubscriptions(config, subscriptions));
