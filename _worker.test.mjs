@@ -405,7 +405,11 @@ test('health endpoint exercises session crypto, storage and dashboard rendering'
   const kv = createKv([LINK]);
   const res = await fetchPath('/api/health', {}, { ...env, SUBSCRIPTIONS: kv });
   assert.equal(res.status, 200);
-  assert.deepEqual(await res.json(), { ok: true, storage: 'kv' });
+  assert.deepEqual(await res.json(), {
+    ok: true,
+    storage: 'kv',
+    formats: ['clash', 'loon', 'base64'],
+  });
   assert.match(res.headers.get('cache-control') || '', /no-store/);
 });
 

@@ -397,7 +397,11 @@ async function handleRequest(request, env) {
         source: subscriptions.saved ? 'kv' : 'env',
         items: subscriptions.links.map(subscriptionSummary),
       });
-      return jsonResponse({ ok: true, storage: subscriptions.kvBound ? 'kv' : 'env' });
+      return jsonResponse({
+        ok: true,
+        storage: subscriptions.kvBound ? 'kv' : 'env',
+        formats: ['clash', 'loon', 'base64'],
+      });
     } catch {
       return jsonResponse({ ok: false, component }, 503);
     }
