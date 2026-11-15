@@ -1,6 +1,6 @@
 # Sub Worker 订阅控制台
 
-> 私有代理订阅管理控制台：登录后管理节点、复制 Clash / Loon / Base64 订阅并扫码导入，同时隐藏敏感连接细节。
+> 私有代理订阅管理控制台：登录后添加、排序和删除节点，生成 Auto / Clash / Loon / Base64 订阅并扫码导入，同时隐藏敏感连接细节。
 
 [![Cloudflare Worker](https://img.shields.io/badge/runtime-Cloudflare%20Workers-f38020?style=flat-square)](#部署)
 [![Private Panel](https://img.shields.io/badge/panel-private%20login-5f7fe7?style=flat-square)](#访问结构)
@@ -19,7 +19,7 @@
 - Clash / Mihomo YAML 订阅
 - Loon 原生 Proxy 订阅
 - Base64 原始分享链接订阅
-- 登录后可视化节点卡片
+- 登录后可视化管理节点、调整顺序和查看脱敏摘要
 - 可复制 / 可扫码的订阅入口
 
 当前版本是 **单管理员、单订阅源** 版本：
@@ -36,14 +36,15 @@
 
 ## 视觉风格
 
-当前 UI 是经典、成熟的深色 SaaS 管理后台：
+当前 UI 是纯深色、紧凑的 SaaS 管理后台：
 
 - 炭黑页面背景、深灰面板、细灰边框与克制的紫蓝主色
 - 高对比文字和系统字体栈：`system-ui / Segoe UI / PingFang SC / Microsoft YaHei / Noto Sans CJK SC`
-- 紧凑顶部品牌栏和居中内容区，不使用侧边栏或大型 Hero
-- `/login` 使用居中的极简登录卡
-- `/随机字符/home` 使用两列控制台布局：左侧优先展示订阅管理和节点列表，右侧展示 Clash / Base64 导出入口
-- 移动端自动切换为单列布局
+- 顶部品牌栏和居中内容区，不使用侧边栏、玻璃态或大型 Hero
+- `/login` 使用工作区介绍与登录表单组成的双栏布局，移动端自动收为单列
+- `/随机字符/home` 使用两列控制台布局：左侧管理节点，右侧展示 Auto / Clash / Loon / Base64 导出入口
+- 字体和操作图标统一采用较大的可读尺寸；节点卡片不显示地区图片或旗帜
+- 桌面端导出工具保持在右侧，移动端自动切换为单列布局
 
 ---
 
@@ -110,7 +111,7 @@ https://你的域名/api/sub?token=你的TOKEN&type=base64
 
 仅支持上面的 `/api/sub?...` 地址，不兼容旧 `/TOKEN?...` 地址或 `type=b64` 别名。
 
-Auto 识别规则：Loon 客户端输出 Loon 格式；Clash、Mihomo、Stash、OpenClash、Nikki、FlClash 输出 Clash 格式；其他客户端回退到 Base64。
+Auto 识别规则：Loon 客户端输出 Loon 格式；Clash、Mihomo、Stash、OpenClash、Nikki、FlClash 输出 Clash 格式；其他客户端回退到 Base64。Auto 响应带有 `Vary: User-Agent`，避免不同客户端之间复用错误格式的缓存。
 
 ---
 
@@ -183,13 +184,14 @@ Worker 使用固定 key `subscription_links` 保存一个 JSON 节点链接数�
 
 ---
 
-## 面板添加/删除节点
+## 面板管理节点
 
 1. 登录后滚动到“订阅管理”。
 2. 在“添加订阅”中粘贴一行或多行节点链接并保存。
 3. 输入会自动 trim、忽略空行并去重；仅接受 `vless://`、`hysteria2://`。
-4. “已添加项”只显示协议与节点名称等脱敏摘要；点击“删除”可移除对应节点。
-5. 添加或删除后，订阅 API 与节点卡片都以 KV 中的最新数组为准。
+4. “已添加节点”只显示协议与节点名称等脱敏摘要；使用上移/下移按钮调整顺序，点击删除可移除对应节点。
+5. 排序会直接写回 KV，Auto、Clash、Loon、Base64 都按相同的新顺序输出。
+6. 添加、排序或删除后，订阅 API 与节点卡片都以 KV 中的最新数组为准。
 
 这些操作使用同源管理 API、登录 Cookie，并且响应禁止缓存。未登录请求会被拒绝；未绑定 KV 时不会假装保存成功。
 
@@ -218,7 +220,6 @@ XHTTP path
 
 ```text
 节点名称
-地区图标
 协议类型
 VLESS / Hysteria2
 REALITY / TLS
@@ -227,8 +228,6 @@ Vision
 XHTTP mode
 SNI 域名
 ```
-
-如果节点名包含 `台湾` / `Taiwan` / `TW`，面板会显示台湾图标。
 
 ---
 
@@ -294,6 +293,7 @@ _worker.js
 utils.js
 convert.js
 yaml.js
+loon.js
 dashboard.js
 ```
 
@@ -340,6 +340,7 @@ npm test
 - 随机主页路径必须匹配当前会话
 - `/logout` 清理 Cookie
 - `/api/sub` 需要 `TOKEN`
+- `type=auto` 按 User-Agent 选择 Loon、Clash 或 Base64，并返回 `Vary: User-Agent`
 - 旧 `/TOKEN?...` 地址、`type=b64` 和 `type=mihomo` 均拒绝
 - 管理 API 未登录拒绝，登录后可增/列/排序/删
 - 多行输入去重、非法协议和未绑定 KV 错误
