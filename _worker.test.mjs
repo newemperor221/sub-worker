@@ -358,6 +358,14 @@ test('Clash endpoint returns 422 when every configured node is invalid', async (
   assert.match(await res.text(), /没有可转换/);
 });
 
+test('health endpoint exercises session crypto, storage and dashboard rendering', async () => {
+  const kv = createKv([LINK]);
+  const res = await fetchPath('/api/health', {}, { ...env, SUBSCRIPTIONS: kv });
+  assert.equal(res.status, 200);
+  assert.deepEqual(await res.json(), { ok: true, storage: 'kv' });
+  assert.match(res.headers.get('cache-control') || '', /no-store/);
+});
+
 test('subscription management API rejects unauthenticated requests and disables caching', async () => {
   const res = await fetchPath('/api/manage/subscriptions', {}, { ...env, SUBSCRIPTIONS: createKv() });
   assert.equal(res.status, 401);

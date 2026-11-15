@@ -386,6 +386,23 @@ async function handleRequest(request, env) {
   const params = url.searchParams;
   const baseUrl = url.protocol + '//' + url.host;
 
+  if (path === '/api/health') {
+    try {
+      await signSessionPayload('health-check', config.sessionSecret);
+      const subscriptions = await loadSubscriptions(env, config);
+      const activeConfig = configWithSubscriptions(config, subscriptions);
+      const { proxies } = parseProxies(activeConfig);
+      renderDashboard(activeConfig, proxies, baseUrl, {
+        kvBound: subscriptions.kvBound,
+        source: subscriptions.saved ? 'kv' : 'env',
+        items: subscriptions.links.map(subscriptionSummary),
+      });
+      return jsonResponse({ ok: true, storage: subscriptions.kvBound ? 'kv' : 'env' });
+    } catch {
+      return jsonResponse({ ok: false, component: 'dashboard-runtime' }, 503);
+    }
+  }
+
   if (path === '/api/manage/subscriptions') {
     const session = await getValidSession(request, config);
     return handleSubscriptionManagement(request, env, config, session);
