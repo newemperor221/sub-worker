@@ -14,6 +14,7 @@ function normalizeDisplayName(name) {
 export function renderDashboard(config, proxies, baseUrl, management = { items: [], kvBound: false, source: 'env' }) {
   const links = {
     clash: baseUrl + '/api/sub?token=' + encodeURIComponent(config.token) + '&type=clash',
+    loon: baseUrl + '/api/sub?token=' + encodeURIComponent(config.token) + '&type=loon',
     b64: baseUrl + '/api/sub?token=' + encodeURIComponent(config.token) + '&type=b64',
   };
 
@@ -44,7 +45,7 @@ export function renderDashboard(config, proxies, baseUrl, management = { items: 
       <section id="nodes" class="card" aria-labelledby="nodes-title"><div class="card-header"><div><h2 id="nodes-title">节点列表</h2><p>连接地址、端口与凭据均已隐藏。</p></div><span class="source-note">{{COUNT}} 个节点</span></div><div class="node-grid" id="nodeList"><div class="empty">正在加载节点……</div></div></section>
     </div>
     <aside class="column right-column">
-      <section id="exports" class="card" aria-labelledby="exports-title"><div class="card-header"><div><h2 id="exports-title">生成订阅链接</h2><p>复制链接或扫码导入客户端。</p></div></div><div class="card-body export-list"><article class="export-card"><div class="export-top"><div class="export-icon">C</div><div class="export-info"><h3>Clash / Mihomo</h3><p>YAML 规则订阅</p></div></div><div class="export-actions"><button class="btn btn-primary" type="button" onclick="cp('clash')">复制链接</button><button class="btn btn-secondary" type="button" onclick="qrKey('clash','Clash / Mihomo')">二维码</button></div></article><article class="export-card"><div class="export-top"><div class="export-icon">B64</div><div class="export-info"><h3>Base64</h3><p>通用客户端订阅</p></div></div><div class="export-actions"><button class="btn btn-primary" type="button" onclick="cp('b64')">复制链接</button><button class="btn btn-secondary" type="button" onclick="qrKey('b64','Base64')">二维码</button></div></article></div></section>
+      <section id="exports" class="card" aria-labelledby="exports-title"><div class="card-header"><div><h2 id="exports-title">生成订阅链接</h2><p>复制链接或扫码导入客户端。</p></div></div><div class="card-body export-list"><article class="export-card"><div class="export-top"><div class="export-icon">C</div><div class="export-info"><h3>Clash / Mihomo</h3><p>YAML 规则订阅</p></div></div><div class="export-actions"><button class="btn btn-primary" type="button" onclick="cp('clash')">复制链接</button><button class="btn btn-secondary" type="button" onclick="qrKey('clash','Clash / Mihomo')">二维码</button></div></article><article class="export-card"><div class="export-top"><div class="export-icon">L</div><div class="export-info"><h3>Loon</h3><p>原生 Proxy 订阅</p></div></div><div class="export-actions"><button class="btn btn-primary" type="button" onclick="cp('loon')">复制链接</button><button class="btn btn-secondary" type="button" onclick="qrKey('loon','Loon')">二维码</button></div></article><article class="export-card"><div class="export-top"><div class="export-icon">B64</div><div class="export-info"><h3>Base64</h3><p>通用客户端订阅</p></div></div><div class="export-actions"><button class="btn btn-primary" type="button" onclick="cp('b64')">复制链接</button><button class="btn btn-secondary" type="button" onclick="qrKey('b64','Base64')">二维码</button></div></article></div></section>
       <div class="support-note"><strong>支持的协议</strong>当前仅支持 VLESS 与 Hysteria2。订阅链接和节点凭据不会在面板中明文展示。</div>
     </aside>
   </div>

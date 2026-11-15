@@ -156,6 +156,7 @@ test('GET /random/home with a valid matching session renders dashboard', async (
   assert.equal(res.status, 200);
   assert.match(body, /订阅管理控制台/);
   assert.match(body, /\/api\/sub\?token=subtoken&type=clash/);
+  assert.match(body, /\/api\/sub\?token=subtoken&type=loon/);
   assert.match(body, /\/api\/sub\?token=subtoken&type=b64/);
   assert.match(body, /href="\/logout"/);
   assert.match(body, /退出/);
@@ -280,6 +281,31 @@ test('Clash output includes proxies from numbered LINK variables', async () => {
   assert.equal(res.status, 200);
   assert.match(body, /name: "NodeA"/);
   assert.match(body, /name: "NodeB"/);
+});
+
+test('Loon output includes VLESS Reality and Hysteria2 proxy lines', async () => {
+  const loonEnv = {
+    ...env,
+    LINK: '',
+    LINK1: 'vless://77777777-7777-4777-8777-777777777777@vless.example:443?security=reality&type=tcp&flow=xtls-rprx-vision&sni=edge.example&fp=chrome&pbk=public-key&sid=abcd#Reality-Node',
+    LINK2: 'hysteria2://secret@hy.example:8443?sni=hy.example#HY2-Node',
+  };
+  const res = await fetchPath('/api/sub?token=subtoken&type=loon', {}, loonEnv);
+  const body = await res.text();
+
+  assert.equal(res.status, 200);
+  assert.match(body, /^\[Proxy\]\n/);
+  assert.match(body, /Reality-Node = vless/);
+  assert.match(body, /reality=true/);
+  assert.match(body, /public-key=public-key/);
+  assert.match(body, /short-id=abcd/);
+  assert.match(body, /HY2-Node = hysteria2, hy\.example, 8443, secret/);
+});
+
+test('legacy /TOKEN?loon subscription URL remains compatible', async () => {
+  const res = await fetchPath('/subtoken?loon');
+  assert.equal(res.status, 200);
+  assert.match(await res.text(), /^\[Proxy\]\n/);
 });
 
 test('legacy /TOKEN?b64 subscription URL remains compatible', async () => {

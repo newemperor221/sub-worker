@@ -5,6 +5,7 @@
 import { loadConfig, encodeBase64 } from './utils.js';
 import { convertVlessToClashProxy, convertHysteria2ToClashProxy } from './convert.js';
 import { generateClashYaml } from './yaml.js';
+import { generateLoonConfig } from './loon.js';
 import { renderDashboard } from './dashboard.js';
 
 const SESSION_COOKIE = 'sub_worker_session';
@@ -258,6 +259,7 @@ async function handleSubscriptionManagement(request, env, config, session) {
 function getSubscriptionKind(params) {
   const type = (params.get('type') || '').toLowerCase();
   if (params.has('clash') || type === 'clash' || type === 'mihomo') return 'clash';
+  if (params.has('loon') || type === 'loon') return 'loon';
   if (params.has('b64') || type === 'b64' || type === 'base64') return 'b64';
   return '';
 }
@@ -275,6 +277,23 @@ function renderSubscription(kind, config) {
     }
     const yaml = generateClashYaml(proxies, config.subName);
     return new Response(yaml, {
+      headers: {
+        'Content-Type': 'text/plain; charset=utf-8',
+        'content-disposition': subscriptionContentDisposition,
+        'profile-title': encodeURIComponent(config.subName),
+        'profile-update-interval': '6',
+      },
+    });
+  }
+
+  if (kind === 'loon') {
+    if (!proxies.length) {
+      return new Response('没有可转换为 Loon 的有效节点', {
+        status: 422,
+        headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+      });
+    }
+    return new Response(generateLoonConfig(proxies), {
       headers: {
         'Content-Type': 'text/plain; charset=utf-8',
         'content-disposition': subscriptionContentDisposition,

@@ -16,6 +16,7 @@
 它会把 KV（或首次迁移前的环境变量）中的节点分享链接整理成：
 
 - Clash / Mihomo YAML 订阅
+- Loon 原生 Proxy 订阅
 - Base64 原始分享链接订阅
 - 登录后可视化节点卡片
 - 可复制 / 可扫码的订阅入口
@@ -91,8 +92,9 @@
 推荐新接口：
 
 ```text
-/api/sub?token=你的TOKEN&type=clash
-/api/sub?token=你的TOKEN&type=b64
+https://你的域名/api/sub?token=你的TOKEN&type=clash
+https://你的域名/api/sub?token=你的TOKEN&type=loon
+https://你的域名/api/sub?token=你的TOKEN&type=b64
 ```
 
 参数：
@@ -101,12 +103,14 @@
 |---|---|
 | `token` | 订阅访问令牌，对应环境变量 `TOKEN` |
 | `type=clash` | 输出 Clash / Mihomo YAML |
+| `type=loon` | 输出 Loon 原生 `[Proxy]` 订阅 |
 | `type=b64` | 输出 Base64 原始分享链接订阅 |
 
 旧接口仍兼容：
 
 ```text
 /你的TOKEN?clash
+/你的TOKEN?loon
 /你的TOKEN?b64
 ```
 
@@ -346,6 +350,7 @@ dashboard.js
 | FlClash | `type=clash` |
 | Clash Meta for Android | `type=clash` |
 | OpenClash / Nikki | `type=clash` |
+| Loon | `type=loon` |
 | v2rayN | `type=b64` |
 | NekoBox | `type=b64` |
 | Hiddify | `type=b64` |
@@ -367,7 +372,7 @@ npm test
 - 随机主页路径必须匹配当前会话
 - `/logout` 清理 Cookie
 - `/api/sub` 需要 `TOKEN`
-- 旧 `/TOKEN?b64` 兼容
+- 旧 `/TOKEN?clash`、`/TOKEN?loon`、`/TOKEN?b64` 兼容
 - 管理 API 未登录拒绝，登录后可增/列/删
 - 多行输入去重、非法协议和未绑定 KV 错误
 - KV 优先读取、env 回退与首次迁移
