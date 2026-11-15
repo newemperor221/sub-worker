@@ -43,6 +43,27 @@ async function fetchPath(path, init = {}, testEnv = env) {
   return worker.fetch(new Request('https://sub.example.com' + path, init), testEnv);
 }
 
+function createKv(initialValue = null) {
+  const values = new Map();
+  if (initialValue !== null) values.set('subscription_links', JSON.stringify(initialValue));
+  return {
+    values,
+    async get(key) { return values.has(key) ? values.get(key) : null; },
+    async put(key, value) { values.set(key, value); },
+  };
+}
+
+async function loginSession(testEnv = env) {
+  const login = await fetchPath('/login', {
+    method: 'POST',
+    body: new URLSearchParams({ username: 'admin', password: 'pass123' }),
+  }, testEnv);
+  return {
+    cookie: login.headers.get('set-cookie').split(';')[0],
+    homePath: login.headers.get('location'),
+  };
+}
+
 test('GET / without session redirects to /login', async () => {
   const res = await fetchPath('/');
 
@@ -328,4 +349,114 @@ test('Clash endpoint returns 422 when every configured node is invalid', async (
   const res = await fetchPath('/api/sub?token=subtoken&type=clash', {}, { ...env, LINK: 'ss://unsupported' });
   assert.equal(res.status, 422);
   assert.match(await res.text(), /没有可转换/);
+});
+
+test('subscription management API rejects unauthenticated requests and disables caching', async () => {
+  const res = await fetchPath('/api/manage/subscriptions', {}, { ...env, SUBSCRIPTIONS: createKv() });
+  assert.equal(res.status, 401);
+  assert.match(res.headers.get('cache-control') || '', /no-store/);
+  assert.match((await res.json()).error, /请先登录/);
+});
+
+test('logged-in administrator can add, list and delete KV subscriptions', async () => {
+  const kv = createKv();
+  const testEnv = { ...env, SUBSCRIPTIONS: kv };
+  const { cookie } = await loginSession(testEnv);
+  const addedLink = 'trojan://secret@trojan.example:443?sni=edge.example#ManagedNode';
+
+  const add = await fetchPath('/api/manage/subscriptions', {
+    method: 'POST',
+    headers: { cookie, 'content-type': 'application/json' },
+    body: JSON.stringify({ links: addedLink }),
+  }, testEnv);
+  const addBody = await add.json();
+  assert.equal(add.status, 200);
+  assert.equal(addBody.added, 1);
+  assert.equal(addBody.items.length, 2);
+  assert.equal(addBody.items[1].name, 'ManagedNode');
+  assert.equal(JSON.parse(kv.values.get('subscription_links')).length, 2);
+
+  const list = await fetchPath('/api/manage/subscriptions', { headers: { cookie } }, testEnv);
+  const listBody = await list.json();
+  assert.equal(list.status, 200);
+  assert.equal(listBody.source, 'kv');
+  assert.equal(listBody.items[1].protocol, 'trojan');
+  assert.doesNotMatch(JSON.stringify(listBody), /secret@trojan\.example/);
+
+  const remove = await fetchPath('/api/manage/subscriptions', {
+    method: 'DELETE',
+    headers: { cookie, 'content-type': 'application/json' },
+    body: JSON.stringify({ id: '0' }),
+  }, testEnv);
+  const removeBody = await remove.json();
+  assert.equal(remove.status, 200);
+  assert.equal(removeBody.items.length, 1);
+  assert.equal(JSON.parse(kv.values.get('subscription_links'))[0], addedLink);
+});
+
+test('multi-line add trims, removes blanks and duplicates, and rejects unsupported protocols', async () => {
+  const kv = createKv([]);
+  const testEnv = { ...env, SUBSCRIPTIONS: kv };
+  const { cookie } = await loginSession(testEnv);
+  const multiLine = `  ${LINK_A}  \n\n${LINK_A}\r\n${LINK_B}`;
+  const add = await fetchPath('/api/manage/subscriptions', {
+    method: 'POST', headers: { cookie, 'content-type': 'application/json' },
+    body: JSON.stringify({ links: multiLine }),
+  }, testEnv);
+  assert.equal(add.status, 200);
+  assert.equal((await add.json()).added, 2);
+  assert.deepEqual(JSON.parse(kv.values.get('subscription_links')), [LINK_A, LINK_B]);
+
+  const invalid = await fetchPath('/api/manage/subscriptions', {
+    method: 'POST', headers: { cookie, 'content-type': 'application/json' },
+    body: JSON.stringify({ links: `${LINK_A}\nss://unsupported` }),
+  }, testEnv);
+  assert.equal(invalid.status, 400);
+  assert.match((await invalid.json()).error, /第 2 行协议不受支持/);
+  assert.deepEqual(JSON.parse(kv.values.get('subscription_links')), [LINK_A, LINK_B]);
+});
+
+test('management mutation clearly reports a missing SUBSCRIPTIONS binding while env nodes remain usable', async () => {
+  const { cookie, homePath } = await loginSession(env);
+  const add = await fetchPath('/api/manage/subscriptions', {
+    method: 'POST', headers: { cookie, 'content-type': 'application/json' },
+    body: JSON.stringify({ links: LINK_A }),
+  });
+  assert.equal(add.status, 503);
+  assert.match((await add.json()).error, /尚未绑定 Cloudflare KV.*SUBSCRIPTIONS/);
+
+  const panel = await fetchPath(homePath, { headers: { cookie } });
+  const panelBody = await panel.text();
+  assert.equal(panel.status, 200);
+  assert.match(panelBody, /尚未绑定 SUBSCRIPTIONS KV/);
+  assert.match(panelBody, /当前读取：env 回退/);
+  assert.match(panelBody, /TestNode/);
+});
+
+test('saved KV data overrides env for subscription output and dashboard without exposing full nodes', async () => {
+  const kv = createKv([LINK_B]);
+  const testEnv = { ...env, SUBSCRIPTIONS: kv };
+  const subscription = await fetchPath('/api/sub?token=subtoken&type=b64', {}, testEnv);
+  assert.equal(await subscription.text(), btoa(unescape(encodeURIComponent(LINK_B))));
+
+  const { cookie, homePath } = await loginSession(testEnv);
+  const panel = await fetchPath(homePath, { headers: { cookie } }, testEnv);
+  const body = await panel.text();
+  assert.match(body, /NodeB/);
+  assert.doesNotMatch(body, /TestNode/);
+  assert.doesNotMatch(body, /example-b\.com:443/);
+  assert.match(body, /当前读取：KV/);
+});
+
+test('empty KV falls back to legacy LINK values until the first save', async () => {
+  const kv = createKv();
+  const testEnv = { ...numberedLinkEnv, SUBSCRIPTIONS: kv };
+  const fallback = await fetchPath('/api/sub?token=subtoken&type=b64', {}, testEnv);
+  assert.equal(await fallback.text(), btoa(unescape(encodeURIComponent([LINK_A, LINK_B].join('\n')))));
+
+  const { cookie } = await loginSession(testEnv);
+  const list = await fetchPath('/api/manage/subscriptions', { headers: { cookie } }, testEnv);
+  const body = await list.json();
+  assert.equal(body.source, 'env');
+  assert.equal(body.items.length, 2);
 });

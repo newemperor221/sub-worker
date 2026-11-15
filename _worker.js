@@ -9,6 +9,8 @@ import { renderDashboard } from './dashboard.js';
 
 const SESSION_COOKIE = 'sub_worker_session';
 const SESSION_TTL_SECONDS = 7 * 24 * 60 * 60;
+const SUBSCRIPTIONS_KEY = 'subscription_links';
+const SUPPORTED_LINK_PATTERN = /^(vless|trojan|hysteria2|hy2):\/\//i;
 
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -153,6 +155,130 @@ function parseProxies(config) {
   return { allLines, proxies };
 }
 
+function normalizeSubscriptionLines(value) {
+  return [...new Set(String(value || '')
+    .split(/\r?\n/)
+    .map((line) => line.replace(/^\uFEFF/, '').trim())
+    .filter(Boolean))];
+}
+
+function parseSubscriptionInput(value) {
+  const lines = normalizeSubscriptionLines(value);
+  const invalid = lines
+    .map((line, index) => ({ line, number: index + 1 }))
+    .filter(({ line }) => !SUPPORTED_LINK_PATTERN.test(line));
+  if (invalid.length) {
+    const numbers = invalid.map(({ number }) => number).join('、');
+    throw new Error(`第 ${numbers} 行协议不受支持，仅接受 vless://、trojan://、hysteria2://、hy2://`);
+  }
+  return [...new Set(lines)];
+}
+
+async function loadSubscriptions(env, config) {
+  if (!env?.SUBSCRIPTIONS) {
+    return { links: normalizeSubscriptionLines(config.link), kvBound: false, saved: false };
+  }
+  const stored = await env.SUBSCRIPTIONS.get(SUBSCRIPTIONS_KEY);
+  if (stored === null) {
+    return { links: normalizeSubscriptionLines(config.link), kvBound: true, saved: false };
+  }
+  let links;
+  try {
+    links = JSON.parse(stored);
+  } catch {
+    throw new Error('KV 中的订阅数据不是有效 JSON，请检查 subscription_links');
+  }
+  if (!Array.isArray(links) || links.some((link) => typeof link !== 'string')) {
+    throw new Error('KV 中的订阅数据格式错误，应为节点链接数组');
+  }
+  return { links: parseSubscriptionInput(links.join('\n')), kvBound: true, saved: true };
+}
+
+function configWithSubscriptions(config, subscriptions) {
+  return { ...config, link: subscriptions.links.join('\n') };
+}
+
+function subscriptionSummary(link, index) {
+  const scheme = link.match(/^([^:]+):\/\//)?.[1]?.toLowerCase() || 'unknown';
+  const fragment = link.includes('#') ? link.slice(link.indexOf('#') + 1) : '';
+  let name = '未命名节点';
+  if (fragment) {
+    try { name = decodeURIComponent(fragment).trim() || name; } catch { name = fragment.trim() || name; }
+  }
+  name = name.replace(/[\u{1F1E6}-\u{1F1FF}]{2}/gu, '').trim() || '未命名节点';
+  const relay = name.match(/^(.+?)[-—–_\s]+(中转|中轉|前置|反连|反連)[-—–_\s]+(.+)$/);
+  if (relay?.[1] && relay?.[3]) name = `${relay[3].trim()}(${relay[1].trim()}${relay[2]})`;
+  return { id: String(index), protocol: scheme === 'hy2' ? 'Hysteria2' : scheme, name };
+}
+
+function jsonResponse(data, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: noStoreHeaders({ 'Content-Type': 'application/json; charset=utf-8' }),
+  });
+}
+
+async function handleSubscriptionManagement(request, env, config, session) {
+  if (!session) return jsonResponse({ error: '请先登录后再管理订阅' }, 401);
+
+  let current;
+  try {
+    current = await loadSubscriptions(env, config);
+  } catch (error) {
+    return jsonResponse({ error: error.message }, 500);
+  }
+
+  if (request.method === 'GET') {
+    return jsonResponse({
+      items: current.links.map(subscriptionSummary),
+      kvBound: current.kvBound,
+      source: current.saved ? 'kv' : 'env',
+    });
+  }
+  if (request.method !== 'POST' && request.method !== 'DELETE') {
+    return jsonResponse({ error: '不支持的请求方法' }, 405);
+  }
+  if (!current.kvBound) {
+    return jsonResponse({ error: '尚未绑定 Cloudflare KV：请创建 KV 命名空间并以 SUBSCRIPTIONS 绑定后再保存' }, 503);
+  }
+
+  let payload;
+  try {
+    payload = await request.json();
+  } catch {
+    return jsonResponse({ error: '请求内容必须是有效 JSON' }, 400);
+  }
+
+  if (request.method === 'POST') {
+    let added;
+    try {
+      added = parseSubscriptionInput(payload?.links);
+    } catch (error) {
+      return jsonResponse({ error: error.message }, 400);
+    }
+    if (!added.length) return jsonResponse({ error: '请至少粘贴一个节点链接' }, 400);
+    const links = [...new Set([...current.links, ...added])];
+    try {
+      await env.SUBSCRIPTIONS.put(SUBSCRIPTIONS_KEY, JSON.stringify(links));
+    } catch {
+      return jsonResponse({ error: '写入 Cloudflare KV 失败，请稍后重试' }, 500);
+    }
+    return jsonResponse({ items: links.map(subscriptionSummary), added: links.length - current.links.length });
+  }
+
+  const index = Number(payload?.id);
+  if (!Number.isInteger(index) || index < 0 || index >= current.links.length) {
+    return jsonResponse({ error: '要删除的订阅不存在，请刷新后重试' }, 404);
+  }
+  const links = current.links.filter((_, itemIndex) => itemIndex !== index);
+  try {
+    await env.SUBSCRIPTIONS.put(SUBSCRIPTIONS_KEY, JSON.stringify(links));
+  } catch {
+    return jsonResponse({ error: '写入 Cloudflare KV 失败，请稍后重试' }, 500);
+  }
+  return jsonResponse({ items: links.map(subscriptionSummary), deleted: 1 });
+}
+
 function getSubscriptionKind(params) {
   const type = (params.get('type') || '').toLowerCase();
   if (params.has('clash') || type === 'clash' || type === 'mihomo') return 'clash';
@@ -261,16 +387,31 @@ async function handleRequest(request, env) {
   const params = url.searchParams;
   const baseUrl = url.protocol + '//' + url.host;
 
+  if (path === '/api/manage/subscriptions') {
+    const session = await getValidSession(request, config);
+    return handleSubscriptionManagement(request, env, config, session);
+  }
+
   if (path === '/api/sub') {
     if (params.get('token') !== config.token) return new Response('Not Found', { status: 404 });
-    return renderSubscription(getSubscriptionKind(params), config);
+    try {
+      const subscriptions = await loadSubscriptions(env, config);
+      return renderSubscription(getSubscriptionKind(params), configWithSubscriptions(config, subscriptions));
+    } catch (error) {
+      return new Response(error.message, { status: 500, headers: noStoreHeaders({ 'Content-Type': 'text/plain; charset=utf-8' }) });
+    }
   }
 
   // 兼容旧订阅地址：/TOKEN?clash 与 /TOKEN?b64
   const pathParts = path.split('/').filter(Boolean);
   const token = pathParts[0] || '';
   if (token && token === config.token) {
-    return renderSubscription(getSubscriptionKind(params), config);
+    try {
+      const subscriptions = await loadSubscriptions(env, config);
+      return renderSubscription(getSubscriptionKind(params), configWithSubscriptions(config, subscriptions));
+    } catch (error) {
+      return new Response(error.message, { status: 500, headers: noStoreHeaders({ 'Content-Type': 'text/plain; charset=utf-8' }) });
+    }
   }
 
   if (path === '/login') return handleLogin(request, config);
@@ -292,10 +433,20 @@ async function handleRequest(request, env) {
 
   const session = await getValidSession(request, config);
   if (session && path === session.homePath) {
-    const { proxies } = parseProxies(config);
-    return new Response(renderDashboard(config, proxies, baseUrl), {
-      headers: noStoreHeaders({ 'Content-Type': 'text/html; charset=utf-8' }),
-    });
+    try {
+      const subscriptions = await loadSubscriptions(env, config);
+      const activeConfig = configWithSubscriptions(config, subscriptions);
+      const { proxies } = parseProxies(activeConfig);
+      return new Response(renderDashboard(activeConfig, proxies, baseUrl, {
+        kvBound: subscriptions.kvBound,
+        source: subscriptions.saved ? 'kv' : 'env',
+        items: subscriptions.links.map(subscriptionSummary),
+      }), {
+        headers: noStoreHeaders({ 'Content-Type': 'text/html; charset=utf-8' }),
+      });
+    } catch (error) {
+      return new Response(error.message, { status: 500, headers: noStoreHeaders({ 'Content-Type': 'text/plain; charset=utf-8' }) });
+    }
   }
 
   return new Response('Not Found', { status: 404 });

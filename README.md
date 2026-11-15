@@ -13,7 +13,7 @@
 
 `sub-worker` 是一个部署在 **Cloudflare Pages / Workers** 上的私有订阅面板。
 
-它会把环境变量中的节点分享链接整理成：
+它会把 KV（或首次迁移前的环境变量）中的节点分享链接整理成：
 
 - Clash / Mihomo YAML 订阅
 - Base64 原始分享链接订阅
@@ -24,8 +24,10 @@
 
 - 面板登录使用 `ADMIN_USER` / `ADMIN_PASS`
 - 订阅接口使用 `TOKEN`
-- 节点内容来自环境变量 `LINK1` / `LINK2` / ...（兼容旧版 `LINK`）
-- 不需要 D1 / KV / 数据库
+- 节点优先来自绑定名为 `SUBSCRIPTIONS` 的 Cloudflare KV
+- KV 尚无数据时兼容旧版 `LINK` / `LINK1` / `LINK2` / ...
+- 首次创建并绑定 KV 后，以后可直接在登录面板批量添加、查看脱敏摘要和删除节点
+- 不需要 D1 或其他数据库
 - 主页不展示完整订阅 URL
 - 登录后进入随机路径 `/随机字符/home`
 
@@ -51,6 +53,7 @@
 - `/login`：纸边登录白板
 - `/随机字符/home`：订阅导出白板
 - `导出路线`：Clash / Base64 两张入口卡
+- `订阅管理`：批量粘贴节点、查看脱敏摘要、删除节点
 - `节点草稿`：每个节点是一张 ProjectCard 风格纸片
 
 ---
@@ -130,8 +133,8 @@ Cloudflare Pages / Workers 需要配置：
 | 变量名 | 必填 | 说明 |
 |---|---:|---|
 | `TOKEN` | ✅ | 订阅接口访问令牌，会出现在客户端订阅 URL 中 |
-| `LINK1`, `LINK2`, ... | ✅ | 推荐格式：每个变量只放一个节点分享链接，按数字顺序聚合 |
-| `LINK` | ❌ | 旧版兼容：可放一个链接，或旧版多行链接；会排在 `LINK1` 之前 |
+| `LINK1`, `LINK2`, ... | ❌ | 旧配置兼容/首次迁移来源：每个变量一个节点，按数字顺序聚合 |
+| `LINK` | ❌ | 旧版兼容/首次迁移来源：可放一个或多行链接；排在 `LINK1` 之前 |
 | `ADMIN_USER` | ✅ | 网页面板登录用户名 |
 | `ADMIN_PASS` | ✅ | 网页面板登录密码 |
 | `SESSION_SECRET` | ✅ | Cookie 签名密钥，只给 Worker 后端使用 |
@@ -155,6 +158,39 @@ openssl rand -hex 32
 |---|---|---:|
 | `TOKEN` | 订阅 API 访问令牌 | 会 |
 | `SESSION_SECRET` | 登录 Cookie 签名密钥 | 不会 |
+
+---
+
+## Cloudflare KV 创建与绑定
+
+KV 只需首次创建并绑定一次；完成后节点增删都在登录面板操作，不再需要到 Cloudflare 后台逐条维护 `LINK` / `LINK1`。
+
+### Pages 项目
+
+1. 在 Cloudflare Dashboard 打开 **Storage & Databases → KV**，创建一个 KV 命名空间（名称可自定）。
+2. 打开对应的 **Workers & Pages → Pages 项目 → Settings → Bindings**。
+3. 新增 **KV namespace binding**，变量名必须填写 `SUBSCRIPTIONS`，选择刚创建的命名空间。
+4. 保存绑定并重新部署一次项目。
+5. 登录 `/login`，在“订阅管理 / 添加订阅”中粘贴节点（每行一个）并保存。
+
+### 普通 Worker
+
+在 Worker 的 **Settings → Bindings** 中新增 KV namespace，变量名同样必须是 `SUBSCRIPTIONS`，保存后重新部署。若使用 Wrangler，可在配置中增加：
+
+```toml
+[[kv_namespaces]]
+binding = "SUBSCRIPTIONS"
+id = "你的 KV namespace ID"
+```
+
+Worker 使用固定 key `subscription_links` 保存一个 JSON 节点链接数组。不要手工创建多个 key。
+
+### 旧 `LINK` 的兼容与迁移语义
+
+- 未绑定 `SUBSCRIPTIONS`：旧 `LINK` / `LINK1...` 继续提供订阅和面板节点，但面板会明确提示无法保存。
+- 已绑定、但固定 key 尚不存在：仍读取旧环境变量；第一次从面板添加或删除时，会把当前 env 节点与该次操作结果写入 KV，完成迁移。
+- 固定 key 已存在（包括保存的空数组）：KV 为唯一数据源，不再合并 env；删除所有节点也不会重新回退到 env。
+- 迁移完成并确认订阅正常后，可以删除旧 `LINK` 变量；也可以保留作为不再读取的历史配置。
 
 ---
 
@@ -182,6 +218,18 @@ LINK5=hy2://password@example.com:443?sni=example.com#HY2-Short
 - REALITY 节点需要保留 `sni`、`fp`、`pbk`、`sid`
 - XHTTP 建议写清楚 `type=xhttp` 和 `mode=stream-up`
 - XHTTP 不建议带 `flow=xtls-rprx-vision`
+
+---
+
+## 面板添加/删除节点
+
+1. 登录后滚动到“订阅管理”。
+2. 在“添加订阅”中粘贴一行或多行节点链接并保存。
+3. 输入会自动 trim、忽略空行并去重；仅接受 `vless://`、`trojan://`、`hysteria2://`、`hy2://`。
+4. “已添加项”只显示协议与节点名称等脱敏摘要；点击“删除”可移除对应节点。
+5. 添加或删除后，订阅 API 与节点卡片都以 KV 中的最新数组为准。
+
+这些操作使用同源管理 API、登录 Cookie，并且响应禁止缓存。未登录请求会被拒绝；未绑定 KV 时不会假装保存成功。
 
 ---
 
@@ -266,15 +314,14 @@ sw_session  # 旧版本兼容清理
 4. 构建命令留空。
 5. 配置环境变量：
    - `TOKEN`
-   - `LINK1`
-   - `LINK2`
-   - `LINK3` ...（每个变量一个节点；按实际节点数量继续添加）
    - `ADMIN_USER`
    - `ADMIN_PASS`
    - `SESSION_SECRET`
    - `SUBNAME`
-6. 绑定自定义域名。
-7. 访问 `/login` 测试登录。
+   - 已有部署可暂时保留 `LINK` / `LINK1...` 作为首次迁移来源
+6. 按上文创建 KV 命名空间，并以 `SUBSCRIPTIONS` 绑定到项目。
+7. 重新部署并绑定自定义域名。
+8. 访问 `/login`，登录后在“订阅管理”中维护节点。
 
 ### 普通 Worker 部署
 
@@ -336,6 +383,10 @@ npm test
 - `/logout` 清理 Cookie
 - `/api/sub` 需要 `TOKEN`
 - 旧 `/TOKEN?b64` 兼容
+- 管理 API 未登录拒绝，登录后可增/列/删
+- 多行输入去重、非法协议和未绑定 KV 错误
+- KV 优先读取、env 回退与首次迁移
+- 面板不暴露完整节点链接
 
 ---
 
@@ -345,7 +396,9 @@ npm test
 - `TOKEN` 泄露后，别人可以拉取订阅，需要立即更换。
 - `SESSION_SECRET` 泄露后，别人可能伪造网页登录状态，需要立即更换。
 - 仓库即使公开，也不要公开任何真实连接串或环境变量。
-- 当前版本不包含多用户系统，不需要 D1 / KV。
+- `SUBSCRIPTIONS` KV 保存完整节点凭据；只把它绑定到此 Worker，不要公开 KV 内容或授予无关账号写权限。
+- 管理 API 只接受有效登录 Cookie，并返回 `no-store`；节点卡片和列表只显示脱敏摘要，但订阅 API 持有 `TOKEN` 的客户端仍可获取完整节点。
+- 当前版本是单管理员模型；不包含多用户权限隔离，也不需要 D1。
 
 ---
 
