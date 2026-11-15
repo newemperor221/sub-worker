@@ -15,6 +15,7 @@
 
 它会把 Cloudflare KV 中的节点分享链接整理成：
 
+- Auto 自动识别订阅
 - Clash / Mihomo YAML 订阅
 - Loon 原生 Proxy 订阅
 - Base64 原始分享链接订阅
@@ -91,6 +92,7 @@
 推荐新接口：
 
 ```text
+https://你的域名/api/sub?token=你的TOKEN&type=auto
 https://你的域名/api/sub?token=你的TOKEN&type=clash
 https://你的域名/api/sub?token=你的TOKEN&type=loon
 https://你的域名/api/sub?token=你的TOKEN&type=base64
@@ -101,11 +103,14 @@ https://你的域名/api/sub?token=你的TOKEN&type=base64
 | 参数 | 说明 |
 |---|---|
 | `token` | 订阅访问令牌，对应环境变量 `TOKEN` |
+| `type=auto` | 根据客户端 User-Agent 自动选择 Loon、Clash 或 Base64 |
 | `type=clash` | 输出 Clash / Mihomo YAML |
 | `type=loon` | 输出 Loon 原生 `[Proxy]` 订阅 |
 | `type=base64` | 输出 Base64 原始分享链接订阅 |
 
 仅支持上面的 `/api/sub?...` 地址，不兼容旧 `/TOKEN?...` 地址或 `type=b64` 别名。
+
+Auto 识别规则：Loon 客户端输出 Loon 格式；Clash、Mihomo、Stash、OpenClash、Nikki、FlClash 输出 Clash 格式；其他客户端回退到 Base64。
 
 ---
 
@@ -305,8 +310,9 @@ dashboard.js
 
 推荐客户端：
 
-| 客户端 | 推荐订阅类型 |
+| 客户端 | 推荐类型 |
 |---|---|
+| 自动识别 | `type=auto` |
 | Clash Verge Rev | `type=clash` |
 | Mihomo Party | `type=clash` |
 | FlClash | `type=clash` |

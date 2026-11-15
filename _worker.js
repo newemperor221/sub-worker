@@ -276,11 +276,17 @@ async function handleSubscriptionManagement(request, env, config, session) {
   return jsonResponse({ items: links.map(subscriptionSummary), deleted: 1 });
 }
 
-function getSubscriptionKind(params) {
+function getSubscriptionKind(params, request) {
   const type = (params.get('type') || '').toLowerCase();
   if (type === 'clash') return 'clash';
   if (type === 'loon') return 'loon';
   if (type === 'base64') return 'base64';
+  if (type === 'auto') {
+    const userAgent = (request.headers.get('User-Agent') || '').toLowerCase();
+    if (userAgent.includes('loon')) return 'loon';
+    if (/clash|mihomo|stash|openclash|nikki|flclash/.test(userAgent)) return 'clash';
+    return 'base64';
+  }
   return '';
 }
 
@@ -419,7 +425,7 @@ async function handleRequest(request, env) {
         ok: true,
         storage: subscriptions.kvBound ? 'kv' : 'unbound',
         subscriptionSource: 'kv',
-        formats: ['clash', 'loon', 'base64'],
+        formats: ['auto', 'clash', 'loon', 'base64'],
         loonSyntax: 'nsloon',
         subscriptionManagement: ['add', 'reorder', 'delete'],
       });
@@ -443,7 +449,9 @@ async function handleRequest(request, env) {
           headers: noStoreHeaders({ 'Content-Type': 'text/plain; charset=utf-8' }),
         });
       }
-      return renderSubscription(getSubscriptionKind(params), configWithSubscriptions(config, subscriptions));
+      const response = renderSubscription(getSubscriptionKind(params, request), configWithSubscriptions(config, subscriptions));
+      if ((params.get('type') || '').toLowerCase() === 'auto') response.headers.set('Vary', 'User-Agent');
+      return response;
     } catch (error) {
       return new Response(error.message, { status: 500, headers: noStoreHeaders({ 'Content-Type': 'text/plain; charset=utf-8' }) });
     }

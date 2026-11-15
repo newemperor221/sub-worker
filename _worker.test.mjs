@@ -160,6 +160,8 @@ test('GET /random/home with a valid matching session renders dashboard', async (
   assert.match(body, /dashboard-grid/);
   assert.match(body, /data-direction="up"/);
   assert.match(body, /data-direction="down"/);
+  assert.match(body, /type=auto/);
+  assert.match(body, />Auto</);
   assert.match(body, /node-grid/);
   assert.doesNotMatch(body, /node-badge|flagIcon|regionIcon/);
   assert.match(body, /color-scheme:dark/);
@@ -300,6 +302,27 @@ test('Loon output includes VLESS Reality and Hysteria2 proxy lines', async () =>
   assert.match(body, /skip-cert-verify=true/);
 });
 
+test('auto subscription mode selects output from the client user agent', async () => {
+  const clash = await fetchPath('/api/sub?token=subtoken&type=auto', {
+    headers: { 'user-agent': 'mihomo/1.19.0' },
+  });
+  assert.equal(clash.status, 200);
+  assert.match(await clash.text(), /proxies:/);
+  assert.equal(clash.headers.get('vary'), 'User-Agent');
+
+  const loon = await fetchPath('/api/sub?token=subtoken&type=auto', {
+    headers: { 'user-agent': 'Loon/3.2' },
+  });
+  assert.equal(loon.status, 200);
+  assert.match(await loon.text(), /^\[Proxy\]/);
+
+  const generic = await fetchPath('/api/sub?token=subtoken&type=auto', {
+    headers: { 'user-agent': 'curl/8.0' },
+  });
+  assert.equal(generic.status, 200);
+  assert.equal(await generic.text(), btoa(unescape(encodeURIComponent(LINK))));
+});
+
 test('old subscription aliases and paths are not compatible', async () => {
   assert.equal((await fetchPath('/api/sub?token=subtoken&type=b64')).status, 404);
   assert.equal((await fetchPath('/api/sub?token=subtoken&type=mihomo')).status, 404);
@@ -403,7 +426,7 @@ test('health endpoint exercises session crypto, storage and dashboard rendering'
     ok: true,
     storage: 'kv',
     subscriptionSource: 'kv',
-    formats: ['clash', 'loon', 'base64'],
+    formats: ['auto', 'clash', 'loon', 'base64'],
     loonSyntax: 'nsloon',
     subscriptionManagement: ['add', 'reorder', 'delete'],
   });
