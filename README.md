@@ -1,6 +1,6 @@
 # Sub Worker 订阅控制台
 
-> 私有代理订阅管理控制台：登录后管理节点、复制 Clash / Base64 订阅并扫码导入，同时隐藏敏感连接细节。
+> 私有代理订阅管理控制台：登录后管理节点、复制 Clash / Loon / Base64 订阅并扫码导入，同时隐藏敏感连接细节。
 
 [![Cloudflare Worker](https://img.shields.io/badge/runtime-Cloudflare%20Workers-f38020?style=flat-square)](#部署)
 [![Private Panel](https://img.shields.io/badge/panel-private%20login-5f7fe7?style=flat-square)](#访问结构)
@@ -27,7 +27,7 @@
 - 订阅接口使用 `TOKEN`
 - 节点优先来自绑定名为 `SUBSCRIPTIONS` 的 Cloudflare KV
 - KV 尚无数据时兼容旧版 `LINK` / `LINK1` / `LINK2` / ...
-- 首次创建并绑定 KV 后，以后可直接在登录面板批量添加、查看脱敏摘要和删除节点
+- 首次创建并绑定 KV 后，以后可直接在登录面板批量添加、查看脱敏摘要、调整顺序和删除节点
 - 不需要 D1 或其他数据库
 - 主页不展示完整订阅 URL
 - 登录后进入随机路径 `/随机字符/home`

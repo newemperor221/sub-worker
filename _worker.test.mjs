@@ -161,6 +161,8 @@ test('GET /random/home with a valid matching session renders dashboard', async (
   assert.match(body, /href="\/logout"/);
   assert.match(body, /退出/);
   assert.match(body, /dashboard-grid/);
+  assert.match(body, /data-direction="up"/);
+  assert.match(body, /data-direction="down"/);
   assert.match(body, /node-grid/);
   assert.match(body, /color-scheme:dark/);
   assert.doesNotMatch(body, /roughjs|rough-outline|drawRough|纸边|手绘|白板/i);
@@ -407,6 +409,7 @@ test('health endpoint exercises session crypto, storage and dashboard rendering'
     formats: ['clash', 'loon', 'base64'],
     legacySubscriptionUrls: false,
     loonSyntax: 'nsloon',
+    subscriptionManagement: ['add', 'reorder', 'delete'],
   });
   assert.match(res.headers.get('cache-control') || '', /no-store/);
 });
@@ -452,6 +455,35 @@ test('logged-in administrator can add, list and delete KV subscriptions', async 
   assert.equal(remove.status, 200);
   assert.equal(removeBody.items.length, 1);
   assert.equal(JSON.parse(kv.values.get('subscription_links'))[0], addedLink);
+});
+
+test('logged-in administrator can reorder KV subscriptions', async () => {
+  const kv = createKv([LINK_A, LINK_B]);
+  const testEnv = { ...env, SUBSCRIPTIONS: kv };
+  const { cookie } = await loginSession(testEnv);
+
+  const move = await fetchPath('/api/manage/subscriptions', {
+    method: 'PATCH',
+    headers: { cookie, 'content-type': 'application/json' },
+    body: JSON.stringify({ id: '1', direction: 'up' }),
+  }, testEnv);
+  const moveBody = await move.json();
+  assert.equal(move.status, 200);
+  assert.equal(moveBody.moved, 1);
+  assert.deepEqual(moveBody.items.map((item) => item.name), ['NodeB', 'NodeA']);
+  assert.deepEqual(JSON.parse(kv.values.get('subscription_links')), [LINK_B, LINK_A]);
+
+  const subscription = await fetchPath('/api/sub?token=subtoken&type=base64', {}, testEnv);
+  const decoded = decodeURIComponent(escape(atob(await subscription.text())));
+  assert.equal(decoded, [LINK_B, LINK_A].join('\n'));
+
+  const boundary = await fetchPath('/api/manage/subscriptions', {
+    method: 'PATCH',
+    headers: { cookie, 'content-type': 'application/json' },
+    body: JSON.stringify({ id: '0', direction: 'up' }),
+  }, testEnv);
+  assert.equal(boundary.status, 400);
+  assert.match((await boundary.json()).error, /列表边界/);
 });
 
 test('multi-line add trims, removes blanks and duplicates, and rejects unsupported protocols', async () => {

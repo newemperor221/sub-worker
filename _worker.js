@@ -212,7 +212,7 @@ async function handleSubscriptionManagement(request, env, config, session) {
       source: current.saved ? 'kv' : 'env',
     });
   }
-  if (request.method !== 'POST' && request.method !== 'DELETE') {
+  if (request.method !== 'POST' && request.method !== 'PATCH' && request.method !== 'DELETE') {
     return jsonResponse({ error: '不支持的请求方法' }, 405);
   }
   if (!current.kvBound) {
@@ -245,8 +245,26 @@ async function handleSubscriptionManagement(request, env, config, session) {
 
   const index = Number(payload?.id);
   if (!Number.isInteger(index) || index < 0 || index >= current.links.length) {
-    return jsonResponse({ error: '要删除的订阅不存在，请刷新后重试' }, 404);
+    return jsonResponse({ error: '指定的节点不存在，请刷新后重试' }, 404);
   }
+
+  if (request.method === 'PATCH') {
+    const offset = payload?.direction === 'up' ? -1 : payload?.direction === 'down' ? 1 : 0;
+    if (!offset) return jsonResponse({ error: '移动方向必须是 up 或 down' }, 400);
+    const targetIndex = index + offset;
+    if (targetIndex < 0 || targetIndex >= current.links.length) {
+      return jsonResponse({ error: '节点已经位于列表边界' }, 400);
+    }
+    const links = [...current.links];
+    [links[index], links[targetIndex]] = [links[targetIndex], links[index]];
+    try {
+      await env.SUBSCRIPTIONS.put(SUBSCRIPTIONS_KEY, JSON.stringify(links));
+    } catch {
+      return jsonResponse({ error: '写入 Cloudflare KV 失败，请稍后重试' }, 500);
+    }
+    return jsonResponse({ items: links.map(subscriptionSummary), moved: 1 });
+  }
+
   const links = current.links.filter((_, itemIndex) => itemIndex !== index);
   try {
     await env.SUBSCRIPTIONS.put(SUBSCRIPTIONS_KEY, JSON.stringify(links));
@@ -403,6 +421,7 @@ async function handleRequest(request, env) {
         formats: ['clash', 'loon', 'base64'],
         legacySubscriptionUrls: false,
         loonSyntax: 'nsloon',
+        subscriptionManagement: ['add', 'reorder', 'delete'],
       });
     } catch {
       return jsonResponse({ ok: false, component }, 503);
