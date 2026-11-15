@@ -1,10 +1,10 @@
-# ✎ 纸边订阅白板
+# Sub Worker 订阅控制台
 
-> 把私有代理订阅整理成一张纸边手绘白板：登录后看节点草稿，复制 Clash / Base64 订阅，扫码导入，但不把敏感连接细节摊在页面上。
+> 私有代理订阅管理控制台：登录后管理节点、复制 Clash / Base64 订阅并扫码导入，同时隐藏敏感连接细节。
 
 [![Cloudflare Worker](https://img.shields.io/badge/runtime-Cloudflare%20Workers-f38020?style=flat-square)](#部署)
 [![Private Panel](https://img.shields.io/badge/panel-private%20login-5f7fe7?style=flat-square)](#访问结构)
-[![Rough.js](https://img.shields.io/badge/style-Rough.js%20paper-d9485f?style=flat-square)](#视觉风格)
+[![Dark Console](https://img.shields.io/badge/style-dark%20console-6875f5?style=flat-square)](#视觉风格)
 [![Node Test](https://img.shields.io/badge/test-node%20--test-b2f2bb?style=flat-square)](#本地测试)
 
 ---
@@ -35,26 +35,14 @@
 
 ## 视觉风格
 
-当前 UI 是：
+当前 UI 是经典、成熟的深色 SaaS 管理后台：
 
-> **纸边实验室式手绘白板风**
-
-关键词：
-
-- 米白纸张背景：`#fffdf7`
-- 点阵草稿纸纹理
-- Rough.js 真实手绘 SVG 外框
-- 清爽 UI 字体栈：`system-ui / Segoe UI / PingFang SC / Microsoft YaHei / Noto Sans CJK SC`
-- Excalidraw 低饱和色板：黄、蓝、红、绿、紫
-- Hero 草稿插画、纸片卡片、手绘按钮
-
-页面结构：
-
-- `/login`：纸边登录白板
-- `/随机字符/home`：订阅导出白板
-- `导出路线`：Clash / Base64 两张入口卡
-- `订阅管理`：批量粘贴节点、查看脱敏摘要、删除节点
-- `节点草稿`：每个节点是一张 ProjectCard 风格纸片
+- 炭黑页面背景、深灰面板、细灰边框与克制的紫蓝主色
+- 高对比文字和系统字体栈：`system-ui / Segoe UI / PingFang SC / Microsoft YaHei / Noto Sans CJK SC`
+- 紧凑顶部品牌栏和居中内容区，不使用侧边栏或大型 Hero
+- `/login` 使用居中的极简登录卡
+- `/随机字符/home` 使用两列控制台布局：左侧优先展示订阅管理和节点列表，右侧展示 Clash / Base64 导出入口
+- 移动端自动切换为单列布局
 
 ---
 
@@ -374,7 +362,7 @@ npm test
 当前测试覆盖：
 
 - `/` 未登录跳 `/login`
-- `/login` 显示纸边登录白板
+- `/login` 显示深色管理后台登录卡
 - 登录成功后跳 `/随机字符/home`
 - 随机主页路径必须匹配当前会话
 - `/logout` 清理 Cookie
