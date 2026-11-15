@@ -383,11 +383,9 @@ function buildClearSessionHeaders(url) {
     'Clear-Site-Data': '"cache"',
   }));
   const cookieAttrs = 'Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax';
-  for (const name of [SESSION_COOKIE, 'sw_session']) {
-    headers.append('Set-Cookie', `${name}=; ${cookieAttrs}`);
-    for (const domain of parentCookieDomains(url.hostname)) {
-      headers.append('Set-Cookie', `${name}=; Domain=${domain}; ${cookieAttrs}`);
-    }
+  headers.append('Set-Cookie', `${SESSION_COOKIE}=; ${cookieAttrs}`);
+  for (const domain of parentCookieDomains(url.hostname)) {
+    headers.append('Set-Cookie', `${SESSION_COOKIE}=; Domain=${domain}; ${cookieAttrs}`);
   }
   return headers;
 }
@@ -418,9 +416,8 @@ async function handleRequest(request, env) {
       return jsonResponse({
         ok: true,
         storage: subscriptions.kvBound ? 'kv' : 'unbound',
+        subscriptionSource: 'kv',
         formats: ['clash', 'loon', 'base64'],
-        legacySubscriptionUrls: false,
-        legacyEnvironmentLinks: false,
         loonSyntax: 'nsloon',
         subscriptionManagement: ['add', 'reorder', 'delete'],
       });

@@ -252,12 +252,7 @@ Max-Age=7天
 - Cookie 超过 7 天
 - 修改 `SESSION_SECRET`
 
-退出时会清理：
-
-```text
-sub_worker_session
-sw_session  # 旧版本兼容清理
-```
+退出时会清理当前的 `sub_worker_session` Cookie。
 
 ---
 

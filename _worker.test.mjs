@@ -109,7 +109,6 @@ test('POST /login accepts valid credentials and redirects to a random home path 
   assert.match(location, /^\/[A-Za-z0-9_-]{22,}\/home$/);
   const cookie = res.headers.get('set-cookie') || '';
   assert.match(cookie, /sub_worker_session=/);
-  assert.doesNotMatch(cookie, /sw_session=/);
   assert.match(cookie, /HttpOnly/);
   assert.match(cookie, /SameSite=Lax/);
   assert.doesNotMatch(cookie, /pass123|subtoken/);
@@ -245,9 +244,7 @@ test('GET /logout clears the browser session and redirects to /login', async () 
   assert.match(cookie, /HttpOnly/);
   assert.match(cookie, /Domain=sub\.example\.com/);
   assert.match(cookie, /Domain=example\.com/);
-  assert.match(cookie, /sw_session=;/);
-  assert.match(cookie, /sw_session=; Domain=sub\.example\.com/);
-  assert.match(cookie, /sw_session=; Domain=example\.com/);
+
   assert.match(res.headers.get('cache-control') || '', /no-store/);
   assert.match(res.headers.get('clear-site-data') || '', /"cache"/);
 });
@@ -407,9 +404,8 @@ test('health endpoint exercises session crypto, storage and dashboard rendering'
   assert.deepEqual(await res.json(), {
     ok: true,
     storage: 'kv',
+    subscriptionSource: 'kv',
     formats: ['clash', 'loon', 'base64'],
-    legacySubscriptionUrls: false,
-    legacyEnvironmentLinks: false,
     loonSyntax: 'nsloon',
     subscriptionManagement: ['add', 'reorder', 'delete'],
   });
