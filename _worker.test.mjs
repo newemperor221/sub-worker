@@ -725,6 +725,8 @@ test('dashboard includes search, group/status filters, metadata editor, and enab
   assert.match(body, /id="statusFilter"/);
   assert.match(body, /id="editGroup"/);
   assert.match(body, /data-toggle-id/);
+  assert.match(body, /class="toggle-text"/);
+  assert.match(body, /aria-label=/);
   assert.match(body, /overflow-x:hidden/);
 });
 
