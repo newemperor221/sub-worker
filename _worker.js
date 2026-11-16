@@ -12,6 +12,7 @@ const SESSION_COOKIE = 'sub_worker_session';
 const SESSION_TTL_SECONDS = 7 * 24 * 60 * 60;
 const SUBSCRIPTIONS_KEY = 'subscription_links';
 const SUPPORTED_LINK_PATTERN = /^(vless|hysteria2):\/\//i;
+const FAVICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="18" fill="#5f6df8"/><path d="M27 30h46v9H27zm0 17h46v9H27zm0 17h31v9H27z" fill="white"/></svg>`;
 
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -100,7 +101,7 @@ function renderLoginPage(config, errorMessage = '') {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#101216">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='18' fill='%235f6df8'/%3E%3Cpath d='M27 30h46v9H27zm0 17h46v9H27zm0 17h31v9H27z' fill='white'/%3E%3C/svg%3E">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <title>${escapeHtml(config.subName)} 登录</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}:root{color-scheme:dark;--bg:#0b0d12;--nav:#101218;--panel:#14171a;--raised:#191c23;--field:#101319;--border:#272b35;--border2:#3a404c;--text:#f4f5f8;--soft:#d3d7df;--muted:#8e96a5;--dim:#697281;--accent:#727cf5;--accent2:#858eff;--accentSoft:#232847;--danger:#f07880;--dangerSoft:#321f24;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}body{min-width:320px;min-height:100vh;background:var(--bg);color:var(--text);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}button,input{font:inherit}:focus-visible{outline:2px solid #a0a6ff;outline-offset:2px}svg{display:block}.site{display:flex;min-height:100vh;flex-direction:column}.topbar{height:58px;flex:none;border-bottom:1px solid var(--border);background:var(--nav)}.topbar-inner{display:flex;width:min(1040px,calc(100% - 40px));height:100%;margin:auto;align-items:center;justify-content:space-between}.brand{display:flex;min-width:0;align-items:center;gap:10px}.brand-mark{display:grid;width:30px;height:30px;flex:none;place-items:center;border:1px solid #8d95ff;border-radius:7px;background:var(--accent);color:white}.brand-mark svg{width:17px}.brand-copy{display:grid;line-height:1.15}.brand-name{font-size:13px;font-weight:750}.brand-subtitle{max-width:240px;margin-top:3px;overflow:hidden;color:var(--muted);font-size:10px;text-overflow:ellipsis;white-space:nowrap}.secure-label{display:flex;padding:4px 8px;align-items:center;gap:6px;border:1px solid var(--border);border-radius:999px;color:var(--muted);font-size:10px}.secure-label svg{width:12px;color:#74d59d}
@@ -408,6 +409,7 @@ async function handleRequest(request, env) {
   const url = new URL(request.url);
   const path = url.pathname.replace(/\/$/, '') || '/';
   const baseUrl = url.protocol + '//' + url.host;
+  if (path === '/favicon.svg') return new Response(FAVICON_SVG, { headers: { 'Content-Type': 'image/svg+xml; charset=utf-8', 'Cache-Control': 'public, max-age=86400' } });
   if (path === '/api/health') {
     let component = 'session-crypto';
     try {
