@@ -143,10 +143,9 @@ function parseSubscriptionInput(value) {
 const STRUCTURED_KEY = 'subscription_nodes_v2';
 const MIGRATION_KEY = 'kv_nodes_migrated_v2';
 const d1Initialization = new WeakMap();
+const MAX_NAME_LENGTH = 64;
 const MAX_GROUP_LENGTH = 64;
 const MAX_NOTE_LENGTH = 500;
-const MAX_TAGS = 12;
-const MAX_TAG_LENGTH = 32;
 
 function newNodeId() {
   return typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : randomUrlToken(18);
@@ -165,42 +164,40 @@ function displaySummary(url) {
   return { protocol: scheme, name };
 }
 
-function normalizeTags(value) {
-  if (!Array.isArray(value)) throw new Error('标签必须是数组');
-  if (value.length > MAX_TAGS) throw new Error(`标签最多 ${MAX_TAGS} 个`);
-  const tags = [];
-  const seen = new Set();
-  for (const raw of value) {
-    if (typeof raw !== 'string') throw new Error('标签必须是文本');
-    const tag = raw.trim();
-    if (!tag) continue;
-    if (tag.length > MAX_TAG_LENGTH) throw new Error(`单个标签不能超过 ${MAX_TAG_LENGTH} 个字符`);
-    const key = tag.toLocaleLowerCase();
-    if (!seen.has(key)) { seen.add(key); tags.push(tag); }
-  }
-  return tags;
+function urlWithNodeName(url, name) {
+  return `${url.split('#', 1)[0]}#${encodeURIComponent(name)}`;
+}
+
+function normalizeName(value, fallback = '') {
+  const name = String(value ?? fallback).trim();
+  if (!name) throw new Error('名称不能为空');
+  if (name.length > MAX_NAME_LENGTH) throw new Error(`名称不能超过 ${MAX_NAME_LENGTH} 个字符`);
+  return name;
 }
 
 function normalizeMetadata(payload, current = {}) {
+  const name = payload.name === undefined ? String(current.name || '') : normalizeName(payload.name);
   const group = payload.group === undefined ? String(current.group || '') : String(payload.group).trim();
   const note = payload.note === undefined ? String(current.note || '') : String(payload.note).trim();
-  const tags = payload.tags === undefined ? [...(current.tags || [])] : normalizeTags(payload.tags);
   const enabled = payload.enabled === undefined ? current.enabled !== false : payload.enabled;
+  if (name && name.length > MAX_NAME_LENGTH) throw new Error(`名称不能超过 ${MAX_NAME_LENGTH} 个字符`);
   if (group.length > MAX_GROUP_LENGTH) throw new Error(`分组不能超过 ${MAX_GROUP_LENGTH} 个字符`);
   if (note.length > MAX_NOTE_LENGTH) throw new Error(`备注不能超过 ${MAX_NOTE_LENGTH} 个字符`);
   if (typeof enabled !== 'boolean') throw new Error('启用状态必须是布尔值');
-  return { group, tags, note, enabled };
+  return { name, group, note, enabled };
 }
 
 function makeNode(url, position, metadata = {}) {
   const now = new Date().toISOString();
-  const clean = normalizeMetadata(metadata, { enabled: true, tags: [] });
+  const derivedName = displaySummary(url).name;
+  const clean = normalizeMetadata({ ...metadata, name: metadata.name ?? derivedName }, { enabled: true });
   return { id: newNodeId(), url, position, ...clean, createdAt: now, updatedAt: now };
 }
 
 function normalizeStoredNode(raw, position) {
   if (!raw || typeof raw !== 'object' || typeof raw.url !== 'string' || !SUPPORTED_LINK_PATTERN.test(raw.url.trim())) return null;
-  const clean = normalizeMetadata({ group: raw.group ?? raw.group_name ?? '', tags: Array.isArray(raw.tags) ? raw.tags : [], note: raw.note ?? '', enabled: raw.enabled === undefined ? true : raw.enabled });
+  const derivedName = displaySummary(raw.url).name;
+  const clean = normalizeMetadata({ name: raw.name || derivedName, group: raw.group ?? raw.group_name ?? '', note: raw.note ?? '', enabled: raw.enabled === undefined ? true : raw.enabled });
   const now = new Date().toISOString();
   return {
     id: typeof raw.id === 'string' && raw.id ? raw.id : newNodeId(), url: raw.url.trim(), position,
@@ -210,7 +207,7 @@ function normalizeStoredNode(raw, position) {
 }
 
 function publicNode(node) {
-  return { id: node.id, position: node.position, ...displaySummary(node.url), group: node.group, tags: node.tags, note: node.note, enabled: node.enabled, createdAt: node.createdAt, updatedAt: node.updatedAt };
+  return { id: node.id, position: node.position, protocol: displaySummary(node.url).protocol, name: node.name, group: node.group, note: node.note, enabled: node.enabled, createdAt: node.createdAt, updatedAt: node.updatedAt };
 }
 
 async function readKvNodes(env) {
@@ -237,7 +234,7 @@ async function backupNodes(env, nodes) {
   if (!env?.SUBSCRIPTIONS) return false;
   const positioned = nodes.map((node, position) => ({ ...node, position }));
   await env.SUBSCRIPTIONS.put(STRUCTURED_KEY, JSON.stringify(positioned));
-  await env.SUBSCRIPTIONS.put(SUBSCRIPTIONS_KEY, JSON.stringify(positioned.map(node => node.url)));
+  await env.SUBSCRIPTIONS.put(SUBSCRIPTIONS_KEY, JSON.stringify(positioned.map(node => urlWithNodeName(node.url, node.name))));
   return true;
 }
 
@@ -246,11 +243,13 @@ async function initializeD1(env) {
   if (!db) return null;
   if (!d1Initialization.has(db)) {
     const initialize = (async () => {
-      await db.exec(`CREATE TABLE IF NOT EXISTS nodes (id TEXT PRIMARY KEY, url TEXT NOT NULL UNIQUE, position INTEGER NOT NULL, group_name TEXT NOT NULL DEFAULT '', tags_json TEXT NOT NULL DEFAULT '[]', note TEXT NOT NULL DEFAULT '', enabled INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, updated_at TEXT NOT NULL); CREATE INDEX IF NOT EXISTS idx_nodes_position ON nodes(position); CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);`);
+      await db.exec(`CREATE TABLE IF NOT EXISTS nodes (id TEXT PRIMARY KEY, url TEXT NOT NULL UNIQUE, name TEXT NOT NULL DEFAULT '', position INTEGER NOT NULL, group_name TEXT NOT NULL DEFAULT '', note TEXT NOT NULL DEFAULT '', enabled INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, updated_at TEXT NOT NULL); CREATE INDEX IF NOT EXISTS idx_nodes_position ON nodes(position); CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);`);
+      const columns = await db.prepare('PRAGMA table_info(nodes)').all();
+      if (!(columns.results || []).some(column => column.name === 'name')) await db.exec("ALTER TABLE nodes ADD COLUMN name TEXT NOT NULL DEFAULT ''");
       const marker = await db.prepare('SELECT value FROM app_meta WHERE key = ?').bind(MIGRATION_KEY).first();
       if (!marker) {
         const kv = await readKvNodes(env);
-        const statements = kv.nodes.map(node => db.prepare('INSERT OR IGNORE INTO nodes (id,url,position,group_name,tags_json,note,enabled,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)').bind(node.id, node.url, node.position, node.group, JSON.stringify(node.tags), node.note, node.enabled ? 1 : 0, node.createdAt, node.updatedAt));
+        const statements = kv.nodes.map(node => db.prepare('INSERT OR IGNORE INTO nodes (id,url,name,position,group_name,note,enabled,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)').bind(node.id, node.url, node.name, node.position, node.group, node.note, node.enabled ? 1 : 0, node.createdAt, node.updatedAt));
         statements.push(db.prepare('INSERT OR REPLACE INTO app_meta (key,value) VALUES (?,?)').bind(MIGRATION_KEY, new Date().toISOString()));
         await db.batch(statements);
       }
@@ -263,9 +262,7 @@ async function initializeD1(env) {
 }
 
 function nodeFromD1(row) {
-  let tags = [];
-  try { tags = JSON.parse(row.tags_json || '[]'); } catch { tags = []; }
-  return normalizeStoredNode({ id: row.id, url: row.url, group: row.group_name, tags, note: row.note, enabled: row.enabled === 1 || row.enabled === true, created_at: row.created_at, updated_at: row.updated_at }, Number(row.position));
+  return normalizeStoredNode({ id: row.id, url: row.url, name: row.name, group: row.group_name, note: row.note, enabled: row.enabled === 1 || row.enabled === true, created_at: row.created_at, updated_at: row.updated_at }, Number(row.position));
 }
 
 async function loadNodes(env) {
@@ -289,7 +286,7 @@ async function saveNodes(env, state, nodes) {
     if (state.source !== 'd1' || !state.writable) throw new Error('D1 当前不可写，为避免数据分叉已拒绝管理操作');
     const db = env.SUBSCRIPTIONS_DB;
     const statements = [db.prepare('DELETE FROM nodes')];
-    for (const node of positioned) statements.push(db.prepare('INSERT INTO nodes (id,url,position,group_name,tags_json,note,enabled,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)').bind(node.id, node.url, node.position, node.group, JSON.stringify(node.tags), node.note, node.enabled ? 1 : 0, node.createdAt, node.updatedAt));
+    for (const node of positioned) statements.push(db.prepare('INSERT INTO nodes (id,url,name,position,group_name,note,enabled,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)').bind(node.id, node.url, node.name, node.position, node.group, node.note, node.enabled ? 1 : 0, node.createdAt, node.updatedAt));
     await db.batch(statements);
     let backupUpdated = false;
     try { backupUpdated = await backupNodes(env, positioned); } catch { backupUpdated = false; }
@@ -301,7 +298,7 @@ async function saveNodes(env, state, nodes) {
 }
 
 function configWithNodes(config, state) {
-  return { ...config, link: state.nodes.filter(node => node.enabled).map(node => node.url).join('\n') };
+  return { ...config, link: state.nodes.filter(node => node.enabled).map(node => urlWithNodeName(node.url, node.name)).join('\n') };
 }
 
 function managementState(state) {
@@ -326,11 +323,15 @@ async function handleSubscriptionManagement(request, env, config, session) {
   let result = {};
   if (request.method === 'POST') {
     let links;
-    try { links = parseSubscriptionInput(payload?.links); } catch (error) { return jsonResponse({ error: error.message }, 400); }
-    if (!links.length) return jsonResponse({ error: '请至少粘贴一个节点链接' }, 400);
-    const known = new Set(nodes.map(node => node.url));
-    const added = links.filter(link => !known.has(link)).map(link => makeNode(link, nodes.length));
-    nodes.push(...added); result.added = added.length;
+    try { links = parseSubscriptionInput(payload?.link ?? payload?.links); } catch (error) { return jsonResponse({ error: error.message }, 400); }
+    if (links.length !== 1) return jsonResponse({ error: '每次请添加一个节点链接，并填写对应的名称和分组' }, 400);
+    let name;
+    try { name = normalizeName(payload?.name); } catch (error) { return jsonResponse({ error: error.message }, 400); }
+    const group = String(payload?.group || '').trim();
+    if (!group) return jsonResponse({ error: '分组不能为空' }, 400);
+    if (group.length > MAX_GROUP_LENGTH) return jsonResponse({ error: `分组不能超过 ${MAX_GROUP_LENGTH} 个字符` }, 400);
+    if (nodes.some(node => node.url === links[0])) return jsonResponse({ error: '该节点链接已存在' }, 409);
+    nodes.push(makeNode(links[0], nodes.length, { name, group })); result.added = 1;
   } else {
     const index = nodes.findIndex(node => node.id === payload?.id);
     if (index < 0) return jsonResponse({ error: '指定的节点不存在，请刷新后重试' }, 404);
@@ -345,7 +346,15 @@ async function handleSubscriptionManagement(request, env, config, session) {
     } else {
       try {
         const metadata = normalizeMetadata(payload, nodes[index]);
-        nodes[index] = { ...nodes[index], ...metadata, updatedAt: new Date().toISOString() };
+        if (payload.group !== undefined && !metadata.group) throw new Error('分组不能为空');
+        let url = nodes[index].url;
+        if (payload.url !== undefined) {
+          const replacement = parseSubscriptionInput(payload.url);
+          if (replacement.length !== 1) throw new Error('替换链接必须是一个完整的 vless:// 或 hysteria2:// 链接');
+          url = replacement[0];
+          if (nodes.some((node, nodeIndex) => nodeIndex !== index && node.url === url)) return jsonResponse({ error: '该节点链接已存在' }, 409);
+        }
+        nodes[index] = { ...nodes[index], ...metadata, url, updatedAt: new Date().toISOString() };
         result.updated = 1;
       } catch (error) { return jsonResponse({ error: error.message }, 400); }
     }
@@ -417,7 +426,7 @@ async function handleRequest(request, env) {
       component = 'subscription-storage'; const state = await loadNodes(env);
       component = 'proxy-parser'; const active = configWithNodes(config, state); const { proxies } = parseProxies(active);
       component = 'dashboard-renderer'; renderDashboard(active, proxies, baseUrl, managementState(state));
-      return jsonResponse({ ok: true, storage: state.storage, subscriptionSource: state.source, formats: ['auto', 'clash', 'loon', 'base64'], loonSyntax: 'nsloon', subscriptionManagement: ['add', 'reorder', 'delete', 'edit', 'toggle'], capabilities: ['grouping', 'tags', 'notes', 'search', 'toggle'] });
+      return jsonResponse({ ok: true, storage: state.storage, subscriptionSource: state.source, formats: ['auto', 'clash', 'loon', 'base64'], loonSyntax: 'nsloon', subscriptionManagement: ['add', 'reorder', 'delete', 'edit', 'toggle'], capabilities: ['names', 'grouping', 'link-edit', 'notes', 'search', 'toggle'] });
     } catch { return jsonResponse({ ok: false, component }, 503); }
   }
   if (path === '/api/manage/subscriptions') return handleSubscriptionManagement(request, env, config, await getValidSession(request, config));

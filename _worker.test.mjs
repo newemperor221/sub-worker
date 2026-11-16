@@ -51,8 +51,8 @@ function createKv(initialValue = null) {
   };
 }
 
-function createD1() {
-  const state = { nodes: [], meta: new Map(), execCount: 0 };
+function createD1({ hasNameColumn = true } = {}) {
+  const state = { nodes: [], meta: new Map(), execCount: 0, hasNameColumn, alterCount: 0 };
   function statement(sql, args = []) {
     return {
       bind(...values) { return statement(sql, values); },
@@ -61,14 +61,19 @@ function createD1() {
         return null;
       },
       async all() {
+        if (/PRAGMA table_info\(nodes\)/.test(sql)) {
+          const columns = ['id', 'url', 'position', 'group_name', 'note', 'enabled', 'created_at', 'updated_at'];
+          if (state.hasNameColumn) columns.splice(2, 0, 'name');
+          return { results: columns.map(name => ({ name })) };
+        }
         if (/SELECT \* FROM nodes/.test(sql)) return { results: [...state.nodes].sort((a, b) => a.position - b.position).map(row => ({ ...row })) };
         return { results: [] };
       },
       async run() {
         if (/^DELETE FROM nodes/.test(sql)) state.nodes = [];
         if (/INSERT (?:OR IGNORE )?INTO nodes/.test(sql)) {
-          const [id, url, position, group_name, tags_json, note, enabled, created_at, updated_at] = args;
-          if (!/OR IGNORE/.test(sql) || !state.nodes.some(row => row.id === id || row.url === url)) state.nodes.push({ id, url, position, group_name, tags_json, note, enabled, created_at, updated_at });
+          const [id, url, name, position, group_name, note, enabled, created_at, updated_at] = args;
+          if (!/OR IGNORE/.test(sql) || !state.nodes.some(row => row.id === id || row.url === url)) state.nodes.push({ id, url, name, position, group_name, note, enabled, created_at, updated_at });
         }
         if (/INSERT OR REPLACE INTO app_meta/.test(sql)) state.meta.set(args[0], args[1]);
         return { success: true };
@@ -77,7 +82,15 @@ function createD1() {
   }
   return {
     state,
-    async exec() { state.execCount += 1; return { count: 0 }; },
+    async exec(sql) {
+      state.execCount += 1;
+      if (/ALTER TABLE nodes ADD COLUMN name/.test(sql)) {
+        state.hasNameColumn = true;
+        state.alterCount += 1;
+        state.nodes = state.nodes.map(row => ({ ...row, name: row.name || '' }));
+      }
+      return { count: 0 };
+    },
     prepare(sql) { return statement(sql); },
     async batch(statements) { for (const item of statements) await item.run(); return statements.map(() => ({ success: true })); },
   };
@@ -473,7 +486,7 @@ test('health endpoint exercises session crypto, storage and dashboard rendering'
     formats: ['auto', 'clash', 'loon', 'base64'],
     loonSyntax: 'nsloon',
     subscriptionManagement: ['add', 'reorder', 'delete', 'edit', 'toggle'],
-    capabilities: ['grouping', 'tags', 'notes', 'search', 'toggle'],
+    capabilities: ['names', 'grouping', 'link-edit', 'notes', 'search', 'toggle'],
   });
   assert.match(res.headers.get('cache-control') || '', /no-store/);
 });
@@ -494,13 +507,14 @@ test('logged-in administrator can add, list and delete KV subscriptions', async 
   const add = await fetchPath('/api/manage/subscriptions', {
     method: 'POST',
     headers: { cookie, 'content-type': 'application/json' },
-    body: JSON.stringify({ links: addedLink }),
+    body: JSON.stringify({ link: addedLink, name: '香港备用', group: '香港' }),
   }, testEnv);
   const addBody = await add.json();
   assert.equal(add.status, 200);
   assert.equal(addBody.added, 1);
   assert.equal(addBody.items.length, 1);
-  assert.equal(addBody.items[0].name, 'ManagedNode');
+  assert.equal(addBody.items[0].name, '香港备用');
+  assert.equal(addBody.items[0].group, '香港');
   assert.equal(JSON.parse(kv.values.get('subscription_links')).length, 1);
 
   const list = await fetchPath('/api/manage/subscriptions', { headers: { cookie } }, testEnv);
@@ -509,6 +523,11 @@ test('logged-in administrator can add, list and delete KV subscriptions', async 
   assert.equal(listBody.source, 'kv');
   assert.equal(listBody.items[0].protocol, 'hysteria2');
   assert.doesNotMatch(JSON.stringify(listBody), /secret@hysteria\.example/);
+  const base64Subscription = await fetchPath('/api/sub?token=subtoken&type=base64', {}, testEnv);
+  const decodedSubscription = decodeURIComponent(escape(atob(await base64Subscription.text())));
+  assert.match(decodedSubscription, /#%E9%A6%99%E6%B8%AF%E5%A4%87%E7%94%A8$/);
+  const clashSubscription = await fetchPath('/api/sub?token=subtoken&type=clash', {}, testEnv);
+  assert.match(await clashSubscription.text(), /name: "香港备用"/);
   const managedId = listBody.items[0].id;
 
   const remove = await fetchPath('/api/manage/subscriptions', {
@@ -555,26 +574,32 @@ test('logged-in administrator can reorder KV subscriptions', async () => {
   assert.match((await boundary.json()).error, /列表边界/);
 });
 
-test('multi-line add trims, removes blanks and duplicates, and rejects unsupported protocols', async () => {
+test('add requires one link plus a name and group, and rejects unsupported protocols', async () => {
   const kv = createKv([]);
   const testEnv = { ...env, SUBSCRIPTIONS: kv };
   const { cookie } = await loginSession(testEnv);
-  const multiLine = `  ${LINK_A}  \n\n${LINK_A}\r\n${LINK_B}`;
   const add = await fetchPath('/api/manage/subscriptions', {
     method: 'POST', headers: { cookie, 'content-type': 'application/json' },
-    body: JSON.stringify({ links: multiLine }),
+    body: JSON.stringify({ link: `  ${LINK_A}  `, name: '东京主节点', group: '日本' }),
   }, testEnv);
   assert.equal(add.status, 200);
-  assert.equal((await add.json()).added, 2);
-  assert.deepEqual(JSON.parse(kv.values.get('subscription_links')), [LINK_A, LINK_B]);
+  const added = await add.json();
+  assert.equal(added.added, 1);
+  assert.equal(added.items[0].name, '东京主节点');
+  assert.equal(added.items[0].group, '日本');
 
-  const invalid = await fetchPath('/api/manage/subscriptions', {
-    method: 'POST', headers: { cookie, 'content-type': 'application/json' },
-    body: JSON.stringify({ links: `${LINK_A}\ntrojan://unsupported\nhy2://unsupported` }),
-  }, testEnv);
-  assert.equal(invalid.status, 400);
-  assert.match((await invalid.json()).error, /第 2、3 行协议不受支持.*vless:\/\/、hysteria2:\/\//);
-  assert.deepEqual(JSON.parse(kv.values.get('subscription_links')), [LINK_A, LINK_B]);
+  for (const payload of [
+    { link: LINK_B, name: '', group: '日本' },
+    { link: LINK_B, name: '备用', group: '' },
+    { link: `${LINK_A}\n${LINK_B}`, name: '批量', group: '测试' },
+    { link: 'trojan://unsupported', name: '无效', group: '测试' },
+  ]) {
+    const invalid = await fetchPath('/api/manage/subscriptions', {
+      method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify(payload),
+    }, testEnv);
+    assert.equal(invalid.status, 400);
+  }
+  assert.equal(JSON.parse(kv.values.get('subscription_nodes_v2')).length, 1);
 });
 
 test('missing SUBSCRIPTIONS binding exposes no environment-variable nodes', async () => {
@@ -656,7 +681,21 @@ test('D1 initializes schema, migrates KV once, and remains authoritative after a
   assert.equal(db.state.nodes.length, 0);
 });
 
-test('metadata edits persist to D1 and structured KV backup with trimmed de-duplicated tags', async () => {
+test('existing D1 schema gains the required name column once', async () => {
+  const kv = createKv([LINK_A]);
+  const db = createD1({ hasNameColumn: false });
+  const testEnv = { ...env, SUBSCRIPTIONS: kv, SUBSCRIPTIONS_DB: db };
+  const { cookie } = await loginSession(testEnv);
+  const first = await fetchPath('/api/manage/subscriptions', { headers: { cookie } }, testEnv);
+  assert.equal(first.status, 200);
+  assert.equal(db.state.hasNameColumn, true);
+  assert.equal(db.state.alterCount, 1);
+  const second = await fetchPath('/api/manage/subscriptions', { headers: { cookie } }, testEnv);
+  assert.equal(second.status, 200);
+  assert.equal(db.state.alterCount, 1);
+});
+
+test('name, group, note and replacement link edits persist to D1 and KV backup', async () => {
   const kv = createKv([LINK_A]);
   const db = createD1();
   const testEnv = { ...env, SUBSCRIPTIONS: kv, SUBSCRIPTIONS_DB: db };
@@ -665,35 +704,49 @@ test('metadata edits persist to D1 and structured KV backup with trimmed de-dupl
   const id = (await listed.json()).items[0].id;
   const updated = await fetchPath('/api/manage/subscriptions', {
     method: 'PUT', headers: { cookie, 'content-type': 'application/json' },
-    body: JSON.stringify({ id, group: ' Work ', tags: [' fast ', 'FAST', 'home'], note: ' primary ', enabled: false }),
+    body: JSON.stringify({ id, name: ' 新加坡落地 ', group: ' Singapore ', note: ' primary ', url: LINK_B, enabled: false }),
   }, testEnv);
   const body = await updated.json();
   assert.equal(updated.status, 200);
-  assert.deepEqual(body.items[0], { ...body.items[0], group: 'Work', tags: ['fast', 'home'], note: 'primary', enabled: false });
-  assert.equal(db.state.nodes[0].group_name, 'Work');
-  assert.equal(db.state.nodes[0].enabled, 0);
+  assert.equal(body.items[0].name, '新加坡落地');
+  assert.equal(body.items[0].group, 'Singapore');
+  assert.equal(body.items[0].note, 'primary');
+  assert.equal(body.items[0].enabled, false);
+  assert.doesNotMatch(JSON.stringify(body), /example-b\.com/);
+  assert.equal(db.state.nodes[0].name, '新加坡落地');
+  assert.equal(db.state.nodes[0].group_name, 'Singapore');
+  assert.equal(db.state.nodes[0].url, LINK_B);
   const backup = JSON.parse(kv.values.get('subscription_nodes_v2'));
   assert.equal(backup[0].id, id);
-  assert.deepEqual(backup[0].tags, ['fast', 'home']);
-  assert.deepEqual(JSON.parse(kv.values.get('subscription_links')), [LINK_A]);
+  assert.equal(backup[0].name, '新加坡落地');
+  assert.equal(backup[0].url, LINK_B);
+  assert.match(JSON.parse(kv.values.get('subscription_links'))[0], /#%E6%96%B0%E5%8A%A0%E5%9D%A1%E8%90%BD%E5%9C%B0$/);
 });
 
-test('metadata API rejects non-boolean enabled state and oversized tag lists', async () => {
-  const kv = createKv([LINK_A]);
+test('edit API rejects invalid state, empty names/groups and malformed replacement links', async () => {
+  const kv = createKv([LINK_A, LINK_B]);
   const testEnv = { ...env, SUBSCRIPTIONS: kv };
   const { cookie } = await loginSession(testEnv);
   const list = await fetchPath('/api/manage/subscriptions', { headers: { cookie } }, testEnv);
-  const id = (await list.json()).items[0].id;
-  const invalidEnabled = await fetchPath('/api/manage/subscriptions', {
-    method: 'PUT', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({ id, enabled: 'false' }),
+  const items = (await list.json()).items;
+  const id = items[0].id;
+  const cases = [
+    [{ id, enabled: 'false' }, /布尔值/],
+    [{ id, name: '' }, /名称不能为空/],
+    [{ id, group: '' }, /分组不能为空/],
+    [{ id, url: 'trojan://unsupported' }, /协议不受支持/],
+  ];
+  for (const [payload, pattern] of cases) {
+    const response = await fetchPath('/api/manage/subscriptions', {
+      method: 'PUT', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify(payload),
+    }, testEnv);
+    assert.equal(response.status, 400);
+    assert.match((await response.json()).error, pattern);
+  }
+  const duplicate = await fetchPath('/api/manage/subscriptions', {
+    method: 'PUT', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({ id, url: LINK_B }),
   }, testEnv);
-  assert.equal(invalidEnabled.status, 400);
-  assert.match((await invalidEnabled.json()).error, /布尔值/);
-  const tooManyTags = await fetchPath('/api/manage/subscriptions', {
-    method: 'PUT', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({ id, tags: Array.from({ length: 13 }, (_, i) => `tag-${i}`) }),
-  }, testEnv);
-  assert.equal(tooManyTags.status, 400);
-  assert.match((await tooManyTags.json()).error, /最多 12 个/);
+  assert.equal(duplicate.status, 409);
 });
 
 test('disabled nodes stay manageable but are excluded from auto, Clash, Loon, and Base64 outputs', async () => {
@@ -727,15 +780,21 @@ test('disabled nodes stay manageable but are excluded from auto, Clash, Loon, an
   }
 });
 
-test('dashboard includes search, group/status filters, metadata editor, and enable switch markers', async () => {
+test('dashboard includes required add fields, link editor, filters and enable switch markers without tags', async () => {
   const testEnv = { ...env, SUBSCRIPTIONS: createKv([LINK]) };
   const { cookie, homePath } = await loginSession(testEnv);
   const response = await fetchPath(homePath, { headers: { cookie } }, testEnv);
   const body = await response.text();
+  assert.match(body, /id="subscriptionName"/);
+  assert.match(body, /id="subscriptionGroup"/);
+  assert.match(body, /id="subscriptionInput"/);
   assert.match(body, /id="nodeSearch"/);
   assert.match(body, /id="groupFilter"/);
   assert.match(body, /id="statusFilter"/);
+  assert.match(body, /id="editName"/);
   assert.match(body, /id="editGroup"/);
+  assert.match(body, /id="editUrl"/);
+  assert.doesNotMatch(body, /editTags|tag-list|标签/);
   assert.match(body, /data-toggle-id/);
   assert.match(body, /class="toggle-text"/);
   assert.match(body, /aria-label=/);

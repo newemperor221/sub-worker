@@ -1,6 +1,6 @@
 # Sub Worker 订阅控制台
 
-私有 Cloudflare Worker 订阅面板。登录后可添加、排序、搜索、分组、添加标签和备注节点，也可停用节点而不删除。输出 Auto / Clash / Loon / Base64，管理界面不显示完整节点 URL。
+私有 Cloudflare Worker 订阅面板。登录后可添加、排序、搜索、命名、分组、编辑链接和备注节点，也可停用节点而不删除。输出 Auto / Clash / Loon / Base64，管理列表不显示完整节点 URL。
 
 ## 存储模型
 
@@ -12,15 +12,15 @@
 - D1 成功变更后会刷新两个 KV key；若 KV 未绑定或备份写入失败，D1 中的变更仍是权威结果，API 的 `backupUpdated` 会反映备份状态。
 - `LINK`、`LINK1...` 环境变量仍然完全停用，不参与迁移、读取或回退。
 
-每个节点保存稳定字符串 ID、URL、整数位置、一个自由文本分组、多个标签、备注、启用状态和创建/更新时间。停用节点仍在面板中，但不会进入任何订阅输出。
+每个节点保存稳定字符串 ID、URL、名称、整数位置、分组、备注、启用状态和创建/更新时间。停用节点仍在面板中，但不会进入任何订阅输出。
 
 ## 功能
 
 - 仅接受 `vless://` 与完整的 `hysteria2://` 链接
-- 批量添加自动 trim、去空行、去重
+- 添加节点时必须填写一个完整链接、名称和分组
 - 按稳定 ID 相邻上移/下移和删除
-- 编辑分组、标签、备注；标签 trim 并按大小写去重
-- 客户端搜索覆盖节点名称、分组、标签和备注
+- 编辑名称、分组、节点链接和备注
+- 客户端搜索覆盖节点名称、分组和备注
 - 分组与启用状态筛选
 - Auto 根据 User-Agent 选择 Loon、Clash/Mihomo 或 Base64
 - 深色响应式面板，无地区图片或旗帜卡片，无横向溢出
@@ -83,13 +83,13 @@ npx wrangler d1 execute sub-worker-db --remote --file=schema.sql
 
 ```text
 GET    /api/manage/subscriptions   # 全部节点（含停用节点和元数据，不返回 URL）
-POST   /api/manage/subscriptions   # { "links": "vless://...\nhysteria2://..." }
+POST   /api/manage/subscriptions   # { "link": "vless://...", "name": "香港入口", "group": "香港" }
 PATCH  /api/manage/subscriptions   # { "id": "稳定ID", "direction": "up|down" }
-PUT    /api/manage/subscriptions   # { "id": "稳定ID", "group": "...", "tags": [], "note": "...", "enabled": true }
+PUT    /api/manage/subscriptions   # { "id": "稳定ID", "name": "...", "group": "...", "url": "可选替换链接", "note": "...", "enabled": true }
 DELETE /api/manage/subscriptions   # { "id": "稳定ID" }
 ```
 
-元数据限制：分组 64 字符、备注 500 字符、最多 12 个标签、单标签 32 字符。`enabled` 必须是 JSON 布尔值。
+名称与分组均为必填，最长 64 字符；备注最长 500 字符。`enabled` 必须是 JSON 布尔值。编辑时仅在 `url` 非空时替换节点链接，管理列表和普通 API 响应不会返回完整 URL。
 
 ## 订阅接口
 
@@ -119,7 +119,7 @@ Cookie 使用 `HttpOnly; Secure; SameSite=Lax`，有效期 7 天。订阅 URL �
 npm test
 ```
 
-测试覆盖认证与路由、KV 结构化模式、KV→D1 一次性迁移、迁移标记、元数据持久化、稳定 ID 排序、D1 失败回退和写入拒绝、停用节点从四种输出排除，以及搜索/筛选/编辑 UI 标记。
+测试覆盖认证与路由、KV 结构化模式、KV→D1 一次性迁移、迁移标记、名称/分组持久化、节点链接替换、稳定 ID 排序、D1 失败回退和写入拒绝、停用节点从四种输出排除，以及搜索/筛选/编辑 UI 标记。
 
 ## 部署文件
 
