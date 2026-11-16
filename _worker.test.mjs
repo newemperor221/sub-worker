@@ -114,6 +114,7 @@ test('GET /login renders the login page', async () => {
   assert.match(body, /管理员登录/);
   assert.match(body, /登录控制台/);
   assert.match(body, /color-scheme:dark/);
+  assert.match(body, /<link rel="icon" href="data:image\/svg\+xml,/);
   assert.doesNotMatch(body, /roughjs|rough-outline|drawRough|纸边|手绘|白板/i);
   assert.doesNotMatch(body, /Segoe Print|LXGW WenKai|Kaiti SC|STKaiti|Ma Shan Zheng|cursive/);
 });
@@ -195,6 +196,7 @@ test('GET /random/home with a valid matching session renders dashboard', async (
   assert.match(body, /type=auto/);
   assert.match(body, />Auto</);
   assert.match(body, /node-grid/);
+  assert.match(body, /<link rel="icon" href="data:image\/svg\+xml,/);
   assert.doesNotMatch(body, /node-badge|flagIcon|regionIcon/);
   assert.match(body, /color-scheme:dark/);
   assert.doesNotMatch(body, /roughjs|rough-outline|drawRough|纸边|手绘|白板/i);
