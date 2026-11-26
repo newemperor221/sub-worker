@@ -102,6 +102,12 @@ DELETE /api/manage/subscriptions   # { "id": "稳定ID" }
 
 Auto 规则：Loon 输出 Loon；Clash、Mihomo、Stash、OpenClash、Nikki、FlClash 输出 Clash；其他客户端输出 Base64。Auto 响应带 `Vary: User-Agent`。旧 `/TOKEN?...` 路径和 `type=b64` / `type=mihomo` 不受支持。
 
+## Clash 模板
+
+Clash/Mihomo 输出的路由与 DNS 结构取自 `newemperor221/mt3600be-mihomo` 仓库的 `mihomo.yaml`（原为 MT3600BE 路由器导出配置）：端口与监听、`geox-url`、sniffer、fake-ip DNS、`rule-providers`（`oc-cn-domain`）和 59 条分流规则逐项对齐。
+
+模板中的服务策略原本按具体节点名书写（洛杉矶、洛杉矶 CN2、大阪…）。订阅端节点由面板动态维护，因此渲染时把这些名字替换为等价策略组：美国具体节点 → `🇺🇸 美国节点` / `🇺🇸 美国固定节点`，其余地区 → `🇸🇬 新加坡节点` 等地区组；不存在的地区自动从组内剔除，避免悬空引用。`🇺🇸 美国固定节点` 默认把名称含 `CN2` 的节点排在最前，保留模板里 GitHub 默认走洛杉矶 CN2 的语义。
+
 ## 路由与安全
 
 - `/login`：管理员登录

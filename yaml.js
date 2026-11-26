@@ -142,51 +142,81 @@ export function generateClashYaml(inputProxies, subName) {
   const miscMembers = proxies
     .filter(p => !regionGroups.some(group => group.members.includes(p.name)))
     .map(p => p.name);
+  const otherRegions = miscMembers.length ? ['🌍 其它地区'] : [];
 
-  const proxyChoices = uniq([...regionNames, ...(miscMembers.length ? ['🌍 其它地区'] : []), 'DIRECT']);
-  const commonChoices = uniq(['Proxy', ...regionNames, ...(miscMembers.length ? ['🌍 其它地区'] : []), 'DIRECT']);
   const membersOf = name => findRegionGroup(regionGroups, name)?.members || [];
-  const availableRegions = names => names.filter(name => regionNames.includes(name));
   const usMembers = membersOf('🇺🇸 美国节点');
-  const usFixedChoices = usMembers.length ? usMembers : ['Proxy', 'DIRECT'];
-  const usServiceChoices = uniq(['🇺🇸 美国固定节点', 'Proxy', 'DIRECT']);
-  const serviceChoices = {
-    telegram: uniq([...availableRegions(['🇸🇬 新加坡节点', '🇭🇰 香港节点', '🇺🇸 美国节点', '🇯🇵 日本节点', '🇬🇧 英国节点', '🇩🇪 德国节点']), 'Proxy', 'DIRECT']),
-    spotify: uniq([...availableRegions(['🇺🇸 美国节点', '🇳🇬 尼日利亚节点']), 'Proxy', 'DIRECT']),
-    twitter: uniq([...availableRegions(['🇭🇰 香港节点', '🇯🇵 日本节点', '🇸🇬 新加坡节点', '🇺🇸 美国节点', '🇬🇧 英国节点', '🇩🇪 德国节点']), 'Proxy', 'DIRECT']),
-    netflix: uniq([...availableRegions(['🇸🇬 新加坡节点', '🇳🇬 尼日利亚节点']), 'Proxy', 'DIRECT']),
-    youtube: uniq([...availableRegions(['🇺🇸 美国节点']), '🇺🇸 美国固定节点', 'Proxy', 'DIRECT']),
-    reddit: uniq(['Proxy', ...regionNames, ...(miscMembers.length ? ['🌍 其它地区'] : []), 'DIRECT']),
-    tiktok: uniq([...availableRegions(['🇸🇬 新加坡节点', '🇺🇸 美国节点', '🇯🇵 日本节点', '🇭🇰 香港节点', '🇳🇬 尼日利亚节点', '🇬🇧 英国节点', '🇩🇪 德国节点']), 'Proxy', 'DIRECT']),
-    github: uniq([...availableRegions(['🇺🇸 美国节点', '🇸🇬 新加坡节点', '🇯🇵 日本节点', '🇭🇰 香港节点', '🇬🇧 英国节点', '🇩🇪 德国节点']), 'Proxy', 'DIRECT']),
-    meta: uniq([...availableRegions(['🇯🇵 日本节点', '🇸🇬 新加坡节点', '🇺🇸 美国节点', '🇭🇰 香港节点', '🇬🇧 英国节点', '🇩🇪 德国节点']), 'Proxy', 'DIRECT']),
-  };
-  const directPreferredChoices = uniq(['DIRECT', 'Proxy', ...regionNames, ...(miscMembers.length ? ['🌍 其它地区'] : [])]);
+
+  // 模板 mt3600be-mihomo/mihomo.yaml 用具体节点名（洛杉矶、大阪…）书写服务策略；
+  // 订阅端节点按地区动态生成，因此把具体节点换成等价的地区组与固定美国组，
+  // 保证输出的每个成员都是真实存在的代理或策略组。
+  const US = '🇺🇸 美国节点';
+  const USF = '🇺🇸 美国固定节点';
+  const SG = '🇸🇬 新加坡节点';
+  const JP = '🇯🇵 日本节点';
+  const HK = '🇭🇰 香港节点';
+  const NG = '🇳🇬 尼日利亚节点';
+  const UK = '🇬🇧 英国节点';
+  const DE = '🇩🇪 德国节点';
+  const hasGroup = name => name === USF || regionNames.includes(name);
+  const pick = names => names.filter(hasGroup);
+
+  // 固定美国组默认把 CN2 线路排在前面，保持模板里 GitHub 默认走洛杉矶 CN2 的语义。
+  const usFixedMembers = uniq(usMembers);
+  const usFixedChoices = usFixedMembers.length
+    ? [...usFixedMembers.filter(name => /cn2/i.test(name)), ...usFixedMembers.filter(name => !/cn2/i.test(name))]
+    : ['Proxy', 'DIRECT'];
+
+  const serviceGroups = [
+    ['🤖 AI', uniq([...pick([USF]), 'Proxy', 'DIRECT'])],
+    ['📲 Telegram', uniq([...pick([SG, JP]), 'Proxy', 'DIRECT'])],
+    ['🔎 Google', uniq([...pick([USF]), 'Proxy', 'DIRECT'])],
+    ['🎵 Spotify', uniq([...pick([NG]), 'Proxy', 'DIRECT'])],
+    ['𝕏 Twitter', uniq([...pick([US, JP, SG]), 'Proxy', 'DIRECT'])],
+    ['🎬 Netflix', uniq([...pick([SG, NG]), 'Proxy', 'DIRECT'])],
+    ['📹 YouTube', uniq([...pick([US, USF]), 'Proxy', 'DIRECT'])],
+    ['📖 Reddit', uniq([...pick([US]), 'Proxy', ...pick([SG, JP, NG]), ...otherRegions, 'DIRECT'])],
+    ['🎶 TikTok', uniq([...pick([US, SG, JP, NG]), 'Proxy', 'DIRECT'])],
+    ['🐙 GitHub', uniq([...pick([USF, SG, JP]), 'Proxy', 'DIRECT'])],
+    ['💳 PayPal', uniq([...pick([USF]), 'Proxy', 'DIRECT'])],
+    ['♾️ Meta', uniq([...pick([US, JP, SG]), 'Proxy', 'DIRECT'])],
+    ['🎬 流媒体', uniq(['Proxy', ...pick([SG, JP, NG]), ...otherRegions, 'DIRECT'])],
+    ['🐦 社交媒体', uniq(['Proxy', ...pick([SG, JP, NG]), ...otherRegions, 'DIRECT'])],
+    ['🍎 Apple', uniq(['DIRECT', 'Proxy', ...pick([SG, JP, NG]), ...otherRegions])],
+    ['🪟 Microsoft', uniq(['DIRECT', 'Proxy', ...pick([SG, JP, NG]), ...otherRegions])],
+    ['🎮 游戏', uniq([...pick([SG, JP]), 'DIRECT', 'Proxy', ...pick([NG]), ...otherRegions])],
+  ];
+
+  const deferredRegionNames = new Set([US, SG, JP, HK, NG]);
 
   const lines = [
     `# 订阅: ${commentText(subName)}`,
     '# 生成目标: mihomo / Clash.Meta',
-    '# 风格: fake-ip + 多组策略 + 流媒体/AI/常见服务分流',
+    '# 路由与 DNS 模板来源: newemperor221/mt3600be-mihomo mihomo.yaml',
     '',
-    'mixed-port: 7890',
-    'allow-lan: true',
-    'bind-address: "*"',
+    'mixed-port: 7893',
+    'port: 7890',
+    'socks-port: 7891',
+    'redir-port: 7892',
+    'tproxy-port: 7895',
+    'allow-lan: false',
+    'bind-address: 127.0.0.1',
     'mode: rule',
-    'log-level: info',
+    'log-level: warning',
     'ipv6: false',
     'find-process-mode: strict',
     'unified-delay: true',
     'tcp-concurrent: true',
-    'global-client-fingerprint: chrome',
     'geodata-mode: true',
     'geodata-loader: memconservative',
     'global-ua: clash.meta',
     'external-controller: 127.0.0.1:9090',
     '',
     'geox-url:',
-    '  geoip: "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geoip.dat"',
-    '  geosite: "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geosite.dat"',
-    '  mmdb: "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/country.mmdb"',
+    '  geoip: https://testingcf.jsdelivr.net/gh/Loyalsoldier/v2ray-rules-dat@release/geoip.dat',
+    '  geosite: https://testingcf.jsdelivr.net/gh/Loyalsoldier/v2ray-rules-dat@release/geosite.dat',
+    '  mmdb: https://testingcf.jsdelivr.net/gh/alecthw/mmdb_china_ip_list@release/lite/Country.mmdb',
+    '  asn: https://testingcf.jsdelivr.net/gh/xishang0128/geoip@release/GeoLite2-ASN.mmdb',
     '',
     'profile:',
     '  store-selected: true',
@@ -194,17 +224,32 @@ export function generateClashYaml(inputProxies, subName) {
     '',
     'sniffer:',
     '  enable: true',
-    '  parse-pure-ip: true',
+    '  override-destination: false',
     '  sniff:',
-    '    TLS:',
-    '      ports: [443, 8443]',
-    '    HTTP:',
-    '      ports: [80, 8080-8880]',
     '    QUIC:',
-    '      ports: [443, 8443]',
+    '      ports:',
+    '      - 443',
+    '    TLS:',
+    '      ports:',
+    '      - 443',
+    '      - 8443',
+    '    HTTP:',
+    '      ports:',
+    '      - 80',
+    '      - 8080-8880',
+    '      override-destination: false',
+    '  force-domain:',
+    '  - "+.netflix.com"',
+    '  - "+.nflxvideo.net"',
+    '  - "+.amazonaws.com"',
+    '  - "+.media.dssott.com"',
     '  skip-domain:',
-    '    - "Mijia Cloud"',
-    '    - "+.push.apple.com"',
+    '  - Mijia Cloud',
+    '  - dlg.io.mi.com',
+    '  - "+.oray.com"',
+    '  - "+.sunlogin.net"',
+    '  - "+.push.apple.com"',
+    '  parse-pure-ip: true',
     '',
     'dns:',
     '  enable: true',
@@ -214,87 +259,78 @@ export function generateClashYaml(inputProxies, subName) {
     '  use-hosts: true',
     '  use-system-hosts: true',
     '  respect-rules: true',
-    '  listen: 127.0.0.1:1053',
+    '  listen: 127.0.0.1:7874',
     '  enhanced-mode: fake-ip',
     '  fake-ip-range: 198.18.0.1/16',
     '  fake-ip-filter-mode: blacklist',
     '  fake-ip-filter:',
-    '    - "*.lan"',
-    '    - "*.local"',
-    '    - "*.arpa"',
-    '    - "localhost.ptlogin2.qq.com"',
-    '    - "time.*.com"',
-    '    - "time.*.gov"',
-    '    - "time.*.apple.com"',
-    '    - "time1.cloud.tencent.com"',
-    '    - "time.ustc.edu.cn"',
-    '    - "*.ntp.org"',
-    '    - "*.stun.*.*"',
-    '    - "stun.*.*"',
-    '    - "stun.*.*.*"',
-    '    - "*.msftconnecttest.com"',
-    '    - "*.msftncsi.com"',
-    '    - "*.srv.nintendo.net"',
-    '    - "*.stun.playstation.net"',
-    '    - "xbox.*.*.microsoft.com"',
-    '    - "*.xboxlive.com"',
-    '    - "*.ipv6.microsoft.com"',
+    '  - "*.lan"',
+    '  - "*.local"',
+    '  - "*.arpa"',
+    '  - localhost.ptlogin2.qq.com',
+    '  - time.*.com',
+    '  - time.*.gov',
+    '  - time.*.apple.com',
+    '  - time1.cloud.tencent.com',
+    '  - time.ustc.edu.cn',
+    '  - "*.ntp.org"',
+    '  - "*.stun.*.*"',
+    '  - stun.*.*',
+    '  - stun.*.*.*',
+    '  - "*.msftconnecttest.com"',
+    '  - "*.msftncsi.com"',
+    '  - "*.srv.nintendo.net"',
+    '  - "*.stun.playstation.net"',
+    '  - xbox.*.*.microsoft.com',
+    '  - "*.xboxlive.com"',
+    '  - "*.ipv6.microsoft.com"',
+    '  - rule-set:oc-cn-domain',
+    '  - geosite:category-ads-all',
+    '  - "+.ts.net"',
     '  default-nameserver:',
-    '    - 1.1.1.1',
-    '    - 8.8.8.8',
+    '  - 223.5.5.5',
+    '  - 119.29.29.29',
     '  proxy-server-nameserver:',
-    '    - https://1.1.1.1/dns-query',
-    '    - https://8.8.8.8/dns-query',
+    '  - https://dns.alidns.com/dns-query#DIRECT',
+    '  - https://doh.pub/dns-query#DIRECT',
     '  direct-nameserver:',
-    '    - https://1.1.1.1/dns-query',
-    '    - https://8.8.8.8/dns-query',
+    '  - https://dns.alidns.com/dns-query#DIRECT',
+    '  - https://doh.pub/dns-query#DIRECT',
     '  direct-nameserver-follow-policy: true',
     '  nameserver-policy:',
+    '    geosite:category-ads-all:',
+    '    - rcode://success',
+    '    geosite:youtube:',
+    '    - "https://1.1.1.1/dns-query#📹 YouTube"',
+    '    - "https://8.8.8.8/dns-query#📹 YouTube"',
+    '    geosite:tiktok:',
+    '    - "https://1.1.1.1/dns-query#🎶 TikTok"',
+    '    - "https://8.8.8.8/dns-query#🎶 TikTok"',
     '    "geosite:private,cn,apple-cn,microsoft@cn,steam@cn,category-games@cn,bilibili":',
-    '      - https://1.1.1.1/dns-query',
-    '      - https://8.8.8.8/dns-query',
+    '    - https://dns.alidns.com/dns-query#DIRECT',
+    '    - https://doh.pub/dns-query#DIRECT',
     '    "geosite:openai,google-gemini":',
-    '      - https://1.1.1.1/dns-query#🤖 AI',
-    '      - https://8.8.8.8/dns-query#🤖 AI',
+    '    - "https://1.1.1.1/dns-query#🤖 AI"',
+    '    - "https://8.8.8.8/dns-query#🤖 AI"',
     '    "+.chatgpt.com,+.openai.com,+.oaistatic.com,+.oaiusercontent.com,+.claude.ai":',
-    '      - https://1.1.1.1/dns-query#🤖 AI',
-    '      - https://8.8.8.8/dns-query#🤖 AI',
-    '    "geosite:google,youtube":',
-    '      - https://1.1.1.1/dns-query#🔎 Google',
-    '      - https://8.8.8.8/dns-query#🔎 Google',
-    '    "geosite:twitter":',
-    '      - https://1.1.1.1/dns-query#𝕏 Twitter',
-    '      - https://8.8.8.8/dns-query#𝕏 Twitter',
-    '    "geosite:netflix":',
-    '      - https://1.1.1.1/dns-query#🎬 Netflix',
-    '      - https://8.8.8.8/dns-query#🎬 Netflix',
-    '    "geosite:spotify":',
-    '      - https://1.1.1.1/dns-query#🎵 Spotify',
-    '      - https://8.8.8.8/dns-query#🎵 Spotify',
+    '    - "https://1.1.1.1/dns-query#🤖 AI"',
+    '    - "https://8.8.8.8/dns-query#🤖 AI"',
+    '    geosite:twitter:',
+    '    - "https://1.1.1.1/dns-query#𝕏 Twitter"',
+    '    - "https://8.8.8.8/dns-query#𝕏 Twitter"',
+    '    geosite:netflix:',
+    '    - "https://1.1.1.1/dns-query#🎬 Netflix"',
+    '    - "https://8.8.8.8/dns-query#🎬 Netflix"',
+    '    geosite:spotify:',
+    '    - https://1.1.1.1/dns-query#Proxy',
+    '    - https://8.8.8.8/dns-query#Proxy',
+    '    geosite:google:',
+    '    - "https://1.1.1.1/dns-query#🔎 Google"',
+    '    - "https://8.8.8.8/dns-query#🔎 Google"',
     '  nameserver:',
-    '    - https://1.1.1.1/dns-query#Proxy',
-    '    - https://8.8.8.8/dns-query#Proxy',
-    '    - https://9.9.9.9/dns-query#Proxy',
-    '  fallback:',
-    '    - https://1.1.1.1/dns-query#Proxy',
-    '    - https://8.8.8.8/dns-query#Proxy',
-    '    - https://9.9.9.9/dns-query#Proxy',
-    '  fallback-filter:',
-    '    geoip: true',
-    '    geoip-code: CN',
-    '    geosite:',
-    '      - gfw',
-    '    ipcidr:',
-    '      - 240.0.0.0/4',
-    '      - 0.0.0.0/32',
-    '      - 127.0.0.1/32',
-    '      - 100.64.0.0/10',
-    '    domain:',
-    '      - "+.google.com"',
-    '      - "+.facebook.com"',
-    '      - "+.youtube.com"',
-    '      - "+.openai.com"',
-    '      - "+.chatgpt.com"',
+    '  - https://1.1.1.1/dns-query#Proxy',
+    '  - https://8.8.8.8/dns-query#Proxy',
+    '  - https://9.9.9.9/dns-query#Proxy',
     '',
     'proxies:',
   ];
@@ -303,36 +339,17 @@ export function generateClashYaml(inputProxies, subName) {
 
   lines.push('');
   lines.push('proxy-groups:');
-  appendSelectGroup(lines, 'Proxy', proxyChoices);
+  appendSelectGroup(lines, 'Proxy', uniq([...regionNames, ...otherRegions, 'DIRECT']));
   if (miscMembers.length) appendSelectGroup(lines, '🌍 其它地区', miscMembers);
-  const deferredRegionNames = new Set([
-    '🇺🇸 美国节点', '🇸🇬 新加坡节点', '🇯🇵 日本节点', '🇭🇰 香港节点', '🇳🇬 尼日利亚节点',
-  ]);
+  // 德国/英国等不参与服务策略的地区组保持靠前展示，其余地区组统一放在游戏组之后。
   for (const group of regionGroups) {
     if (!deferredRegionNames.has(group.name)) appendSelectGroup(lines, group.name, group.members);
   }
-
-  appendSelectGroup(lines, '🤖 AI', usServiceChoices);
-  appendSelectGroup(lines, '📲 Telegram', serviceChoices.telegram);
-  appendSelectGroup(lines, '🔎 Google', usServiceChoices);
-  appendSelectGroup(lines, '🎵 Spotify', serviceChoices.spotify);
-  appendSelectGroup(lines, '𝕏 Twitter', serviceChoices.twitter);
-  appendSelectGroup(lines, '🎬 Netflix', serviceChoices.netflix);
-  appendSelectGroup(lines, '📹 YouTube', serviceChoices.youtube);
-  appendSelectGroup(lines, '📖 Reddit', serviceChoices.reddit);
-  appendSelectGroup(lines, '🎶 TikTok', serviceChoices.tiktok);
-  appendSelectGroup(lines, '🐙 GitHub', serviceChoices.github);
-  appendSelectGroup(lines, '💳 PayPal', usServiceChoices);
-  appendSelectGroup(lines, '♾️ Meta', serviceChoices.meta);
-  appendSelectGroup(lines, '🎬 流媒体', commonChoices);
-  appendSelectGroup(lines, '🐦 社交媒体', commonChoices);
-  appendSelectGroup(lines, '🍎 Apple', directPreferredChoices);
-  appendSelectGroup(lines, '🪟 Microsoft', directPreferredChoices);
-  appendSelectGroup(lines, '🎮 游戏', directPreferredChoices);
+  for (const [name, members] of serviceGroups) appendSelectGroup(lines, name, members);
   for (const group of regionGroups) {
     if (deferredRegionNames.has(group.name)) appendSelectGroup(lines, group.name, group.members);
   }
-  appendSelectGroup(lines, '🇺🇸 美国固定节点', usFixedChoices);
+  appendSelectGroup(lines, USF, usFixedChoices);
   appendSelectGroup(lines, 'AdBlock', ['REJECT', 'DIRECT']);
 
   lines.push('');
@@ -342,11 +359,11 @@ export function generateClashYaml(inputProxies, subName) {
   lines.push('  - DOMAIN-SUFFIX,local,DIRECT');
   lines.push('  - DOMAIN-SUFFIX,lan,DIRECT');
   lines.push('  - DOMAIN-SUFFIX,arpa,DIRECT');
-  // 特例先于综合 AI：Grok 跟随 X，Copilot 跟随 GitHub。
-  lines.push('  - DOMAIN-SUFFIX,x.ai,𝕏 Twitter');
-  lines.push('  - DOMAIN-SUFFIX,grok.com,𝕏 Twitter');
+  lines.push('  - DOMAIN-SUFFIX,x.ai,🤖 AI');
+  lines.push('  - DOMAIN-SUFFIX,grok.com,🤖 AI');
   lines.push('  - DOMAIN-SUFFIX,githubcopilot.com,🐙 GitHub');
   lines.push('  - DOMAIN-SUFFIX,copilot-proxy.githubusercontent.com,🐙 GitHub');
+  lines.push('  - IP-CIDR,100.64.0.0/10,DIRECT,no-resolve');
   lines.push('  - GEOSITE,github,🐙 GitHub');
   lines.push('  - GEOSITE,openai,🤖 AI');
   lines.push('  - GEOSITE,google-gemini,🤖 AI');
@@ -356,6 +373,7 @@ export function generateClashYaml(inputProxies, subName) {
   lines.push('  - DOMAIN-SUFFIX,oaiusercontent.com,🤖 AI');
   lines.push('  - GEOSITE,anthropic,🤖 AI');
   lines.push('  - DOMAIN-SUFFIX,claude.ai,🤖 AI');
+  lines.push('  - GEOSITE,category-ai-!cn,🤖 AI');
   lines.push('  - GEOSITE,youtube,📹 YouTube');
   lines.push('  - GEOSITE,google,🔎 Google');
   lines.push('  - GEOSITE,telegram,📲 Telegram');
@@ -368,10 +386,14 @@ export function generateClashYaml(inputProxies, subName) {
   lines.push('  - GEOSITE,reddit,📖 Reddit');
   lines.push('  - GEOSITE,tiktok,🎶 TikTok');
   lines.push('  - DOMAIN-SUFFIX,paypal.com,💳 PayPal');
+  lines.push('  - GEOSITE,paypal,💳 PayPal');
   lines.push('  - GEOSITE,facebook,♾️ Meta');
   lines.push('  - DOMAIN-SUFFIX,instagram.com,♾️ Meta');
   lines.push('  - DOMAIN-SUFFIX,threads.net,♾️ Meta');
   lines.push('  - DOMAIN-SUFFIX,whatsapp.com,♾️ Meta');
+  lines.push('  - GEOSITE,meta,♾️ Meta');
+  lines.push('  - GEOSITE,instagram,♾️ Meta');
+  lines.push('  - GEOSITE,whatsapp,♾️ Meta');
   lines.push('  - GEOSITE,disney,🎬 流媒体');
   lines.push('  - GEOSITE,primevideo,🎬 流媒体');
   lines.push('  - GEOSITE,hbo,🎬 流媒体');
@@ -384,11 +406,36 @@ export function generateClashYaml(inputProxies, subName) {
   lines.push('  - GEOSITE,microsoft,🪟 Microsoft');
   lines.push('  - GEOSITE,steam@cn,DIRECT');
   lines.push('  - GEOSITE,category-games@cn,DIRECT');
+  lines.push('  - GEOSITE,category-games-cn,DIRECT');
+  lines.push('  - GEOSITE,cn,DIRECT');
   lines.push('  - GEOSITE,category-games,🎮 游戏');
   lines.push('  - GEOIP,LAN,DIRECT,no-resolve');
-  lines.push('  - GEOSITE,cn,DIRECT');
+  lines.push('  - GEOIP,telegram,📲 Telegram,no-resolve');
   lines.push('  - GEOIP,CN,DIRECT,no-resolve');
   lines.push('  - MATCH,Proxy');
+
+  lines.push('');
+  lines.push('external-ui: "./dashboard"');
+  lines.push('external-ui-name: metacubexd');
+  lines.push('external-ui-url: https://codeload.github.com/MetaCubeX/metacubexd/zip/refs/heads/gh-pages');
+  lines.push('keep-alive-interval: 15');
+  lines.push('keep-alive-idle: 600');
+  lines.push('experimental:');
+  lines.push('  quic-go-disable-gso: true');
+  lines.push('ntp:');
+  lines.push('  enable: false');
+  lines.push('  server: time.apple.com');
+  lines.push('  port: 123');
+  lines.push('  interval: 30');
+  lines.push('  write-to-system: false');
+  lines.push('rule-providers:');
+  lines.push('  oc-cn-domain:');
+  lines.push('    type: http');
+  lines.push('    interval: 43200');
+  lines.push('    behavior: domain');
+  lines.push('    format: mrs');
+  lines.push('    url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/cn.mrs');
+  lines.push('    path: "./rule_provider/oc-cn-domain.mrs"');
 
   return lines.join('\n');
 }

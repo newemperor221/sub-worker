@@ -465,8 +465,61 @@ test('Clash service policies mirror the reference Loon routing priorities', asyn
     assert.match(body, new RegExp(`name: "${group}"`));
   }
   assert.match(body, /name: "🇺🇸 美国固定节点"[\s\S]*?proxies: \["美国-固定"\]/);
-  assert.ok(body.indexOf('DOMAIN-SUFFIX,x.ai,𝕏 Twitter') < body.indexOf('GEOSITE,openai,🤖 AI'));
+  assert.ok(body.indexOf('DOMAIN-SUFFIX,x.ai,🤖 AI') < body.indexOf('GEOSITE,openai,🤖 AI'));
   assert.ok(body.indexOf('GEOSITE,youtube,📹 YouTube') < body.indexOf('GEOSITE,google,🔎 Google'));
+});
+
+test('Clash template follows the mt3600be mihomo routing and DNS source', async () => {
+  const res = await fetchPath('/api/sub?token=subtoken&type=clash');
+  const body = await res.text();
+
+  assert.equal(res.status, 200);
+  for (const marker of [
+    'mixed-port: 7893',
+    'socks-port: 7891',
+    'tproxy-port: 7895',
+    'bind-address: 127.0.0.1',
+    'geodata-loader: memconservative',
+    'listen: 127.0.0.1:7874',
+    '- 223.5.5.5',
+    '- rule-set:oc-cn-domain',
+    'geosite:category-ads-all:',
+    '- rcode://success',
+    'rule-providers:',
+    'oc-cn-domain:',
+    'behavior: domain',
+    'format: mrs',
+    '- IP-CIDR,100.64.0.0/10,DIRECT,no-resolve',
+    '- GEOSITE,category-ai-!cn,🤖 AI',
+    '- GEOSITE,paypal,💳 PayPal',
+    '- GEOIP,telegram,📲 Telegram,no-resolve',
+    '- GEOSITE,category-games-cn,DIRECT',
+  ]) {
+    assert.ok(body.includes(marker), `missing template marker: ${marker}`);
+  }
+
+  const rulesBlock = body.slice(body.indexOf('\nrules:\n'), body.indexOf('external-ui:'));
+  const rules = rulesBlock.split('\n').filter(line => line.startsWith('  - '));
+  assert.equal(rules.length, 59);
+  assert.equal(rules.at(-1).trim(), '- MATCH,Proxy');
+});
+
+test('fixed US group keeps the CN2 line first for GitHub defaults', async () => {
+  const cn2Env = {
+    ...env,
+    SUBSCRIPTIONS: createKv([
+      'vless://aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa@us1.example:443?security=tls&type=tcp#美国-洛杉矶',
+      'vless://bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb@us2.example:443?security=tls&type=tcp#美国-洛杉矶CN2',
+    ]),
+  };
+  const res = await fetchPath('/api/sub?token=subtoken&type=clash', {}, cn2Env);
+  const body = await res.text();
+
+  assert.equal(res.status, 200);
+  const fixed = body.match(/name: "🇺🇸 美国固定节点"[\s\S]*?proxies: \[([^\n]+)\]/)?.[1] || '';
+  assert.match(fixed, /^"美国-洛杉矶CN2", "美国-洛杉矶"$/);
+  const github = body.match(/name: "🐙 GitHub"[\s\S]*?proxies: \[([^\n]+)\]/)?.[1] || '';
+  assert.match(github, /^"🇺🇸 美国固定节点"/);
 });
 
 test('Clash endpoint returns 422 when every configured node is invalid', async () => {
