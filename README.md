@@ -1,6 +1,8 @@
 # Sub Worker 订阅控制台
 
-私有 Cloudflare Worker 订阅面板。登录后可添加、排序、搜索、命名、分组、编辑链接和备注节点，也可停用节点而不删除。输出 Auto / Clash / Loon / Base64，管理列表不显示完整节点 URL。
+**基于 Cloudflare Workers / Pages 和 D1 的私有订阅控制台。** 当前版本仅使用 D1 存储节点，不需要 KV。
+
+登录后可添加、排序、搜索、命名、分组、编辑链接和备注节点，也可停用节点而不删除。输出 Auto / Clash / Loon / Base64，管理列表不显示完整节点 URL。
 
 ## 存储模型
 
@@ -20,53 +22,91 @@
 - 客户端搜索覆盖节点名称、分组和备注
 - 分组与启用状态筛选
 - Auto 根据 User-Agent 选择 Loon、Clash/Mihomo 或 Base64
+- 浏览器本地生成订阅二维码，完整订阅地址不发送给第三方
+- D1 事务与版本检查，保存冲突时明确返回 409
 - 深色响应式面板，无地区图片或旗帜卡片，无横向溢出
 
 ## 环境变量与绑定
 
 | 名称 | 类型 | 必填 | 说明 |
 |---|---|---:|---|
-| `TOKEN` | secret/variable | ✅ | 订阅 API 令牌 |
+| `TOKEN` | secret（推荐） | ✅ | 订阅 API 令牌，与管理员会话密钥独立 |
 | `ADMIN_USER` | secret/variable | ✅ | 管理员用户名 |
 | `ADMIN_PASS` | secret | ✅ | 管理员密码 |
 | `SESSION_SECRET` | secret | ✅ | 独立的 Cookie HMAC 密钥；禁止复用 TOKEN 或 ADMIN_PASS，不提供回退 |
 | `SUBNAME` | variable | 否 | 订阅显示名称 |
 | `SUBSCRIPTIONS_DB` | D1 binding | ✅ | 唯一节点存储 |
 
-不要把真实令牌、密码、节点链接、数据库 ID  提交到仓库。
+`ADMIN_USER`、`ADMIN_PASS`、`SESSION_SECRET` 必须是非空字符串，密钥不得与令牌或管理员密码相同。配置缺失或无效时，登录、管理 API 和健康检查返回 503。
 
-## 创建 D1
+不要将真实令牌、密码、节点链接或部署标识提交到仓库。
 
-### Wrangler
+## 部署
 
-```bash
-npx wrangler d1 create sub-worker-db
-```
+### Cloudflare Workers（Wrangler）
 
-在项目的 Wrangler 配置中使用命令输出的 ID：
+1. 克隆仓库并创建 D1 数据库：
 
-```toml
-[[d1_databases]]
-binding = "SUBSCRIPTIONS_DB"
-database_name = "sub-worker-db"
-database_id = "你的 D1 database ID"
+   ```bash
+   git clone https://github.com/newemperor221/sub-worker.git
+   cd sub-worker
+   npx wrangler login
+   npx wrangler d1 create sub-worker-db
+   ```
 
-```
+2. 在本地创建 `wrangler.toml`，将数据库 ID 替换为上一条命令的实际输出。以下是配置示例，仓库未附带预配置的 Wrangler 部署文件：
 
-可以预先应用仓库中的 schema；即使不执行，Worker 也会在运行时幂等初始化：
+   ```toml
+   name = "sub-worker"
+   main = "_worker.js"
+   compatibility_date = "2026-11-26"
+
+   [vars]
+   SUBNAME = "我的订阅"
+
+   [[d1_databases]]
+   binding = "SUBSCRIPTIONS_DB"
+   database_name = "sub-worker-db"
+   database_id = "替换为实际 D1 database ID"
+   ```
+
+3. 上传项目，再通过交互输入设置配置：
+
+   ```bash
+   npx wrangler deploy
+   npx wrangler secret put TOKEN
+   npx wrangler secret put ADMIN_USER
+   npx wrangler secret put ADMIN_PASS
+   npx wrangler secret put SESSION_SECRET
+   ```
+
+   首次上传到配置齐全前，受保护入口可能返回 503。`SESSION_SECRET` 应单独随机生成，建议至少 32 字节；不能复用 `TOKEN` 或 `ADMIN_PASS`。不要将真实值写进示例文件。
+
+4. 打开部署地址的 `/api/health`，确认 `ok: true`，且 `storage`、`subscriptionSource` 均为 `d1`；随后通过 `/login` 登录并添加节点。
+
+数据库表和版本记录会在首次读取时自动初始化。也可以预先执行：
 
 ```bash
 npx wrangler d1 execute sub-worker-db --remote --file=schema.sql
 ```
 
-### Cloudflare Dashboard / Pages
+Wrangler 会从 `_worker.js` 打包导入的模块，无需单独安装运行时 npm 依赖。配置与 Secrets 的说明见 [Wrangler 官方文档](https://developers.cloudflare.com/workers/wrangler/configuration/) 和 [Secrets 官方文档](https://developers.cloudflare.com/workers/configuration/secrets/)。
 
-1. 在 **Storage & Databases → D1** 创建数据库，并以 `SUBSCRIPTIONS_DB` 绑定。
-2. 配置管理员凭据、独立会话密钥和订阅令牌，重新部署 Worker/Pages 项目。
-3. 请求 `/api/health` 或登录面板触发初始化。
-4. 确认健康响应的 `storage` 与 `subscriptionSource` 为 `d1`。
+### Cloudflare Pages
 
-已有 D1 节点可直接沿用。若节点尚且只存在旧 KV 中，请先将需要的节点录入或导入 D1 并核对；本版本不会自动迁移旧 KV 数据。确认 D1 数据齐全后，可从部署设置移除旧 `SUBSCRIPTIONS` 绑定。
+使用 Pages 的 `_worker.js` 入口部署方式时，发布目录需同时包含入口和全部运行时模块，不能只上传 `_worker.js`。在项目的目标部署环境中绑定 D1，绑定名称必须为 `SUBSCRIPTIONS_DB`，并设置上表中的令牌、管理员配置和独立会话密钥。修改绑定后重新部署，再验证 `/api/health` 和 `/login`。
+
+提交代码到 GitHub 与部署 Cloudflare 是两个步骤；只有已配置相应自动部署流程时，推送代码才会触发发布。
+
+## 从旧版本升级
+
+- 已有 D1：沿用同一个 `SUBSCRIPTIONS_DB` 绑定，节点和排序数据会保留；表结构与版本记录由运行时幂等补齐。
+- 只有旧 KV：本版本不会自动读取或迁移。上线前将所需节点录入或导入 D1，并核对名称、分组、顺序和启停状态。
+- 确认 D1 数据齐全后，可移除旧 `SUBSCRIPTIONS` 绑定。无需删除旧命名空间才能运行新版。
+- 设置独立的 `SESSION_SECRET` 后重新登录；更换该密钥会使旧会话失效。
+- 不要让旧版写入代码与新版并行处理管理请求，以免绕过新版的版本检查。
+
+D1 故障时不使用旧备份自动回退。备份和恢复应单独安排；本项目不提供运行时 KV 备份。
 
 ## 管理 API
 
@@ -80,9 +120,15 @@ PUT    /api/manage/subscriptions   # { "id": "稳定ID", "name": "...", "group":
 DELETE /api/manage/subscriptions   # { "id": "稳定ID" }
 ```
 
-D1 管理写入使用版本检查和事务内的逐条 SQL 更新，不再删除重写全表。并发冲突返回 409，请刷新后重试。GET 和写入响应带 `revision`；客户端在写入 JSON 中带回该版本，避免旧面板覆盖新数据。
+D1 管理写入使用版本检查和事务内的逐条 SQL 更新，不再删除重写全表。并发冲突返回 409，请刷新后重试。GET 和写入响应带 `revision`；面板会自动在写入 JSON 中带回该版本。自行调用 API 时也应带上最新 `revision`，以便拒绝旧快照的修改：
 
-名称与分组均为必填，最长 64 字符；备注最长 500 字符。`enabled` 必须是 JSON 布尔值。编辑时仅在 `url` 非空时替换节点链接，管理列表和普通 API 响应不会返回完整 URL。
+```json
+{ "id": "节点ID", "revision": "GET返回的版本", "enabled": false }
+```
+
+409 也可能表示重复链接；请按响应中的 `error` 判断原因。
+
+名称与分组均为必填，最长 64 字符；备注最长 500 字符。`enabled` 必须是 JSON 布尔值。编辑时若不替换链接，应省略 `url` 字段；面板会自动处理留空输入。直接向 API 发送空 `url` 会返回 400。管理列表和普通 API 响应不会返回完整 URL。
 
 ## 订阅接口
 
@@ -114,13 +160,28 @@ Clash/Mihomo 输出采用 MT3600BE 当前「出去看看」配置的 Fake-IP DNS
 
 Cookie 使用 `HttpOnly; Secure; SameSite=Lax`，有效期 7 天。订阅 URL 持有 `TOKEN` 的客户端可获取启用节点的完整凭据；请只通过 HTTPS 分发，并在泄露后立即轮换令牌。
 
-## 配置检查与升级
+## 部署前配置检查
 
-`ADMIN_USER`、`ADMIN_PASS`、`SESSION_SECRET` 均为必填非空配置；缺失时 `/login`、管理 API 和健康检查返回 503，不签发管理员会话。`SESSION_SECRET` 必须独立于订阅 TOKEN 和管理员密码，建议使用密码管理器生成的至少 32 字节随机值。轮换该密钥会使旧会话失效。
+将目标环境的 `ADMIN_USER`、`ADMIN_PASS`、`SESSION_SECRET`（以及用于检查密钥独立性的 `TOKEN`）注入进程环境后运行：
 
-部署前，将目标环境的这三项配置以环境变量注入检查进程，再运行 `npm run check:config`；检查失败会返回非零退出码，供部署流水线阻止发布。Cloudflare 远端 Secrets 不会被该本地命令自动读取，仍需在目标部署环境配置；运行时检查始终生效。不要将真实值写入仓库。
+```bash
+npm run check:config
+```
 
-升级前先设置独立的 `SESSION_SECRET` 并绑定 D1。只有旧 KV 数据而没有 D1 节点的部署，需要先完成节点转移；缺少 D1 时订阅和管理均返回 503。D1 的版本记录由运行时自动初始化，不需要手工更改现有节点。回退到旧写入版本会失去并发保护，应避免新旧版本同时处理管理写入。
+检查失败会返回非零退出码，可作为部署流水线的前置条件。该命令只读取本地进程环境，不自动加载 `.env` / `.dev.vars`，也不会读取 Cloudflare 远端 Secrets 或验证 D1 绑定。目标部署仍需配置完整的环境变量和数据库绑定；运行时也会执行管理员配置检查。
+
+## 常见状态码
+
+| 状态码 | 含义与处理 |
+|---|---|
+| `400` | 请求格式、节点链接或元数据校验失败；按错误提示修正 |
+| `401` | 管理会话缺失或无效；重新登录 |
+| `404` | 订阅令牌不正确、路径不存在、格式参数不支持或节点 ID 不存在；核对请求 |
+| `409` | 版本冲突或链接重复；查看 `error`，必要时刷新后重试 |
+| `422` | Clash / Loon 没有可转换的有效节点；添加或启用有效节点 |
+| `503` | 管理员配置无效，或 D1 缺失 / 不可用；结合请求路径和健康检查排查 |
+
+空订阅的 Base64 输出为空字符串；健康检查通过并不代表已经录入有效节点。
 
 ## 保存时的节点校验
 
@@ -137,12 +198,26 @@ npm ci
 npm test
 ```
 
-测试包含配置缺失和密钥轮换、二维码实际图像解码、并发冲突与重试、事务回滚、D1 故障与缺失绑定、禁止访问旧存储、空库不回填、无效节点零写入，并覆盖认证与路由、名称/分组持久化、节点链接替换、稳定 ID 排序、停用节点从四种输出排除，以及搜索/筛选/编辑 UI 标记。
+当前测试集共 **59 项**，包含配置缺失和密钥轮换、二维码实际图像解码、并发冲突与重试、事务回滚、D1 故障与缺失绑定、禁止访问旧存储、空库不回填、无效节点零写入，并覆盖认证与路由、名称/分组持久化、节点链接替换、稳定 ID 排序、停用节点从四种输出排除，以及搜索/筛选/编辑 UI 标记。
 
 ## 部署文件
 
-Worker 入口为 `_worker.js`，并依赖 `dashboard.js`、`utils.js`、`convert.js`、`yaml.js`、`loon.js`、`validation.js` 与 `qr.js`。`schema.sql` 是可选的预初始化脚本。Cloudflare Pages 可直接部署；普通 Worker 需要上传这些 ES modules 或自行打包。
+| 文件 | 用途 |
+|---|---|
+| `_worker.js` | HTTP 路由、会话认证、D1 初始化与管理事务 |
+| `dashboard.js` | 管理界面与本地二维码交互 |
+| `utils.js` | 配置读取、管理员配置校验与 Base64 编码 |
+| `validation.js` | 节点保存前的字段校验 |
+| `convert.js` | VLESS / Hysteria2 解析与转换 |
+| `yaml.js` / `loon.js` | Clash / Loon 输出 |
+| `qr.js` | 随项目分发的二维码生成库 |
+| `schema.sql` | 可选的 D1 预初始化脚本 |
+| `check-config.mjs` | 部署前管理员配置检查 |
+
+运行时模块必须完整发布。`*.test.mjs`、测试依赖和本地配置检查脚本无需作为运行时模块上传。
 
 ## License
 
 Personal-use subscription worker.
+
+二维码库的第三方许可见 [THIRD_PARTY_LICENSES.txt](THIRD_PARTY_LICENSES.txt)。
