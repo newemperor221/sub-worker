@@ -104,9 +104,11 @@ Auto 规则：Loon 输出 Loon；Clash、Mihomo、Stash、OpenClash、Nikki、Fl
 
 ## Clash 模板
 
-Clash/Mihomo 输出的路由与 DNS 结构取自 `newemperor221/mt3600be-mihomo` 仓库的 `mihomo.yaml`（原为 MT3600BE 路由器导出配置）：端口与监听、`geox-url`、sniffer、fake-ip DNS、`rule-providers`（`oc-cn-domain`）和 59 条分流规则逐项对齐。
+Clash/Mihomo 输出采用 MT3600BE 当前「出去看看」配置的 Fake-IP DNS、域名嗅探、GeoData、`oc-cn-domain` 规则集和 59 条分流规则。订阅文件的 DNS 和面板监听使用本机地址，由 OpenClash 接管路由器运行时端口。
 
-模板中的服务策略原本按具体节点名书写（洛杉矶、洛杉矶 CN2、大阪…）。订阅端节点由面板动态维护，因此渲染时把这些名字替换为等价策略组：美国具体节点 → `🇺🇸 美国节点` / `🇺🇸 美国固定节点`，其余地区 → `🇸🇬 新加坡节点` 等地区组；不存在的地区自动从组内剔除，避免悬空引用。`🇺🇸 美国固定节点` 默认把名称含 `CN2` 的节点排在最前，保留模板里 GitHub 默认走洛杉矶 CN2 的语义。
+当订阅包含同名节点时，默认代理、GitHub、X、YouTube 和 TikTok 优先选 `洛杉矶 CN2`，AI、Google、Reddit、Meta 和 PayPal 优先选 `洛杉矶`。Netflix、Telegram 和海外游戏优先选新加坡，Spotify 优先选尼日利亚。各策略组保留地区回退，缺失的节点和地区会自动从候选项中移除。`store-selected` 保留客户端手动选中的节点。
+
+订阅转换从现有 D1 或 KV 读取已启用节点。更新模板时，订阅链接、节点数据、排序和启停状态继续由原有存储管理。
 
 ## 路由与安全
 

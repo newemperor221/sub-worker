@@ -522,6 +522,40 @@ test('fixed US group keeps the CN2 line first for GitHub defaults', async () => 
   assert.match(github, /^"🇺🇸 美国固定节点"/);
 });
 
+test('Clash keeps the MT3600BE service groups and their distinct Los Angeles defaults', async () => {
+  const homeEnv = {
+    ...env,
+    SUBSCRIPTIONS: createKv([
+      'hysteria2://fixture@ng.example:443#尼日利亚',
+      'hysteria2://fixture@la.example:443#洛杉矶',
+      'vless://aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa@sg.example:443?security=tls&type=tcp#新加坡',
+      'hysteria2://fixture@jp.example:443#大阪',
+      'hysteria2://fixture@cn2.example:443#洛杉矶 CN2',
+    ]),
+  };
+  const res = await fetchPath('/api/sub?token=subtoken&type=clash', {}, homeEnv);
+  assert.equal(res.status, 200);
+  const body = await res.text();
+  const groups = new Map(Array.from(
+    body.matchAll(/^  - name: (".*")\n    type: select\n    proxies: (\[.*\])$/gm),
+    ([, name, members]) => [JSON.parse(name), JSON.parse(members)],
+  ));
+  assert.equal(groups.size, 24);
+  for (const name of ['Proxy', '🐙 GitHub', '𝕏 Twitter', '📹 YouTube', '🎶 TikTok']) {
+    assert.equal(groups.get(name)?.[0], '洛杉矶 CN2', name);
+  }
+  for (const name of ['🤖 AI', '🔎 Google', '📖 Reddit', '♾️ Meta', '💳 PayPal', '🇺🇸 美国固定节点']) {
+    assert.equal(groups.get(name)?.[0], '洛杉矶', name);
+  }
+  for (const name of ['📲 Telegram', '🎬 Netflix', '🎮 游戏']) {
+    assert.equal(groups.get(name)?.[0], '🇸🇬 新加坡节点', name);
+  }
+  assert.deepEqual(groups.get('🎮 游戏')?.slice(0, 2), ['🇸🇬 新加坡节点', '🇯🇵 日本节点']);
+  assert.equal(groups.get('🎵 Spotify')?.[0], '🇳🇬 尼日利亚节点');
+  assert.deepEqual(groups.get('🐙 GitHub'), ['洛杉矶 CN2', '🇸🇬 新加坡节点', '🇯🇵 日本节点', 'Proxy', 'DIRECT']);
+  assert.deepEqual(groups.get('🌍 其它地区'), ['洛杉矶 CN2', '洛杉矶']);
+});
+
 test('Clash endpoint returns 422 when every configured node is invalid', async () => {
   const res = await fetchPath('/api/sub?token=subtoken&type=clash', {}, { ...env, SUBSCRIPTIONS: createKv(['ss://unsupported']) });
   assert.equal(res.status, 422);

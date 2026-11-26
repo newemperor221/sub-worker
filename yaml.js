@@ -147,9 +147,7 @@ export function generateClashYaml(inputProxies, subName) {
   const membersOf = name => findRegionGroup(regionGroups, name)?.members || [];
   const usMembers = membersOf('🇺🇸 美国节点');
 
-  // 模板 mt3600be-mihomo/mihomo.yaml 用具体节点名（洛杉矶、大阪…）书写服务策略；
-  // 订阅端节点按地区动态生成，因此把具体节点换成等价的地区组与固定美国组，
-  // 保证输出的每个成员都是真实存在的代理或策略组。
+  // 与「出去看看」同步。节点仍由订阅提供，地区组只包含当前存在的节点。
   const US = '🇺🇸 美国节点';
   const USF = '🇺🇸 美国固定节点';
   const SG = '🇸🇬 新加坡节点';
@@ -161,25 +159,36 @@ export function generateClashYaml(inputProxies, subName) {
   const hasGroup = name => name === USF || regionNames.includes(name);
   const pick = names => names.filter(hasGroup);
 
-  // 固定美国组默认把 CN2 线路排在前面，保持模板里 GitHub 默认走洛杉矶 CN2 的语义。
-  const usFixedMembers = uniq(usMembers);
+  const nodeNames = new Set(proxies.map(proxy => proxy.name));
+  const cn2 = '洛杉矶 CN2';
+  const losAngelesFirst = ['洛杉矶', cn2].filter(name => nodeNames.has(name));
+  const cn2First = [...losAngelesFirst].reverse();
+  const miscPreferred = cn2First.filter(name => miscMembers.includes(name));
+  const githubDefault = nodeNames.has(cn2) ? cn2 : USF;
+
+  // 其它订阅仍可通过固定美国组优先选择名称含 CN2 的美国节点。
+  const usFixedMembers = uniq([
+    ...losAngelesFirst,
+    ...usMembers.filter(name => /cn2/i.test(name)),
+    ...usMembers,
+  ]);
   const usFixedChoices = usFixedMembers.length
-    ? [...usFixedMembers.filter(name => /cn2/i.test(name)), ...usFixedMembers.filter(name => !/cn2/i.test(name))]
+    ? usFixedMembers
     : ['Proxy', 'DIRECT'];
 
   const serviceGroups = [
-    ['🤖 AI', uniq([...pick([USF]), 'Proxy', 'DIRECT'])],
+    ['🤖 AI', uniq([...losAngelesFirst, USF, 'Proxy', 'DIRECT'])],
     ['📲 Telegram', uniq([...pick([SG, JP]), 'Proxy', 'DIRECT'])],
-    ['🔎 Google', uniq([...pick([USF]), 'Proxy', 'DIRECT'])],
+    ['🔎 Google', uniq([...losAngelesFirst, USF, 'Proxy', 'DIRECT'])],
     ['🎵 Spotify', uniq([...pick([NG]), 'Proxy', 'DIRECT'])],
-    ['𝕏 Twitter', uniq([...pick([US, JP, SG]), 'Proxy', 'DIRECT'])],
+    ['𝕏 Twitter', uniq([...cn2First, ...pick([US, JP, SG]), 'Proxy', 'DIRECT'])],
     ['🎬 Netflix', uniq([...pick([SG, NG]), 'Proxy', 'DIRECT'])],
-    ['📹 YouTube', uniq([...pick([US, USF]), 'Proxy', 'DIRECT'])],
-    ['📖 Reddit', uniq([...pick([US]), 'Proxy', ...pick([SG, JP, NG]), ...otherRegions, 'DIRECT'])],
-    ['🎶 TikTok', uniq([...pick([US, SG, JP, NG]), 'Proxy', 'DIRECT'])],
-    ['🐙 GitHub', uniq([...pick([USF, SG, JP]), 'Proxy', 'DIRECT'])],
-    ['💳 PayPal', uniq([...pick([USF]), 'Proxy', 'DIRECT'])],
-    ['♾️ Meta', uniq([...pick([US, JP, SG]), 'Proxy', 'DIRECT'])],
+    ['📹 YouTube', uniq([...cn2First, ...pick([US, USF]), 'Proxy', 'DIRECT'])],
+    ['📖 Reddit', uniq([...losAngelesFirst, ...pick([US]), 'Proxy', ...pick([SG, JP, NG]), ...otherRegions, 'DIRECT'])],
+    ['🎶 TikTok', uniq([...cn2First, ...pick([US, SG, JP, NG]), 'Proxy', 'DIRECT'])],
+    ['🐙 GitHub', uniq([githubDefault, ...pick([SG, JP]), 'Proxy', 'DIRECT'])],
+    ['💳 PayPal', uniq([...losAngelesFirst, USF, 'Proxy', 'DIRECT'])],
+    ['♾️ Meta', uniq([...losAngelesFirst, ...pick([US, JP, SG]), 'Proxy', 'DIRECT'])],
     ['🎬 流媒体', uniq(['Proxy', ...pick([SG, JP, NG]), ...otherRegions, 'DIRECT'])],
     ['🐦 社交媒体', uniq(['Proxy', ...pick([SG, JP, NG]), ...otherRegions, 'DIRECT'])],
     ['🍎 Apple', uniq(['DIRECT', 'Proxy', ...pick([SG, JP, NG]), ...otherRegions])],
@@ -339,8 +348,8 @@ export function generateClashYaml(inputProxies, subName) {
 
   lines.push('');
   lines.push('proxy-groups:');
-  appendSelectGroup(lines, 'Proxy', uniq([...regionNames, ...otherRegions, 'DIRECT']));
-  if (miscMembers.length) appendSelectGroup(lines, '🌍 其它地区', miscMembers);
+  appendSelectGroup(lines, 'Proxy', uniq([...cn2First, ...regionNames, ...otherRegions, 'DIRECT']));
+  if (miscMembers.length) appendSelectGroup(lines, '🌍 其它地区', [...miscPreferred, ...miscMembers]);
   // 德国/英国等不参与服务策略的地区组保持靠前展示，其余地区组统一放在游戏组之后。
   for (const group of regionGroups) {
     if (!deferredRegionNames.has(group.name)) appendSelectGroup(lines, group.name, group.members);
