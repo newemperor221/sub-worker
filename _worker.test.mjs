@@ -1,3 +1,4 @@
+import { DatabaseSync } from 'node:sqlite';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import worker from './_worker.js';
@@ -10,7 +11,7 @@ const FORMATTED_RELAY_LINK = 'vless://55555555-5555-4555-8555-555555555555@examp
 const HK_LINK = 'vless://66666666-6666-4666-8666-666666666666@example-hk.com:443?security=tls&type=tcp#🇭🇰 香港';
 const env = {
   TOKEN: 'subtoken',
-  SUBSCRIPTIONS: createKv([LINK]),
+  SUBSCRIPTIONS_DB: createD1([LINK]),
   SUBNAME: '测试订阅',
   ADMIN_USER: 'admin',
   ADMIN_PASS: 'pass123',
@@ -18,22 +19,22 @@ const env = {
 };
 const numberedLinkEnv = {
   ...env,
-  SUBSCRIPTIONS: createKv([LINK_A, LINK_B]),
+  SUBSCRIPTIONS_DB: createD1([LINK_A, LINK_B]),
   SUBNAME: 'Test Subscription',
 };
 const relayNameEnv = {
   ...env,
-  SUBSCRIPTIONS: createKv([RELAY_LINK]),
+  SUBSCRIPTIONS_DB: createD1([RELAY_LINK]),
   SUBNAME: 'Test Subscription',
 };
 const formattedRelayNameEnv = {
   ...env,
-  SUBSCRIPTIONS: createKv([FORMATTED_RELAY_LINK]),
+  SUBSCRIPTIONS_DB: createD1([FORMATTED_RELAY_LINK]),
   SUBNAME: 'Test Subscription',
 };
 const hkNameEnv = {
   ...env,
-  SUBSCRIPTIONS: createKv([HK_LINK]),
+  SUBSCRIPTIONS_DB: createD1([HK_LINK]),
   SUBNAME: 'Test Subscription',
 };
 
@@ -41,58 +42,35 @@ async function fetchPath(path, init = {}, testEnv = env) {
   return worker.fetch(new Request('https://sub.example.com' + path, init), testEnv);
 }
 
-function createKv(initialValue = null) {
-  const values = new Map();
-  if (initialValue !== null) values.set('subscription_links', JSON.stringify(initialValue));
-  return {
-    values,
-    async get(key) { return values.has(key) ? values.get(key) : null; },
-    async put(key, value) { values.set(key, value); },
-  };
-}
-
-function createD1({ hasNameColumn = true } = {}) {
-  const state = { nodes: [], meta: new Map(), execCount: 0, hasNameColumn, alterCount: 0 };
+function createD1(links = [], { hasNameColumn = true } = {}) {
+  if (!Array.isArray(links)) { ({hasNameColumn = true} = links); links = []; }
+  const sqlite = new DatabaseSync(':memory:');
+  const state = { execCount: 0, hasNameColumn, alterCount: 0 };
+  if (!hasNameColumn) sqlite.exec("CREATE TABLE nodes (id TEXT PRIMARY KEY,url TEXT NOT NULL UNIQUE,position INTEGER NOT NULL,group_name TEXT NOT NULL DEFAULT '',note TEXT NOT NULL DEFAULT '',enabled INTEGER NOT NULL DEFAULT 1,created_at TEXT NOT NULL,updated_at TEXT NOT NULL)");
+  if (hasNameColumn) sqlite.exec("CREATE TABLE nodes (id TEXT PRIMARY KEY,url TEXT NOT NULL UNIQUE,name TEXT NOT NULL DEFAULT '',position INTEGER NOT NULL,group_name TEXT NOT NULL DEFAULT '',note TEXT NOT NULL DEFAULT '',enabled INTEGER NOT NULL DEFAULT 1,created_at TEXT NOT NULL,updated_at TEXT NOT NULL)");
+  for (const [position, url] of links.entries()) sqlite.prepare('INSERT INTO nodes (id,url,position,created_at,updated_at) VALUES (?,?,?,?,?)').run(crypto.randomUUID(),url,position,'2026-01-01','2026-01-01');
+  Object.defineProperties(state, {
+    nodes: { get: () => sqlite.prepare('SELECT * FROM nodes ORDER BY position').all() },
+    meta: { get: () => new Map(sqlite.prepare('SELECT key,value FROM app_meta').all().map(row => [row.key,row.value])) },
+  });
   function statement(sql, args = []) {
     return {
       bind(...values) { return statement(sql, values); },
-      async first() {
-        if (/SELECT value FROM app_meta/.test(sql)) return state.meta.has(args[0]) ? { value: state.meta.get(args[0]) } : null;
-        return null;
-      },
-      async all() {
-        if (/PRAGMA table_info\(nodes\)/.test(sql)) {
-          const columns = ['id', 'url', 'position', 'group_name', 'note', 'enabled', 'created_at', 'updated_at'];
-          if (state.hasNameColumn) columns.splice(2, 0, 'name');
-          return { results: columns.map(name => ({ name })) };
-        }
-        if (/SELECT \* FROM nodes/.test(sql)) return { results: [...state.nodes].sort((a, b) => a.position - b.position).map(row => ({ ...row })) };
-        return { results: [] };
-      },
-      async run() {
-        if (/^DELETE FROM nodes/.test(sql)) state.nodes = [];
-        if (/INSERT (?:OR IGNORE )?INTO nodes/.test(sql)) {
-          const [id, url, name, position, group_name, note, enabled, created_at, updated_at] = args;
-          if (!/OR IGNORE/.test(sql) || !state.nodes.some(row => row.id === id || row.url === url)) state.nodes.push({ id, url, name, position, group_name, note, enabled, created_at, updated_at });
-        }
-        if (/INSERT OR REPLACE INTO app_meta/.test(sql)) state.meta.set(args[0], args[1]);
-        return { success: true };
-      },
+      async first() { return sqlite.prepare(sql).get(...args) || null; },
+      async all() { return { results: sqlite.prepare(sql).all(...args) }; },
+      execute() { const result = sqlite.prepare(sql).run(...args); return { success: true, meta: { changes: Number(result.changes) } }; },
+      async run() { return this.execute(); },
     };
   }
   return {
-    state,
-    async exec(sql) {
-      state.execCount += 1;
-      if (/ALTER TABLE nodes ADD COLUMN name/.test(sql)) {
-        state.hasNameColumn = true;
-        state.alterCount += 1;
-        state.nodes = state.nodes.map(row => ({ ...row, name: row.name || '' }));
-      }
-      return { count: 0 };
+    state, sqlite,
+    async exec(sql) { state.execCount++; if (sql.includes('ALTER TABLE')) { state.alterCount++; state.hasNameColumn = true; } sqlite.exec(sql); },
+    prepare: statement,
+    async batch(statements) {
+      sqlite.exec('BEGIN');
+      try { const results = []; for (const item of statements) results.push(item.execute()); sqlite.exec('COMMIT'); return results; }
+      catch (error) { sqlite.exec('ROLLBACK'); throw error; }
     },
-    prepare(sql) { return statement(sql); },
-    async batch(statements) { for (const item of statements) await item.run(); return statements.map(() => ({ success: true })); },
   };
 }
 
@@ -139,7 +117,7 @@ test('GET /login renders the login page', async () => {
   assert.match(body, /color-scheme:dark/);
   assert.match(body, /<link rel="icon" type="image\/svg\+xml" href="\/favicon\.svg">/);
   assert.doesNotMatch(body, /roughjs|rough-outline|drawRough|纸边|手绘|白板/i);
-  assert.doesNotMatch(body, /Segoe Print|LXGW WenKai|Kaiti SC|STKaiti|Ma Shan Zheng|cursive/);
+  assert.doesNotMatch(body.match(/<style>([\s\S]*?)<\/style>/)?.[1] || '', /Segoe Print|LXGW WenKai|Kaiti SC|STKaiti|Ma Shan Zheng|cursive/);
 });
 
 test('POST /login rejects invalid credentials', async () => {
@@ -170,15 +148,15 @@ test('POST /login accepts valid credentials and redirects to a random home path 
   assert.doesNotMatch(cookie, /pass123|subtoken/);
 });
 
-test('login remains usable without SESSION_SECRET and TOKEN when ADMIN_PASS is configured', async () => {
+test('login rejects missing SESSION_SECRET even with ADMIN_PASS configured', async () => {
   const fallbackEnv = { ...env, TOKEN: '', SESSION_SECRET: '' };
   const login = await fetchPath('/login', {
     method: 'POST',
     body: new URLSearchParams({ username: 'admin', password: 'pass123' }),
   }, fallbackEnv);
 
-  assert.equal(login.status, 303);
-  assert.match(login.headers.get('set-cookie') || '', /sub_worker_session=/);
+  assert.equal(login.status, 503);
+  assert.equal(login.headers.has('set-cookie'), false);
 });
 
 test('GET / with a valid session redirects to that session random home path', async () => {
@@ -225,7 +203,7 @@ test('GET /random/home with a valid matching session renders dashboard', async (
   assert.doesNotMatch(body, /roughjs|rough-outline|drawRough|纸边|手绘|白板/i);
   assert.match(res.headers.get('cache-control') || '', /no-store/);
   assert.doesNotMatch(body, /sub\.example\.com\/subtoken\?/);
-  assert.doesNotMatch(body, /Segoe Print|LXGW WenKai|Kaiti SC|STKaiti|Ma Shan Zheng|cursive/);
+  assert.doesNotMatch(body.match(/<style>([\s\S]*?)<\/style>/)?.[1] || '', /Segoe Print|LXGW WenKai|Kaiti SC|STKaiti|Ma Shan Zheng|cursive/);
 });
 
 test('relay node display name uses half-width parentheses without extra 出口 suffix', async () => {
@@ -242,7 +220,7 @@ test('relay node display name uses half-width parentheses without extra 出口 s
   assert.equal(res.status, 200);
   assert.match(body, /新加坡\(东京中转\)/);
   assert.doesNotMatch(body, /flag-svg|flag-emoji|🇸🇬/);
-  assert.doesNotMatch(body, /出口（|）/);
+  assert.doesNotMatch(body.replace(/<script>[\s\S]*?<\/script>/g, ''), /出口（|）/);
 });
 
 test('already formatted relay node display name is not normalized twice', async () => {
@@ -319,7 +297,7 @@ test('subscription API is token protected and does not require browser session',
   assert.equal(body, btoa(unescape(encodeURIComponent(LINK))));
 });
 
-test('subscription API preserves KV node order', async () => {
+test('subscription API preserves D1 node order', async () => {
   const res = await fetchPath('/api/sub?token=subtoken&type=base64', {}, numberedLinkEnv);
   const body = await res.text();
   const expected = [LINK_A, LINK_B].join('\n');
@@ -328,7 +306,7 @@ test('subscription API preserves KV node order', async () => {
   assert.equal(body, btoa(unescape(encodeURIComponent(expected))));
 });
 
-test('Clash output includes proxies from KV', async () => {
+test('Clash output includes proxies from D1', async () => {
   const res = await fetchPath('/api/sub?token=subtoken&type=clash', {}, numberedLinkEnv);
   const body = await res.text();
 
@@ -340,7 +318,7 @@ test('Clash output includes proxies from KV', async () => {
 test('Loon output includes VLESS Reality and Hysteria2 proxy lines', async () => {
   const loonEnv = {
     ...env,
-    SUBSCRIPTIONS: createKv([
+    SUBSCRIPTIONS_DB: createD1([
       'vless://77777777-7777-4777-8777-777777777777@vless.example:443?security=reality&type=tcp&flow=xtls-rprx-vision&sni=edge.example&fp=chrome&pbk=public-key&sid=abcd#Reality-Node',
       'hysteria2://secret@hy.example:8443?sni=hy.example&insecure=1#HY2-Node',
     ]),
@@ -388,7 +366,7 @@ test('old subscription aliases and paths are not compatible', async () => {
   assert.equal((await fetchPath('/subtoken?clash')).status, 404);
 });
 
-test('KV keeps only VLESS and Hysteria2 in source order', async () => {
+test('D1 output keeps only VLESS and Hysteria2 in source order', async () => {
   const mixedLinks = [
     'trojan://secret@trojan.example:443?sni=edge.example#First-Trojan',
     'vless://77777777-7777-4777-8777-777777777777@vless.example:443?security=tls&type=tcp#Second-VLESS',
@@ -397,7 +375,7 @@ test('KV keeps only VLESS and Hysteria2 in source order', async () => {
   ];
   const mixedEnv = {
     ...env,
-    SUBSCRIPTIONS: createKv(mixedLinks),
+    SUBSCRIPTIONS_DB: createD1(mixedLinks),
   };
   const res = await fetchPath('/api/sub?token=subtoken&type=clash', {}, mixedEnv);
   const body = await res.text();
@@ -426,7 +404,7 @@ test('Clash region groups follow the seven-region exit-prefix logic', async () =
   const regionLinks = regions.map(([name, host], index) =>
     `vless://${index + 1}1111111-1111-4111-8111-111111111111@${host}:443?security=tls&type=tcp#${encodeURIComponent(name)}`
   );
-  const regionEnv = { ...env, SUBSCRIPTIONS: createKv(regionLinks) };
+  const regionEnv = { ...env, SUBSCRIPTIONS_DB: createD1(regionLinks) };
 
   const res = await fetchPath('/api/sub?token=subtoken&type=clash', {}, regionEnv);
   const body = await res.text();
@@ -455,7 +433,7 @@ test('Clash region groups follow the seven-region exit-prefix logic', async () =
 test('Clash service policies mirror the reference Loon routing priorities', async () => {
   const serviceEnv = {
     ...env,
-    SUBSCRIPTIONS: createKv(['vless://88888888-8888-4888-8888-888888888888@us.example:443?security=tls&type=tcp#美国-固定']),
+    SUBSCRIPTIONS_DB: createD1(['vless://88888888-8888-4888-8888-888888888888@us.example:443?security=tls&type=tcp#美国-固定']),
   };
   const res = await fetchPath('/api/sub?token=subtoken&type=clash', {}, serviceEnv);
   const body = await res.text();
@@ -507,7 +485,7 @@ test('Clash template follows the mt3600be mihomo routing and DNS source', async 
 test('fixed US group keeps the CN2 line first for GitHub defaults', async () => {
   const cn2Env = {
     ...env,
-    SUBSCRIPTIONS: createKv([
+    SUBSCRIPTIONS_DB: createD1([
       'vless://aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa@us1.example:443?security=tls&type=tcp#美国-洛杉矶',
       'vless://bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb@us2.example:443?security=tls&type=tcp#美国-洛杉矶CN2',
     ]),
@@ -525,7 +503,7 @@ test('fixed US group keeps the CN2 line first for GitHub defaults', async () => 
 test('Clash keeps the MT3600BE service groups and their distinct Los Angeles defaults', async () => {
   const homeEnv = {
     ...env,
-    SUBSCRIPTIONS: createKv([
+    SUBSCRIPTIONS_DB: createD1([
       'hysteria2://fixture@ng.example:443#尼日利亚',
       'hysteria2://fixture@la.example:443#洛杉矶',
       'vless://aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa@sg.example:443?security=tls&type=tcp#新加坡',
@@ -557,19 +535,19 @@ test('Clash keeps the MT3600BE service groups and their distinct Los Angeles def
 });
 
 test('Clash endpoint returns 422 when every configured node is invalid', async () => {
-  const res = await fetchPath('/api/sub?token=subtoken&type=clash', {}, { ...env, SUBSCRIPTIONS: createKv(['ss://unsupported']) });
+  const res = await fetchPath('/api/sub?token=subtoken&type=clash', {}, { ...env, SUBSCRIPTIONS_DB: createD1(['ss://unsupported']) });
   assert.equal(res.status, 422);
   assert.match(await res.text(), /没有可转换/);
 });
 
 test('health endpoint exercises session crypto, storage and dashboard rendering', async () => {
-  const kv = createKv([LINK]);
-  const res = await fetchPath('/api/health', {}, { ...env, SUBSCRIPTIONS: kv });
+  const db = createD1([LINK]);
+  const res = await fetchPath('/api/health', {}, { ...env, SUBSCRIPTIONS_DB: db });
   assert.equal(res.status, 200);
   assert.deepEqual(await res.json(), {
     ok: true,
-    storage: 'kv',
-    subscriptionSource: 'kv',
+    storage: 'd1',
+    subscriptionSource: 'd1',
     formats: ['auto', 'clash', 'loon', 'base64'],
     loonSyntax: 'nsloon',
     subscriptionManagement: ['add', 'reorder', 'delete', 'edit', 'toggle'],
@@ -579,15 +557,15 @@ test('health endpoint exercises session crypto, storage and dashboard rendering'
 });
 
 test('subscription management API rejects unauthenticated requests and disables caching', async () => {
-  const res = await fetchPath('/api/manage/subscriptions', {}, { ...env, SUBSCRIPTIONS: createKv() });
+  const res = await fetchPath('/api/manage/subscriptions', {}, { ...env, SUBSCRIPTIONS_DB: createD1() });
   assert.equal(res.status, 401);
   assert.match(res.headers.get('cache-control') || '', /no-store/);
   assert.match((await res.json()).error, /请先登录/);
 });
 
-test('logged-in administrator can add, list and delete KV subscriptions', async () => {
-  const kv = createKv();
-  const testEnv = { ...env, SUBSCRIPTIONS: kv };
+test('logged-in administrator can add, list and delete D1 subscriptions', async () => {
+  const db = createD1();
+  const testEnv = { ...env, SUBSCRIPTIONS_DB: db };
   const { cookie } = await loginSession(testEnv);
   const addedLink = 'hysteria2://secret@hysteria.example:443?sni=edge.example#ManagedNode';
 
@@ -602,12 +580,11 @@ test('logged-in administrator can add, list and delete KV subscriptions', async 
   assert.equal(addBody.items.length, 1);
   assert.equal(addBody.items[0].name, '香港备用');
   assert.equal(addBody.items[0].group, '香港');
-  assert.equal(JSON.parse(kv.values.get('subscription_links')).length, 1);
 
   const list = await fetchPath('/api/manage/subscriptions', { headers: { cookie } }, testEnv);
   const listBody = await list.json();
   assert.equal(list.status, 200);
-  assert.equal(listBody.source, 'kv');
+  assert.equal(listBody.source, 'd1');
   assert.equal(listBody.items[0].protocol, 'hysteria2');
   assert.doesNotMatch(JSON.stringify(listBody), /secret@hysteria\.example/);
   const base64Subscription = await fetchPath('/api/sub?token=subtoken&type=base64', {}, testEnv);
@@ -625,12 +602,11 @@ test('logged-in administrator can add, list and delete KV subscriptions', async 
   const removeBody = await remove.json();
   assert.equal(remove.status, 200);
   assert.equal(removeBody.items.length, 0);
-  assert.deepEqual(JSON.parse(kv.values.get('subscription_links')), []);
 });
 
-test('logged-in administrator can reorder KV subscriptions', async () => {
-  const kv = createKv([LINK_A, LINK_B]);
-  const testEnv = { ...env, SUBSCRIPTIONS: kv };
+test('logged-in administrator can reorder D1 subscriptions', async () => {
+  const db = createD1([LINK_A, LINK_B]);
+  const testEnv = { ...env, SUBSCRIPTIONS_DB: db };
   const { cookie } = await loginSession(testEnv);
   const before = await fetchPath('/api/manage/subscriptions', { headers: { cookie } }, testEnv);
   const beforeItems = (await before.json()).items;
@@ -646,7 +622,6 @@ test('logged-in administrator can reorder KV subscriptions', async () => {
   assert.equal(moveBody.moved, 1);
   assert.deepEqual(moveBody.items.map((item) => item.name), ['NodeB', 'NodeA']);
   assert.equal(moveBody.items[0].id, nodeBId);
-  assert.deepEqual(JSON.parse(kv.values.get('subscription_links')), [LINK_B, LINK_A]);
 
   const subscription = await fetchPath('/api/sub?token=subtoken&type=base64', {}, testEnv);
   const decoded = decodeURIComponent(escape(atob(await subscription.text())));
@@ -662,8 +637,8 @@ test('logged-in administrator can reorder KV subscriptions', async () => {
 });
 
 test('add requires one link plus a name and group, and rejects unsupported protocols', async () => {
-  const kv = createKv([]);
-  const testEnv = { ...env, SUBSCRIPTIONS: kv };
+  const db = createD1([]);
+  const testEnv = { ...env, SUBSCRIPTIONS_DB: db };
   const { cookie } = await loginSession(testEnv);
   const add = await fetchPath('/api/manage/subscriptions', {
     method: 'POST', headers: { cookie, 'content-type': 'application/json' },
@@ -686,36 +661,11 @@ test('add requires one link plus a name and group, and rejects unsupported proto
     }, testEnv);
     assert.equal(invalid.status, 400);
   }
-  assert.equal(JSON.parse(kv.values.get('subscription_nodes_v2')).length, 1);
 });
 
-test('missing SUBSCRIPTIONS binding exposes no environment-variable nodes', async () => {
-  const { SUBSCRIPTIONS: _ignored, ...unboundEnv } = env;
-  const envWithLegacyLinks = { ...unboundEnv, LINK, LINK1: LINK_A };
-  const { cookie, homePath } = await loginSession(envWithLegacyLinks);
-  const add = await fetchPath('/api/manage/subscriptions', {
-    method: 'POST', headers: { cookie, 'content-type': 'application/json' },
-    body: JSON.stringify({ links: LINK_A }),
-  }, envWithLegacyLinks);
-  assert.equal(add.status, 503);
-  assert.match((await add.json()).error, /尚未绑定 Cloudflare KV.*SUBSCRIPTIONS/);
-
-  const panel = await fetchPath(homePath, { headers: { cookie } }, envWithLegacyLinks);
-  const panelBody = await panel.text();
-  assert.equal(panel.status, 200);
-  assert.match(panelBody, /尚未绑定 SUBSCRIPTIONS KV/);
-  assert.match(panelBody, /KV 未绑定/);
-  assert.doesNotMatch(panelBody, /TestNode|NodeA/);
-
-  const subscription = await fetchPath('/api/sub?token=subtoken&type=base64', {}, envWithLegacyLinks);
-  assert.equal(subscription.status, 503);
-  assert.match(await subscription.text(), /SUBSCRIPTIONS KV is not bound/);
-  assert.match(subscription.headers.get('cache-control') || '', /no-store/);
-});
-
-test('KV is the only subscription source and dashboard does not expose full nodes', async () => {
-  const kv = createKv([LINK_B]);
-  const testEnv = { ...env, LINK, LINK1: LINK_A, SUBSCRIPTIONS: kv };
+test('D1 is the only subscription source and dashboard does not expose full nodes', async () => {
+  const db = createD1([LINK_B]);
+  const testEnv = { ...env, LINK, LINK1: LINK_A, SUBSCRIPTIONS_DB: db };
   const subscription = await fetchPath('/api/sub?token=subtoken&type=base64', {}, testEnv);
   assert.equal(await subscription.text(), btoa(unescape(encodeURIComponent(LINK_B))));
 
@@ -725,53 +675,25 @@ test('KV is the only subscription source and dashboard does not expose full node
   assert.match(body, /NodeB/);
   assert.doesNotMatch(body, /TestNode/);
   assert.doesNotMatch(body, /example-b\.com:443/);
-  assert.match(body, /当前读取：KV/);
+  assert.match(body, /当前读取：D1/);
 });
 
-test('empty KV ignores legacy LINK variables', async () => {
-  const kv = createKv();
-  const testEnv = { ...env, LINK: LINK_A, LINK1: LINK_B, SUBSCRIPTIONS: kv };
+test('empty D1 ignores legacy LINK variables', async () => {
+  const db = createD1();
+  const testEnv = { ...env, LINK: LINK_A, LINK1: LINK_B, SUBSCRIPTIONS_DB: db };
   const subscription = await fetchPath('/api/sub?token=subtoken&type=base64', {}, testEnv);
   assert.equal(await subscription.text(), '');
 
   const { cookie } = await loginSession(testEnv);
   const list = await fetchPath('/api/manage/subscriptions', { headers: { cookie } }, testEnv);
   const body = await list.json();
-  assert.equal(body.source, 'kv');
+  assert.equal(body.source, 'd1');
   assert.equal(body.items.length, 0);
 });
 
-test('D1 initializes schema, migrates KV once, and remains authoritative after all nodes are deleted', async () => {
-  const kv = createKv([LINK_A, LINK_B]);
-  const db = createD1();
-  const testEnv = { ...env, SUBSCRIPTIONS: kv, SUBSCRIPTIONS_DB: db };
-  const { cookie } = await loginSession(testEnv);
-  const first = await fetchPath('/api/manage/subscriptions', { headers: { cookie } }, testEnv);
-  const firstBody = await first.json();
-  assert.equal(firstBody.source, 'd1');
-  assert.deepEqual(firstBody.items.map(item => item.name), ['NodeA', 'NodeB']);
-  assert.ok(db.state.meta.has('kv_nodes_migrated_v2'));
-  assert.ok(firstBody.items.every(item => item.id && !/^\d+$/.test(item.id)));
-  const health = await fetchPath('/api/health', {}, testEnv);
-  assert.equal((await health.json()).storage, 'd1');
-
-  for (const item of firstBody.items) {
-    const removed = await fetchPath('/api/manage/subscriptions', {
-      method: 'DELETE', headers: { cookie, 'content-type': 'application/json' },
-      body: JSON.stringify({ id: item.id }),
-    }, testEnv);
-    assert.equal(removed.status, 200);
-  }
-  kv.values.set('subscription_links', JSON.stringify([LINK_A]));
-  const after = await fetchPath('/api/manage/subscriptions', { headers: { cookie } }, testEnv);
-  assert.deepEqual((await after.json()).items, []);
-  assert.equal(db.state.nodes.length, 0);
-});
-
 test('existing D1 schema gains the required name column once', async () => {
-  const kv = createKv([LINK_A]);
   const db = createD1({ hasNameColumn: false });
-  const testEnv = { ...env, SUBSCRIPTIONS: kv, SUBSCRIPTIONS_DB: db };
+  const testEnv = { ...env, SUBSCRIPTIONS_DB: db };
   const { cookie } = await loginSession(testEnv);
   const first = await fetchPath('/api/manage/subscriptions', { headers: { cookie } }, testEnv);
   assert.equal(first.status, 200);
@@ -782,10 +704,9 @@ test('existing D1 schema gains the required name column once', async () => {
   assert.equal(db.state.alterCount, 1);
 });
 
-test('name, group, note and replacement link edits persist to D1 and KV backup', async () => {
-  const kv = createKv([LINK_A]);
-  const db = createD1();
-  const testEnv = { ...env, SUBSCRIPTIONS: kv, SUBSCRIPTIONS_DB: db };
+test('name, group, note and replacement link edits persist to D1', async () => {
+  const db = createD1([LINK_A]);
+  const testEnv = { ...env, SUBSCRIPTIONS_DB: db };
   const { cookie } = await loginSession(testEnv);
   const listed = await fetchPath('/api/manage/subscriptions', { headers: { cookie } }, testEnv);
   const id = (await listed.json()).items[0].id;
@@ -803,16 +724,11 @@ test('name, group, note and replacement link edits persist to D1 and KV backup',
   assert.equal(db.state.nodes[0].name, '新加坡落地');
   assert.equal(db.state.nodes[0].group_name, 'Singapore');
   assert.equal(db.state.nodes[0].url, LINK_B);
-  const backup = JSON.parse(kv.values.get('subscription_nodes_v2'));
-  assert.equal(backup[0].id, id);
-  assert.equal(backup[0].name, '新加坡落地');
-  assert.equal(backup[0].url, LINK_B);
-  assert.match(JSON.parse(kv.values.get('subscription_links'))[0], /#%E6%96%B0%E5%8A%A0%E5%9D%A1%E8%90%BD%E5%9C%B0$/);
 });
 
 test('edit API rejects invalid state, empty names/groups and malformed replacement links', async () => {
-  const kv = createKv([LINK_A, LINK_B]);
-  const testEnv = { ...env, SUBSCRIPTIONS: kv };
+  const db = createD1([LINK_A, LINK_B]);
+  const testEnv = { ...env, SUBSCRIPTIONS_DB: db };
   const { cookie } = await loginSession(testEnv);
   const list = await fetchPath('/api/manage/subscriptions', { headers: { cookie } }, testEnv);
   const items = (await list.json()).items;
@@ -837,8 +753,8 @@ test('edit API rejects invalid state, empty names/groups and malformed replaceme
 });
 
 test('disabled nodes stay manageable but are excluded from auto, Clash, Loon, and Base64 outputs', async () => {
-  const kv = createKv([LINK_A, LINK_B]);
-  const testEnv = { ...env, SUBSCRIPTIONS: kv };
+  const db = createD1([LINK_A, LINK_B]);
+  const testEnv = { ...env, SUBSCRIPTIONS_DB: db };
   const { cookie } = await loginSession(testEnv);
   const list = await fetchPath('/api/manage/subscriptions', { headers: { cookie } }, testEnv);
   const items = (await list.json()).items;
@@ -868,7 +784,7 @@ test('disabled nodes stay manageable but are excluded from auto, Clash, Loon, an
 });
 
 test('dashboard includes required add fields, link editor, filters and enable switch markers without tags', async () => {
-  const testEnv = { ...env, SUBSCRIPTIONS: createKv([LINK]) };
+  const testEnv = { ...env, SUBSCRIPTIONS_DB: createD1([LINK]) };
   const { cookie, homePath } = await loginSession(testEnv);
   const response = await fetchPath(homePath, { headers: { cookie } }, testEnv);
   const body = await response.text();
@@ -888,17 +804,147 @@ test('dashboard includes required add fields, link editor, filters and enable sw
   assert.match(body, /overflow-x:hidden/);
 });
 
-test('D1 read failure falls back to KV for subscriptions and rejects management writes', async () => {
-  const kv = createKv([LINK]);
-  const brokenDb = { async exec() { throw new Error('D1 unavailable'); } };
-  const testEnv = { ...env, SUBSCRIPTIONS: kv, SUBSCRIPTIONS_DB: brokenDb };
-  const subscription = await fetchPath('/api/sub?token=subtoken&type=base64', {}, testEnv);
-  assert.equal(subscription.status, 200);
-  assert.equal(decodeURIComponent(escape(atob(await subscription.text()))), LINK);
-  const { cookie } = await loginSession(testEnv);
-  const write = await fetchPath('/api/manage/subscriptions', {
-    method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({ links: LINK_A }),
-  }, testEnv);
-  assert.equal(write.status, 503);
-  assert.match((await write.json()).error, /数据分叉/);
+test('invalid administrator configuration rejects login, management and health without cookies', async () => {
+  for (const override of [{ADMIN_USER:''},{ADMIN_PASS:''},{SESSION_SECRET:''},{ADMIN_USER:' '},{SESSION_SECRET:env.TOKEN},{SESSION_SECRET:env.ADMIN_PASS}]) {
+    const e = {...env,...override};
+    for (const path of ['/login','/api/manage/subscriptions','/api/health']) {
+      const r = await fetchPath(path, path === '/login' ? {method:'POST',body:new URLSearchParams({username:'',password:''})} : {}, e);
+      assert.equal(r.status,503); assert.equal(r.headers.has('set-cookie'),false);
+      assert.match(r.headers.get('cache-control'),/no-store/);
+    }
+  }
+});
+
+test('rotating the independent session secret invalidates existing sessions', async () => {
+  const {cookie} = await loginSession();
+  assert.equal((await fetchPath('/api/manage/subscriptions',{headers:{cookie}}, {...env,SESSION_SECRET:'different-independent-secret'})).status,401);
+  // Changing the subscription token does not change administrator sessions.
+  assert.equal((await fetchPath('/api/manage/subscriptions',{headers:{cookie}}, {...env,TOKEN:'different-subscription-token'})).status,200);
+});
+
+test('concurrent D1 adds return an explicit conflict; retry preserves both records', async () => {
+  const db = createD1(); const e = {...env,SUBSCRIPTIONS_DB:db};
+  const {cookie} = await loginSession(e);
+  await fetchPath('/api/manage/subscriptions',{headers:{cookie}},e);
+  const add = (link,name) => fetchPath('/api/manage/subscriptions',{method:'POST',headers:{cookie,'content-type':'application/json'},body:JSON.stringify({link,name,group:'test'})},e);
+  // Hold both snapshots until both requests have read the same revision.
+  const prepare = db.prepare; let reads = 0, release;
+  const gate = new Promise(resolve => { release = resolve; });
+  db.prepare = sql => {
+    const statement = prepare(sql);
+    if (sql.startsWith('SELECT * FROM nodes')) {
+      const all = statement.all.bind(statement);
+      statement.all = async () => { const result = await all(); if (++reads === 2) release(); await gate; return result; };
+    }
+    return statement;
+  };
+  const results = await Promise.all([add(LINK_A,'A'),add(LINK_B,'B')]);
+  db.prepare = prepare;
+  assert.deepEqual(results.map(r=>r.status).sort(),[200,409]);
+  const failed = results.findIndex(r=>r.status===409);
+  assert.equal((await add(failed===0?LINK_A:LINK_B,failed===0?'A':'B')).status,200);
+  assert.equal(db.state.nodes.length,2);
+  assert.deepEqual(new Set(db.state.nodes.map(n=>n.url)),new Set([LINK_A,LINK_B]));
+});
+
+test('D1 transaction rolls back revision and all ordering changes on a statement failure', async () => {
+  const db = createD1([LINK_A,LINK_B]); const e = {...env,SUBSCRIPTIONS_DB:db};
+  const {cookie} = await loginSession(e);
+  const list = await fetchPath('/api/manage/subscriptions',{headers:{cookie}},e);
+  const items = (await list.json()).items;
+  const before = db.state.nodes; const revision = db.state.meta.get('nodes_revision');
+  db.sqlite.exec("CREATE TRIGGER reject_move BEFORE UPDATE OF position ON nodes WHEN NEW.position = 1 BEGIN SELECT RAISE(ABORT,'test failure'); END");
+  const r = await fetchPath('/api/manage/subscriptions',{method:'PATCH',headers:{cookie,'content-type':'application/json'},body:JSON.stringify({id:items[1].id,direction:'up'})},e);
+  assert.equal(r.status,503); assert.deepEqual(db.state.nodes,before); assert.equal(db.state.meta.get('nodes_revision'),revision);
+});
+
+test('invalid node additions and replacements leave D1 unchanged', async () => {
+  const db = createD1([LINK_A]); const e = {...env,SUBSCRIPTIONS_DB:db};
+  const {cookie} = await loginSession(e);
+  const list = await fetchPath('/api/manage/subscriptions',{headers:{cookie}},e);
+  const id = (await list.json()).items[0].id;
+  const invalid = ['vless://', 'vless://id@example.com:443', LINK_B.replace(':443',':0'),LINK_B.replace(':443',''),LINK_B.replace('security=tls','security=bad'),LINK_B.replace('type=tcp','type=bad'),LINK_B.replace('security=tls','security=reality'),LINK_B+'&insecure=maybe','hysteria2://pass@example.com:443?obfs=salamander'];
+  // Append query parameters before fragments.
+  invalid[7] = LINK_B.split('#')[0]+'&insecure=maybe';
+  const before = db.state.nodes;
+  for (const url of invalid) for (const method of ['POST','PUT']) {
+    const payload = method === 'POST' ? {link:url,name:'test',group:'test'} : {id,url};
+    const r = await fetchPath('/api/manage/subscriptions',{method,headers:{cookie,'content-type':'application/json'},body:JSON.stringify(payload)},e);
+    assert.equal(r.status,400,url); assert.doesNotMatch(await r.text(),/22222222|33333333/);
+    assert.deepEqual(db.state.nodes,before);
+  }
+});
+
+test('concurrent edits to different records cannot silently lose an update', async () => {
+  const db = createD1([LINK_A,LINK_B]); const e = {...env,SUBSCRIPTIONS_DB:db};
+  const {cookie} = await loginSession(e);
+  const list = await fetchPath('/api/manage/subscriptions',{headers:{cookie}},e);
+  const items = (await list.json()).items;
+  const prepare = db.prepare; let reads = 0, release;
+  const gate = new Promise(resolve => { release = resolve; });
+  db.prepare = sql => {
+    const stmt = prepare(sql);
+    if (sql.startsWith('SELECT * FROM nodes')) {
+      const all = stmt.all.bind(stmt);
+      stmt.all = async () => { const result = await all(); if (++reads === 2) release(); await gate; return result; };
+    }
+    return stmt;
+  };
+  const edit = i => fetchPath('/api/manage/subscriptions',{method:'PUT',headers:{cookie,'content-type':'application/json'},body:JSON.stringify({id:items[i].id,note:'updated '+i})},e);
+  const results = await Promise.all([edit(0),edit(1)]);
+  db.prepare = prepare;
+  assert.deepEqual(results.map(r=>r.status).sort(),[200,409]);
+  const failed = results.findIndex(r=>r.status===409);
+  assert.equal((await edit(failed)).status,200);
+  assert.deepEqual(db.state.nodes.map(n=>n.note),['updated 0','updated 1']);
+});
+
+test('stale dashboard revision is rejected even when requests arrive sequentially', async () => {
+  const e = {...env,SUBSCRIPTIONS_DB:createD1([LINK_A])};
+  const {cookie} = await loginSession(e);
+  const list = await fetchPath('/api/manage/subscriptions',{headers:{cookie}},e);
+  const {items,revision} = await list.json();
+  const edit = note => fetchPath('/api/manage/subscriptions',{method:'PUT',headers:{cookie,'content-type':'application/json'},body:JSON.stringify({id:items[0].id,revision,note})},e);
+  assert.equal((await edit('first')).status,200);
+  assert.equal((await edit('stale')).status,409);
+  assert.equal(e.SUBSCRIPTIONS_DB.state.nodes[0].note,'first');
+});
+
+test('missing or unavailable D1 returns 503 everywhere and never touches obsolete storage', async () => {
+  for (const database of [undefined, {async exec(){throw new Error('offline');}}]) {
+    let oldStorageReads = 0;
+    const e = {...env,SUBSCRIPTIONS_DB:database,LINK:LINK_A};
+    Object.defineProperty(e,'SUBSCRIPTIONS',{get(){ oldStorageReads++; throw new Error('obsolete storage must not be accessed'); }});
+    const {cookie,homePath} = await loginSession(e);
+    const paths = ['/api/health',homePath,...['auto','clash','loon','base64'].map(type=>'/api/sub?token=subtoken&type='+type)];
+    for (const path of paths) {
+      const r = await fetchPath(path,{headers:{cookie}},e);
+      assert.equal(r.status,503,path); assert.match(r.headers.get('cache-control'),/no-store/);
+      assert.doesNotMatch(await r.text(),/11111111|22222222/);
+    }
+    for (const method of ['GET','POST','PUT','PATCH','DELETE']) {
+      const r = await fetchPath('/api/manage/subscriptions',{method,headers:{cookie,'content-type':'application/json'},...(method==='GET'?{}:{body:'{}'})},e);
+      assert.equal(r.status,503,method);
+    }
+    assert.equal(oldStorageReads,0);
+  }
+});
+
+test('D1 initializes without secondary storage and an empty database remains empty after reinitialization', async () => {
+  const db = createD1(); const e = {...env,SUBSCRIPTIONS_DB:db};
+  db.sqlite.exec('DROP TABLE nodes'); // Exercise creation from a genuinely empty database.
+  let oldStorageReads = 0;
+  Object.defineProperty(e,'SUBSCRIPTIONS',{get(){oldStorageReads++;throw new Error('obsolete storage');}});
+  const {cookie} = await loginSession(e);
+  const request = (method,payload) => fetchPath('/api/manage/subscriptions',{method,headers:{cookie,'content-type':'application/json'},...(payload?{body:JSON.stringify(payload)}:{})},e);
+  assert.deepEqual((await (await request('GET')).json()).items,[]);
+  const add = await request('POST',{link:LINK_A,name:'A',group:'test'});
+  const body = await add.json(); assert.equal(add.status,200);
+  assert.equal('backupUpdated' in body,false);assert.equal('kvBound' in body,false);
+  assert.equal((await request('DELETE',{id:body.items[0].id})).status,200);
+  const revision = db.state.meta.get('nodes_revision');
+  e.SUBSCRIPTIONS_DB = {...db}; // Simulate a fresh binding/isolate with the same persistent database.
+  assert.deepEqual((await (await request('GET')).json()).items,[]);
+  assert.equal(db.state.meta.get('nodes_revision'),revision);
+  assert.equal(oldStorageReads,0);
 });

@@ -2,15 +2,15 @@
 // Sub Worker — 订阅聚合与转换 | 模块化架构
 // ==/UserScript==
 
-import { loadConfig, encodeBase64 } from './utils.js';
+import { loadConfig, encodeBase64, validateAdminConfig } from './utils.js';
 import { convertVlessToClashProxy, convertHysteria2ToClashProxy } from './convert.js';
+import { validateNodeLink } from './validation.js';
 import { generateClashYaml } from './yaml.js';
 import { generateLoonConfig } from './loon.js';
 import { renderDashboard } from './dashboard.js';
 
 const SESSION_COOKIE = 'sub_worker_session';
 const SESSION_TTL_SECONDS = 7 * 24 * 60 * 60;
-const SUBSCRIPTIONS_KEY = 'subscription_links';
 const SUPPORTED_LINK_PATTERN = /^(vless|hysteria2):\/\//i;
 const FAVICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="18" fill="#5f6df8"/><path d="M27 30h46v9H27zm0 17h46v9H27zm0 17h31v9H27z" fill="white"/></svg>`;
 
@@ -79,7 +79,8 @@ async function createSessionCookie(config) {
 }
 
 async function getValidSession(request, config) {
-  const value = parseCookies(request.headers.get('Cookie'))[SESSION_COOKIE];
+  let value;
+  try { validateAdminConfig(config); value = parseCookies(request.headers.get('Cookie'))[SESSION_COOKIE]; } catch { return null; }
   if (!value) return null;
   const [payload, signature] = value.split('.');
   if (!payload || !signature) return null;
@@ -112,7 +113,7 @@ function renderLoginPage(config, errorMessage = '') {
 <body>
 <div class="site">
   <header class="topbar"><div class="topbar-inner"><div class="brand"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M6 6.5h12M6 12h12M6 17.5h7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span><span class="brand-copy"><span class="brand-name">订阅控制台</span><span class="brand-subtitle">${escapeHtml(config.subName)}</span></span></div><span class="secure-label"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 10V8a5 5 0 0 1 10 0v2M6 10h12v10H6V10Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>安全管理入口</span></div></header>
-  <main class="login-main"><section class="login-intro" aria-labelledby="welcome-title"><div class="eyebrow">Private workspace</div><h1 id="welcome-title">管理节点，<br>保持订阅井然有序。</h1><p>一个专注的私有工作区，用于维护节点顺序并为常用客户端生成订阅入口。</p><ul class="feature-list"><li><span class="feature-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="4" width="16" height="6" rx="2" stroke="currentColor" stroke-width="1.7"/><rect x="4" y="14" width="16" height="6" rx="2" stroke="currentColor" stroke-width="1.7"/></svg></span>节点凭据在管理界面中保持隐藏</li><li><span class="feature-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 7.5C5 5.6 8.1 4 12 4s7 1.6 7 3.5S15.9 11 12 11 5 9.4 5 7.5Z" stroke="currentColor" stroke-width="1.7"/><path d="M5 7.5v8c0 1.9 3.1 3.5 7 3.5s7-1.6 7-3.5v-8" stroke="currentColor" stroke-width="1.7"/></svg></span>以 D1 管理节点，并同步 KV 兼容备份</li><li><span class="feature-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 12h10M14 9l3 3-3 3M5 5h14v14H5z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>快速导出 Clash、Loon 与 Base64</li></ul></section><section class="login-shell" aria-labelledby="login-title"><form class="login-card" method="POST" action="/login" autocomplete="on"><div class="card-heading"><h2 id="login-title">管理员登录</h2><p>验证身份后进入订阅工作区</p></div>${error}<div class="field"><label for="username">用户名</label><div class="input-wrap"><input id="username" name="username" autocomplete="username" required autofocus><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="1.7"/><path d="M5 20a7 7 0 0 1 14 0" stroke="currentColor" stroke-width="1.7"/></svg></div></div><div class="field"><label for="password">密码</label><div class="input-wrap"><input id="password" name="password" type="password" autocomplete="current-password" required><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 10V8a5 5 0 0 1 10 0v2M6 10h12v10H6V10Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg></div></div><button class="submit" type="submit">登录控制台<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m9 6 6 6-6 6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></button><p class="hint"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 10V8a5 5 0 0 1 10 0v2M6 10h12v10H6V10Z" stroke="currentColor" stroke-width="1.8"/></svg>登录后进入当前会话专属的随机路径</p></form></section></main>
+  <main class="login-main"><section class="login-intro" aria-labelledby="welcome-title"><div class="eyebrow">Private workspace</div><h1 id="welcome-title">管理节点，<br>保持订阅井然有序。</h1><p>一个专注的私有工作区，用于维护节点顺序并为常用客户端生成订阅入口。</p><ul class="feature-list"><li><span class="feature-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="4" width="16" height="6" rx="2" stroke="currentColor" stroke-width="1.7"/><rect x="4" y="14" width="16" height="6" rx="2" stroke="currentColor" stroke-width="1.7"/></svg></span>节点凭据在管理界面中保持隐藏</li><li><span class="feature-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 7.5C5 5.6 8.1 4 12 4s7 1.6 7 3.5S15.9 11 12 11 5 9.4 5 7.5Z" stroke="currentColor" stroke-width="1.7"/><path d="M5 7.5v8c0 1.9 3.1 3.5 7 3.5s7-1.6 7-3.5v-8" stroke="currentColor" stroke-width="1.7"/></svg></span>以 D1 集中管理节点</li><li><span class="feature-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 12h10M14 9l3 3-3 3M5 5h14v14H5z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>快速导出 Clash、Loon 与 Base64</li></ul></section><section class="login-shell" aria-labelledby="login-title"><form class="login-card" method="POST" action="/login" autocomplete="on"><div class="card-heading"><h2 id="login-title">管理员登录</h2><p>验证身份后进入订阅工作区</p></div>${error}<div class="field"><label for="username">用户名</label><div class="input-wrap"><input id="username" name="username" autocomplete="username" required autofocus><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="1.7"/><path d="M5 20a7 7 0 0 1 14 0" stroke="currentColor" stroke-width="1.7"/></svg></div></div><div class="field"><label for="password">密码</label><div class="input-wrap"><input id="password" name="password" type="password" autocomplete="current-password" required><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 10V8a5 5 0 0 1 10 0v2M6 10h12v10H6V10Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg></div></div><button class="submit" type="submit">登录控制台<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m9 6 6 6-6 6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></button><p class="hint"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 10V8a5 5 0 0 1 10 0v2M6 10h12v10H6V10Z" stroke="currentColor" stroke-width="1.8"/></svg>登录后进入当前会话专属的随机路径</p></form></section></main>
   <footer class="footer"><strong>Private subscription administration</strong><span>Protected workspace</span></footer>
 </div>
 </body>
@@ -137,11 +138,10 @@ function parseSubscriptionInput(value) {
   const lines = normalizeSubscriptionLines(value);
   const invalid = lines.map((line, index) => ({ line, number: index + 1 })).filter(({ line }) => !SUPPORTED_LINK_PATTERN.test(line));
   if (invalid.length) throw new Error(`第 ${invalid.map(({ number }) => number).join('、')} 行协议不受支持，仅接受 vless://、hysteria2://`);
+  for (const line of lines) validateNodeLink(line);
   return lines;
 }
 
-const STRUCTURED_KEY = 'subscription_nodes_v2';
-const MIGRATION_KEY = 'kv_nodes_migrated_v2';
 const d1Initialization = new WeakMap();
 const MAX_NAME_LENGTH = 64;
 const MAX_GROUP_LENGTH = 64;
@@ -168,14 +168,16 @@ function urlWithNodeName(url, name) {
   return `${url.split('#', 1)[0]}#${encodeURIComponent(name)}`;
 }
 
-function normalizeName(value, fallback = '') {
-  const name = String(value ?? fallback).trim();
+function normalizeName(value) {
+  if (typeof value !== 'string') throw new Error('名称必须是字符串');
+  const name = value.trim();
   if (!name) throw new Error('名称不能为空');
   if (name.length > MAX_NAME_LENGTH) throw new Error(`名称不能超过 ${MAX_NAME_LENGTH} 个字符`);
   return name;
 }
 
 function normalizeMetadata(payload, current = {}) {
+  for (const key of ['name', 'group', 'note']) if (payload[key] !== undefined && typeof payload[key] !== 'string') throw new Error('名称、分组和备注必须是字符串');
   const name = payload.name === undefined ? String(current.name || '') : normalizeName(payload.name);
   const group = payload.group === undefined ? String(current.group || '') : String(payload.group).trim();
   const note = payload.note === undefined ? String(current.note || '') : String(payload.note).trim();
@@ -210,34 +212,6 @@ function publicNode(node) {
   return { id: node.id, position: node.position, protocol: displaySummary(node.url).protocol, name: node.name, group: node.group, note: node.note, enabled: node.enabled, createdAt: node.createdAt, updatedAt: node.updatedAt };
 }
 
-async function readKvNodes(env) {
-  if (!env?.SUBSCRIPTIONS) return { nodes: [], kvBound: false };
-  const structured = await env.SUBSCRIPTIONS.get(STRUCTURED_KEY);
-  if (structured !== null) {
-    let parsed;
-    try { parsed = JSON.parse(structured); } catch { throw new Error(`KV 中的 ${STRUCTURED_KEY} 不是有效 JSON`); }
-    if (!Array.isArray(parsed)) throw new Error(`KV 中的 ${STRUCTURED_KEY} 必须是数组`);
-    return { nodes: parsed.map(normalizeStoredNode).filter(Boolean), kvBound: true };
-  }
-  const legacy = await env.SUBSCRIPTIONS.get(SUBSCRIPTIONS_KEY);
-  let links = [];
-  if (legacy !== null) {
-    try { links = JSON.parse(legacy); } catch { throw new Error('KV 中的订阅数据不是有效 JSON，请检查 subscription_links'); }
-    if (!Array.isArray(links) || links.some(link => typeof link !== 'string')) throw new Error('KV 中的订阅数据格式错误，应为节点链接数组');
-  }
-  const nodes = normalizeSubscriptionLines(links.join('\n')).filter(link => SUPPORTED_LINK_PATTERN.test(link)).map(makeNode);
-  await backupNodes(env, nodes);
-  return { nodes, kvBound: true };
-}
-
-async function backupNodes(env, nodes) {
-  if (!env?.SUBSCRIPTIONS) return false;
-  const positioned = nodes.map((node, position) => ({ ...node, position }));
-  await env.SUBSCRIPTIONS.put(STRUCTURED_KEY, JSON.stringify(positioned));
-  await env.SUBSCRIPTIONS.put(SUBSCRIPTIONS_KEY, JSON.stringify(positioned.map(node => urlWithNodeName(node.url, node.name))));
-  return true;
-}
-
 async function initializeD1(env) {
   const db = env?.SUBSCRIPTIONS_DB;
   if (!db) return null;
@@ -246,13 +220,7 @@ async function initializeD1(env) {
       await db.exec(`CREATE TABLE IF NOT EXISTS nodes (id TEXT PRIMARY KEY, url TEXT NOT NULL UNIQUE, name TEXT NOT NULL DEFAULT '', position INTEGER NOT NULL, group_name TEXT NOT NULL DEFAULT '', note TEXT NOT NULL DEFAULT '', enabled INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, updated_at TEXT NOT NULL); CREATE INDEX IF NOT EXISTS idx_nodes_position ON nodes(position); CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);`);
       const columns = await db.prepare('PRAGMA table_info(nodes)').all();
       if (!(columns.results || []).some(column => column.name === 'name')) await db.exec("ALTER TABLE nodes ADD COLUMN name TEXT NOT NULL DEFAULT ''");
-      const marker = await db.prepare('SELECT value FROM app_meta WHERE key = ?').bind(MIGRATION_KEY).first();
-      if (!marker) {
-        const kv = await readKvNodes(env);
-        const statements = kv.nodes.map(node => db.prepare('INSERT OR IGNORE INTO nodes (id,url,name,position,group_name,note,enabled,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)').bind(node.id, node.url, node.name, node.position, node.group, node.note, node.enabled ? 1 : 0, node.createdAt, node.updatedAt));
-        statements.push(db.prepare('INSERT OR REPLACE INTO app_meta (key,value) VALUES (?,?)').bind(MIGRATION_KEY, new Date().toISOString()));
-        await db.batch(statements);
-      }
+      await db.prepare('INSERT OR IGNORE INTO app_meta (key,value) VALUES (?,?)').bind('nodes_revision', 'initial').run();
       return db;
     })();
     d1Initialization.set(db, initialize);
@@ -266,35 +234,44 @@ function nodeFromD1(row) {
 }
 
 async function loadNodes(env) {
-  if (env?.SUBSCRIPTIONS_DB) {
-    try {
-      const db = await initializeD1(env);
-      const result = await db.prepare('SELECT * FROM nodes ORDER BY position ASC, created_at ASC').all();
-      return { nodes: (result.results || []).map(nodeFromD1).filter(Boolean), source: 'd1', storage: 'd1', kvBound: !!env.SUBSCRIPTIONS, d1Bound: true, writable: true };
-    } catch (d1Error) {
-      const kv = await readKvNodes(env);
-      return { ...kv, source: kv.kvBound ? 'kv' : 'unbound', storage: kv.kvBound ? 'kv' : 'unbound', d1Bound: true, writable: false, d1Error };
-    }
+  if (!env?.SUBSCRIPTIONS_DB) throw Object.assign(new Error('尚未绑定 SUBSCRIPTIONS_DB'), { status: 503 });
+  try {
+    const db = await initializeD1(env);
+    const revision = await db.prepare('SELECT value FROM app_meta WHERE key = ?').bind('nodes_revision').first();
+    const result = await db.prepare('SELECT * FROM nodes ORDER BY position ASC, created_at ASC').all();
+    return { nodes: (result.results || []).map(nodeFromD1).filter(Boolean), revision: revision.value, source: 'd1', storage: 'd1', writable: true };
+  } catch {
+    throw Object.assign(new Error('D1 当前不可用，请稍后重试'), { status: 503 });
   }
-  const kv = await readKvNodes(env);
-  return { ...kv, source: kv.kvBound ? 'kv' : 'unbound', storage: kv.kvBound ? 'kv' : 'unbound', d1Bound: false, writable: kv.kvBound };
 }
 
 async function saveNodes(env, state, nodes) {
   const positioned = nodes.map((node, position) => ({ ...node, position }));
-  if (state.d1Bound) {
-    if (state.source !== 'd1' || !state.writable) throw new Error('D1 当前不可写，为避免数据分叉已拒绝管理操作');
+  if (env?.SUBSCRIPTIONS_DB) {
     const db = env.SUBSCRIPTIONS_DB;
-    const statements = [db.prepare('DELETE FROM nodes')];
-    for (const node of positioned) statements.push(db.prepare('INSERT INTO nodes (id,url,name,position,group_name,note,enabled,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)').bind(node.id, node.url, node.name, node.position, node.group, node.note, node.enabled ? 1 : 0, node.createdAt, node.updatedAt));
-    await db.batch(statements);
-    let backupUpdated = false;
-    try { backupUpdated = await backupNodes(env, positioned); } catch { backupUpdated = false; }
-    return { nodes: positioned, backupUpdated };
+    const revision = newNodeId();
+    const guard = 'EXISTS (SELECT 1 FROM app_meta WHERE key = ? AND value = ?)';
+    const statements = [db.prepare('UPDATE app_meta SET value = ? WHERE key = ? AND value = ?').bind(revision, 'nodes_revision', state.revision)];
+    const before = new Map(state.nodes.map(node => [node.id, node]));
+    const after = new Set(positioned.map(node => node.id));
+    for (const node of state.nodes) {
+      if (!after.has(node.id)) statements.push(db.prepare(`DELETE FROM nodes WHERE id = ? AND ${guard}`).bind(node.id, 'nodes_revision', revision));
+    }
+    for (const node of positioned) {
+      const fields = [node.url, node.name, node.position, node.group, node.note, node.enabled ? 1 : 0, node.updatedAt];
+      if (!before.has(node.id)) {
+        statements.push(db.prepare(`INSERT INTO nodes (id,url,name,position,group_name,note,enabled,created_at,updated_at) SELECT ?,?,?,?,?,?,?,?,? WHERE ${guard}`).bind(node.id, node.url, node.name, node.position, node.group, node.note, node.enabled ? 1 : 0, node.createdAt, node.updatedAt, 'nodes_revision', revision));
+      } else if (JSON.stringify(before.get(node.id)) !== JSON.stringify(node)) {
+        statements.push(db.prepare(`UPDATE nodes SET url=?,name=?,position=?,group_name=?,note=?,enabled=?,updated_at=? WHERE id=? AND ${guard}`).bind(...fields, node.id, 'nodes_revision', revision));
+      }
+    }
+    // D1 batch executes the revision check and all guarded mutations in one transaction.
+    let results;
+    try { results = await db.batch(statements); } catch { throw Object.assign(new Error('D1 当前不可用，请稍后重试'), { status: 503 }); }
+    if (results[0]?.meta?.changes !== 1) throw Object.assign(new Error('节点已被其他请求修改，请刷新后重试'), { status: 409 });
+    return { nodes: positioned, revision };
   }
-  if (!state.kvBound) throw new Error('尚未绑定 Cloudflare KV：请以 SUBSCRIPTIONS 绑定后再保存');
-  await backupNodes(env, positioned);
-  return { nodes: positioned, backupUpdated: true };
+  throw Object.assign(new Error('尚未绑定 SUBSCRIPTIONS_DB'), { status: 503 });
 }
 
 function configWithNodes(config, state) {
@@ -302,7 +279,7 @@ function configWithNodes(config, state) {
 }
 
 function managementState(state) {
-  return { items: state.nodes.map(publicNode), kvBound: state.kvBound, d1Bound: state.d1Bound, writable: state.writable, source: state.source };
+  return { items: state.nodes.map(publicNode), revision: state.revision, writable: state.writable, source: state.source };
 }
 
 function jsonResponse(data, status = 200) {
@@ -312,13 +289,15 @@ function jsonResponse(data, status = 200) {
 async function handleSubscriptionManagement(request, env, config, session) {
   if (!session) return jsonResponse({ error: '请先登录后再管理订阅' }, 401);
   let current;
-  try { current = await loadNodes(env); } catch (error) { return jsonResponse({ error: error.message }, 500); }
+  try { current = await loadNodes(env); } catch (error) { return jsonResponse({ error: error.message }, error.status || 500); }
   if (request.method === 'GET') return jsonResponse(managementState(current));
   if (!['POST', 'PATCH', 'PUT', 'DELETE'].includes(request.method)) return jsonResponse({ error: '不支持的请求方法' }, 405);
-  if (!current.writable) return jsonResponse({ error: current.d1Bound ? 'D1 当前不可写，为避免数据分叉已拒绝管理操作' : '尚未绑定 Cloudflare KV：请以 SUBSCRIPTIONS 绑定后再保存' }, 503);
+
   let payload;
   try { payload = await request.json(); } catch { return jsonResponse({ error: '请求内容必须是有效 JSON' }, 400); }
 
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return jsonResponse({ error: '请求内容必须是 JSON 对象' }, 400);
+  if (payload.revision !== undefined && payload.revision !== current.revision) return jsonResponse({ error: '节点已被其他请求修改，请刷新后重试' }, 409);
   let nodes = [...current.nodes];
   let result = {};
   if (request.method === 'POST') {
@@ -327,7 +306,8 @@ async function handleSubscriptionManagement(request, env, config, session) {
     if (links.length !== 1) return jsonResponse({ error: '每次请添加一个节点链接，并填写对应的名称和分组' }, 400);
     let name;
     try { name = normalizeName(payload?.name); } catch (error) { return jsonResponse({ error: error.message }, 400); }
-    const group = String(payload?.group || '').trim();
+    if (typeof payload.group !== 'string') return jsonResponse({ error: '分组必须是字符串' }, 400);
+    const group = payload.group.trim();
     if (!group) return jsonResponse({ error: '分组不能为空' }, 400);
     if (group.length > MAX_GROUP_LENGTH) return jsonResponse({ error: `分组不能超过 ${MAX_GROUP_LENGTH} 个字符` }, 400);
     if (nodes.some(node => node.url === links[0])) return jsonResponse({ error: '该节点链接已存在' }, 409);
@@ -354,6 +334,7 @@ async function handleSubscriptionManagement(request, env, config, session) {
           url = replacement[0];
           if (nodes.some((node, nodeIndex) => nodeIndex !== index && node.url === url)) return jsonResponse({ error: '该节点链接已存在' }, 409);
         }
+        validateNodeLink(url);
         nodes[index] = { ...nodes[index], ...metadata, url, updatedAt: new Date().toISOString() };
         result.updated = 1;
       } catch (error) { return jsonResponse({ error: error.message }, 400); }
@@ -361,8 +342,8 @@ async function handleSubscriptionManagement(request, env, config, session) {
   }
   try {
     const saved = await saveNodes(env, current, nodes);
-    return jsonResponse({ items: saved.nodes.map(publicNode), source: current.source, backupUpdated: saved.backupUpdated, ...result });
-  } catch (error) { return jsonResponse({ error: error.message || '保存节点失败' }, 500); }
+    return jsonResponse({ items: saved.nodes.map(publicNode), source: current.source, revision: saved.revision, ...result });
+  } catch (error) { return jsonResponse({ error: error.status === 409 ? error.message : '保存节点失败，请刷新后重试' }, error.status || 500); }
 }
 
 function getSubscriptionKind(params, request) {
@@ -396,6 +377,7 @@ function renderSubscription(kind, config) {
 }
 
 async function handleLogin(request, config) {
+  try { validateAdminConfig(config); } catch { return jsonResponse({ error: '管理员配置不完整或无效' }, 503); }
   if (request.method !== 'POST') return new Response(renderLoginPage(config), { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
   const form = await request.formData();
   if (String(form.get('username') || '') !== config.adminUser || String(form.get('password') || '') !== config.adminPass) return new Response(renderLoginPage(config, '用户名或密码错误'), { status: 401, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
@@ -422,23 +404,27 @@ async function handleRequest(request, env) {
   if (path === '/api/health') {
     let component = 'session-crypto';
     try {
-      await signSessionPayload('health-check', config.sessionSecret);
+      component = 'admin-config'; validateAdminConfig(config);
+      component = 'session-crypto'; await signSessionPayload('health-check', config.sessionSecret);
       component = 'subscription-storage'; const state = await loadNodes(env);
       component = 'proxy-parser'; const active = configWithNodes(config, state); const { proxies } = parseProxies(active);
       component = 'dashboard-renderer'; renderDashboard(active, proxies, baseUrl, managementState(state));
       return jsonResponse({ ok: true, storage: state.storage, subscriptionSource: state.source, formats: ['auto', 'clash', 'loon', 'base64'], loonSyntax: 'nsloon', subscriptionManagement: ['add', 'reorder', 'delete', 'edit', 'toggle'], capabilities: ['names', 'grouping', 'link-edit', 'notes', 'search', 'toggle'] });
     } catch { return jsonResponse({ ok: false, component }, 503); }
   }
-  if (path === '/api/manage/subscriptions') return handleSubscriptionManagement(request, env, config, await getValidSession(request, config));
+  if (path === '/api/manage/subscriptions') {
+    try { validateAdminConfig(config); } catch { return jsonResponse({ error: '管理员配置不完整或无效' }, 503); }
+    return handleSubscriptionManagement(request, env, config, await getValidSession(request, config));
+  }
   if (path === '/api/sub') {
     if (!config.token || url.searchParams.get('token') !== config.token) return new Response('Not Found', { status: 404 });
     try {
       const state = await loadNodes(env);
-      if (state.source === 'unbound') return new Response('SUBSCRIPTIONS KV is not bound and D1 is unavailable', { status: 503, headers: noStoreHeaders({ 'Content-Type': 'text/plain; charset=utf-8' }) });
+
       const response = renderSubscription(getSubscriptionKind(url.searchParams, request), configWithNodes(config, state));
       if ((url.searchParams.get('type') || '').toLowerCase() === 'auto') response.headers.set('Vary', 'User-Agent');
       return response;
-    } catch (error) { return new Response(error.message, { status: 500, headers: noStoreHeaders({ 'Content-Type': 'text/plain; charset=utf-8' }) }); }
+    } catch (error) { return new Response(error.message, { status: error.status || 500, headers: noStoreHeaders({ 'Content-Type': 'text/plain; charset=utf-8' }) }); }
   }
   if (path === '/login') return handleLogin(request, config);
   if (path === '/logout') return new Response(null, { status: 303, headers: buildClearSessionHeaders(url) });
@@ -448,7 +434,7 @@ async function handleRequest(request, env) {
     try {
       const state = await loadNodes(env); const active = configWithNodes(config, state); const { proxies } = parseProxies(active);
       return new Response(renderDashboard(active, proxies, baseUrl, managementState(state)), { headers: noStoreHeaders({ 'Content-Type': 'text/html; charset=utf-8' }) });
-    } catch (error) { return new Response(error.message, { status: 500, headers: noStoreHeaders({ 'Content-Type': 'text/plain; charset=utf-8' }) }); }
+    } catch (error) { return new Response(error.message, { status: error.status || 500, headers: noStoreHeaders({ 'Content-Type': 'text/plain; charset=utf-8' }) }); }
   }
   return new Response('Not Found', { status: 404 });
 }

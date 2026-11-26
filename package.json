@@ -1,6 +1,14 @@
 {
   "type": "module",
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "check:config": "node check-config.mjs"
+  },
+  "devDependencies": {
+    "jsqr": "1.4.0",
+    "omggif": "1.0.10"
+  },
+  "engines": {
+    "node": ">=22.13.0"
   }
 }
