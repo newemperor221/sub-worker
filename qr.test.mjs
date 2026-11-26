@@ -5,7 +5,7 @@ import jsQR from 'jsqr';
 import { GifReader } from 'omggif';
 import { renderDashboard } from './dashboard.js';
 
-function boot(token) {
+function boot(token, extraGlobals = {}) {
   const html = renderDashboard({ token, subName: 'test' }, [], 'https://example.test');
   assert.doesNotMatch(html, /qrserver|<script[^>]+src=/);
   const elements = new Map();
@@ -15,6 +15,7 @@ function boot(token) {
   };
   const buttons = ['auto','clash','loon','base64'].map(key => ({ dataset: { qr: key }, addEventListener(event, fn) { this.click = fn; } }));
   const context = {
+    ...extraGlobals,
     document: { getElementById: el, querySelector: el, querySelectorAll: selector => selector === '[data-qr]' ? buttons : [] },
     fetch() { throw new Error('network is forbidden'); }, navigator: {}, setTimeout() {},
   };
@@ -41,4 +42,11 @@ test('QR capacity errors show an error without setting any remote image URL', ()
   buttons[0].click();
   assert.equal(el('qrImg').src,undefined);
   assert.equal(el('managerMessage').textContent,'二维码生成失败，请复制订阅链接');
+});
+
+test('browser named element exports does not trigger CommonJS loading', () => {
+  // id="exports" is exposed as window.exports in real browsers.
+  const {el,buttons} = boot('test-token', { exports: { id: 'exports' } });
+  buttons[0].click();
+  assert.match(el('qrImg').src, /^data:image\/gif;base64,/);
 });
